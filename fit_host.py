@@ -1,14 +1,16 @@
 import os
 
-from matplotlib.pyplot import *
+import matplotlib.pyplot as plt
+import numpy as np
 from prospect.fitting import fit_model
 from prospect.fitting import lnprobfn
 from prospect.likelihood import lnlike_spec, lnlike_phot
 from prospect.models.templates import TemplateLibrary
+import prospect.io.read_results as reader
 
 # re-defining plotting defaults
 
-rcParams.update({'font.size': 16})
+plt.rcParams.update({'font.size': 16})
 
 
 def build_obs(path, tde, **extras):
@@ -87,7 +89,8 @@ def build_obs(path, tde, **extras):
 
     return obs
 
-def build_model(object_redshift=None, fixed_metallicity=None, add_duste=False, **extras):
+
+def build_model(object_redshift=None, init_theta=None, **extras):
     """Build a prospect.models.SedModel object
 
     :param object_redshift: (optional, default: None)
@@ -120,17 +123,16 @@ def build_model(object_redshift=None, fixed_metallicity=None, add_duste=False, *
     # In `build_obs` above we used a distance of 10Mpc to convert from absolute to apparent magnitudes,
     # so we use that here too, since the `maggies` are appropriate for that distance.
     model_params["sfh"]["init"] = 1
-    #ldist = cosmo.luminosity_distance(object_redshift).value
+    # ldist = cosmo.luminosity_distance(object_redshift).value
 
-    #model_params["lumdist"] = {"N": 1, "isfree": False, "init": ldist, "units": "Mpc"}
+    # model_params["lumdist"] = {"N": 1, "isfree": False, "init": ldist, "units": "Mpc"}
 
     # Let's make some changes to initial values appropriate for our objects and data
-    model_params["dust2"]["init"] = 0.05
-    model_params["tau"]["init"] = 5
-    model_params["mass"]["init"] = 1e10
-    model_params["logzsol"]["init"] = 0
-    model_params["tage"]["init"] = 10
-
+    model_params["dust2"]["init"] = init_theta[2]
+    model_params["tau"]["init"] = init_theta[4]
+    model_params["mass"]["init"] = init_theta[0]
+    model_params["logzsol"]["init"] = init_theta[1]
+    model_params["tage"]["init"] = init_theta[3]
 
     # These are dwarf galaxies, so lets also adjust the metallicity prior,
     # the tau parameter upward, and the mass prior downward
@@ -138,7 +140,7 @@ def build_model(object_redshift=None, fixed_metallicity=None, add_duste=False, *
     model_params["tau"]["prior"] = priors.TopHat(mini=0.1, maxi=30)
     model_params["mass"]["prior"] = priors.LogUniform(mini=1e6, maxi=1e12)
     model_params["logzsol"]["prior"] = priors.TopHat(mini=-1.8, maxi=0.2)
-    model_params["tage"]["prior"] = priors.TopHat(mini=8, maxi=10.5)
+    model_params["tage"]["prior"] = priors.TopHat(mini=8, maxi=13.3)
 
     # If we are going to be using emcee, it is useful to provide a
     # minimum scale for the cloud of walkers (the default is 0.1)
@@ -156,6 +158,7 @@ def build_model(object_redshift=None, fixed_metallicity=None, add_duste=False, *
 
     return model
 
+
 def build_sps(zcontinuous=1, **extras):
     """
     :param zcontinuous:
@@ -167,64 +170,12 @@ def build_sps(zcontinuous=1, **extras):
     sps = CSPSpecBasis(zcontinuous=zcontinuous)
     return sps
 
-def plot_init_model(model, obs, sps, theta):
-    initial_spec, initial_phot, initial_mfrac = model.sed(theta, obs=obs, sps=sps)
-    title_text = ','.join(["{}={}".format(p, model.params[p][0])
-                           for p in model.free_params])
 
-    a = 1.0 + model.params.get('zred', 0.0)  # cosmological redshifting
-    # photometric effective wavelengths
-    wphot = obs["phot_wave"]
-    # spectroscopic wavelengths
-    if obs["wavelength"] is None:
-        # *restframe* spectral wavelengths, since obs["wavelength"] is None
-        wspec = sps.wavelengths
-        wspec *= a  # redshift them
-    else:
-        wspec = obs["wavelength"]
-
-    # establish bounds
-    xmin, xmax = np.min(wphot) * 0.8, np.max(wphot) / 0.8
-    temp = np.interp(np.linspace(xmin, xmax, 10000), wspec, initial_spec)
-    ymin, ymax = temp.min() * 0.8, temp.max() / 0.4
-    figure(figsize=(16, 8))
-
-    # plot model + data
-    loglog(wspec, initial_spec, label='Model spectrum',
-           lw=0.7, color='navy', alpha=0.7)
-    errorbar(wphot, initial_phot, label='Model photometry',
-             marker='s', markersize=10, alpha=0.8, ls='', lw=3,
-             markerfacecolor='none', markeredgecolor='blue',
-             markeredgewidth=3)
-    errorbar(wphot, obs['maggies'], yerr=obs['maggies_unc'],
-             label='Observed photometry',
-             marker='o', markersize=10, alpha=0.8, ls='', lw=3,
-             ecolor='red', markerfacecolor='none', markeredgecolor='red',
-             markeredgewidth=3)
-    title(title_text)
-
-    # plot Filters
-    for f in obs['filters']:
-        w, t = f.wavelength.copy(), f.transmission.copy()
-        t = t / t.max()
-        t = 10 ** (0.2 * (np.log10(ymax / ymin))) * t * ymin
-        loglog(w, t, lw=3, color='gray', alpha=0.7)
-
-    # prettify
-    xlabel('Wavelength [A]')
-    ylabel('Flux Density [maggies]')
-    xlim([xmin, xmax])
-    ylim([ymin, ymax])
-    legend(loc='best', fontsize=20)
-    tight_layout()
-    show()
-
-def plot_resulting_fit(model, obs, sps, theta, theta_max, tde_name, path):
-    initial_spec, initial_phot, initial_mfrac = model.sed(theta, obs=obs, sps=sps)
-    mspec, mphot, mextra = model.mean_model(theta, obs, sps=sps)
+def plot_resulting_fit(model, obs, sps, theta_max, tde_name, path):
     mspec_map, mphot_map, _ = model.mean_model(theta_max, obs, sps=sps)
     wphot = obs["phot_wave"]
     # spectroscopic wavelengths
+
     a = 1.0 + model.params.get('zred', 0.0)  # cosmological redshifting
     if obs["wavelength"] is None:
         # *restframe* spectral wavelengths, since obs["wavelength"] is None
@@ -235,93 +186,161 @@ def plot_resulting_fit(model, obs, sps, theta, theta_max, tde_name, path):
 
     xmin, xmax = np.min(wphot) * 0.8, np.max(wphot) / 0.8
     temp = np.interp(np.linspace(xmin, xmax, 10000), wspec, mspec_map)
-    ymin, ymax = temp.min() * 0.8, temp.max() / 0.4
-    figure(figsize=(16, 8))
+    ymin, ymax = temp.min() * 0.5, temp.max() / 0.3
+    fig = plt.figure(figsize=(16, 8))
 
     mask = obs["phot_mask"]
 
-    loglog(wspec, mspec, label='Model spectrum (random draw)',
-          lw=0.7, color='navy', alpha=0.7)
-    loglog(wspec, mspec_map, label='Model spectrum (MAP)',
-           lw=0.7, color='green', alpha=0.7)
+    # loglog(wspec, mspec, label='Model spectrum (random draw)',
+    # lw=0.7, color='navy', alpha=0.7)
+    plt.loglog(wspec, mspec_map, label='Model spectrum (MAP)',
+               lw=0.7, color='green', alpha=0.7)
     # loglog(wspec, initial_spec, label='Model spectrum (init)',
     #       lw=0.7, color='black', alpha=0.7)
 
-    errorbar(wphot[mask], mphot[mask], label='Model photometry (random draw)',
-         marker='s', markersize=10, alpha=0.8, ls='', lw=3,
-         markerfacecolor='none', markeredgecolor='blue',
-         markeredgewidth=3)
-    errorbar(wphot[mask], mphot_map[mask], label='Model photometry (MAP)',
-             marker='s', markersize=10, alpha=0.8, ls='', lw=3,
-             markerfacecolor='none', markeredgecolor='green',
-             markeredgewidth=3)
-    errorbar(wphot[mask], obs['maggies'][mask], yerr=obs['maggies_unc'][mask],
-             label='Observed photometry', ecolor='red',
-             marker='o', markersize=10, ls='', lw=3, alpha=0.8,
-             markerfacecolor='none', markeredgecolor='red',
-             markeredgewidth=3)
+    # errorbar(wphot[mask], mphot[mask], label='Model photometry (random draw)',
+    #     marker='s', markersize=10, alpha=0.8, ls='', lw=3,
+    #     markerfacecolor='none', markeredgecolor='blue',
+    #     markeredgewidth=3)
+    plt.errorbar(wphot[mask], mphot_map[mask], label='Model photometry (MAP)',
+                 marker='s', markersize=10, alpha=0.8, ls='', lw=3,
+                 markerfacecolor='none', markeredgecolor='green',
+                 markeredgewidth=3)
+    plt.errorbar(wphot[mask], obs['maggies'][mask], yerr=obs['maggies_unc'][mask],
+                 label='Observed photometry', ecolor='red',
+                 marker='o', markersize=10, ls='', lw=3, alpha=0.8,
+                 markerfacecolor='none', markeredgecolor='red',
+                 markeredgewidth=3)
     # errorbar(wphot[mask], initial_phot[mask], label='Model photometry (init)',
     #         marker='s', markersize=10, alpha=0.8, ls='', lw=3,
     #         markerfacecolor='none', markeredgecolor='grey',
     #         markeredgewidth=3)
 
-    xlabel('Wavelength [A]')
-    ylabel('Flux Density [maggies]')
-    xlim([xmin, xmax])
-    ylim([ymin, ymax])
-    legend(loc='best', fontsize=20)
-    tight_layout()
+    plt.xlabel('Wavelength [A]')
+    plt.ylabel('Flux Density [maggies]')
+    plt.xlim([xmin, xmax])
+    plt.ylim([ymin, ymax])
+    plt.legend(loc='best', fontsize=20)
+    plt.tight_layout()
+
+    return fig
+
+
+def corner_plot(result, tde_name, path):
+    imax = np.argmax(result['lnprobability'])
+
+    i, j = np.unravel_index(imax, result['lnprobability'].shape)
+    theta_max = result['chain'][i, j, :].copy()
+
     try:
-        os.mkdir(os.path.join(path, tde_name, 'plots'))
-    except:
-        pass
-    savefig(os.path.join(path, tde_name, 'plots', tde_name + '_fit_host_sed.png'), dpi=300)
-    show()
+        parnames = np.array(result['theta_labels'], dtype='U20')
+    except(KeyError):
+        parnames = np.array(result['model'].theta_labels())
+    ind_show = slice(None)
+    thin = 5
+    chains = slice(None)
+    start = 0
+    # Get the arrays we need (trace, wghts)
+    trace = result['chain'][..., ind_show]
+    if trace.ndim == 2:
+        trace = trace[None, :]
+    trace = trace[chains, start::thin, :]
+    wghts = result.get('weights', None)
+    if wghts is not None:
+        wghts = wghts[start::thin]
+    samples = trace.reshape(trace.shape[0] * trace.shape[1], trace.shape[2])
+    logify = ["mass"]
+    # logify some parameters
+    xx = samples.copy()
+    for p in logify:
+        if p in parnames:
+            idx = parnames.tolist().index(p)
+            xx[:, idx] = np.log10(xx[:, idx])
+            parnames[idx] = "log({})".format(parnames[idx])
+    bounds = []
+    data = np.zeros(np.shape(xx))
+    for i, x in enumerate(xx):
+        a, b, c, d, e = x
+        data[i, :] = a, b, c, d, e
+
+    for i in range(np.shape(xx)[1]):
+        sig1 = theta_max[i] - np.percentile((data[:, i]), 16)
+        sig2 = np.percentile((data[:, i]), 84) - theta_max[i]
+        mean_dist = np.mean([sig1, sig2])
+        if i == 0:
+            bounds.append((np.log10(theta_max[i]) - 4 * mean_dist, np.log10(theta_max[i]) + 4 * mean_dist))
+        else:
+            bounds.append((theta_max[i] - 4 * mean_dist, theta_max[i] + 4 * mean_dist))
+
+    cornerfig = reader.subcorner(result, thin=5,
+                                 fig=plt.subplots(5, 5, figsize=(27, 27))[0], logify=["mass"], range=bounds)
+
+    return cornerfig
 
 
-
-def run_prospector(tde_name, path, z, init_theta=None, add_duste=False):
-    # TemplateLibrary.show_contents()
-    #TemplateLibrary.describe("parametric_sfh")
-
+def configure(tde_name, path, z, init_theta):
     run_params = {}
     run_params["object_redshift"] = z
-    run_params["fixed_metallicity"] = None
-    run_params["add_duste"] = add_duste
+    run_params["fixed_metallicity"] = False
+    run_params["add_duste"] = False
     run_params["verbose"] = True
 
     # Instantiating observation object and sps
     obs = build_obs(path, tde_name, **run_params)
     sps = build_sps(**run_params)
-    # print(sps.ssp.libraries)
 
     # Instantiating model object
-    model = build_model(**run_params)
+    model = build_model(object_redshift=z, init_theta=init_theta)
+
+    # Generate the model SED at the initial value of theta
+    run_params["optimize"] = False
+    run_params["emcee"] = True
+    run_params["dynesty"] = False
+    run_params["nwalkers"] = 100
+    run_params["niter"] = 1000
+    run_params["nburn"] = [500]
+
+    return obs, sps, model, run_params
+
+
+def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
+    if init_theta is None:
+        init_theta = [1e10, 0, 0.05, 1, 5]
+
+    obs, sps, model, run_params = configure(tde_name, path, z, init_theta)
     print(model)
     print("\nInitial free parameter vector theta:\n  {}\n".format(model.theta))
 
-    # Generate the model SED at the initial value of theta
-    theta = model.theta.copy()
+    if withmpi & ('logzsol' in model.free_params):
+        dummy_obs = dict(filters=None, wavelength=None)
 
-    # Plotting initial model
-    # plot_init_model(model, obs, sps, theta)
+        logzsol_prior = model.config_dict["logzsol"]['prior']
+        lo, hi = logzsol_prior.range
+        logzsol_grid = np.around(np.arange(lo, hi, step=0.1), decimals=2)
+        sps.update(**model.params)  # make sure we are caching the correct IMF / SFH / etc
+        for logzsol in logzsol_grid:
+            print(logzsol)
+            model.params["logzsol"] = np.array([logzsol])
+            _ = model.predict(model.theta, obs=dummy_obs, sps=sps)
 
-    # Optmizing first and then sampling with mcmc
-    run_params["optimize"] = True
-    run_params["emcee"] = True
-    run_params["dynesty"] = False
-    # Number of emcee walkers
-    run_params["nwalkers"] = 128
-    # Number of iterations of the MCMC sampling
-    run_params["niter"] = 512
-    # Number of iterations in each round of burn-in
-    # After each round, the walkers are reinitialized based on the
-    # locations of the highest probablity half of the walkers.
-    run_params["nburn"] = [16, 32, 64]
-    run_params["min_method"] = 'lm'
-    run_params["nmin"] = 2
+    from functools import partial
+    lnprobfn_fixed = partial(lnprobfn, sps=sps)
 
-    output = fit_model(obs, model, sps, lnprobfn=lnprobfn, **run_params)
+    if withmpi:
+        from multiprocessing import Pool
+        from multiprocessing import cpu_count
+
+        with Pool() as pool:
+
+            # The subprocesses will run up to this point in the code
+            nprocs = n_cores
+
+            output = fit_model(obs, model, sps, pool=pool, queue_size=nprocs, lnprobfn=lnprobfn_fixed,
+                               **run_params)
+    else:
+        output = fit_model(obs, model, sps, lnprobfn=lnprobfn_fixed, **run_params)
+
+    # output = fit_model(obs, model, sps, lnprobfn=lnprobfn, **run_params)
     print('done emcee in {0}s'.format(output["sampling"][1]))
 
     from prospect.io import write_results as writer
@@ -330,7 +349,7 @@ def run_prospector(tde_name, path, z, init_theta=None, add_duste=False):
     if os.path.exists("demo_emcee_mcmc.h5"):
         os.system('rm demo_emcee_mcmc.h5')
 
-    hfile = "demo_emcee_mcmc.h5"
+    hfile = "prospector_result.h5"
     writer.write_hdf5(hfile, run_params, model, obs,
                       output["sampling"][0], output["optimization"][0],
                       tsample=output["sampling"][1],
@@ -338,51 +357,20 @@ def run_prospector(tde_name, path, z, init_theta=None, add_duste=False):
 
     print('Finished')
 
-    import prospect.io.read_results as reader
-    results_type = "emcee" # | "dynesty"
-    # grab results (dictionary), the obs dictionary, and our corresponding models
-    # When using parameter files set `dangerous=True`
-    result, obs, _ = reader.results_from("demo_{}_mcmc.h5".format(results_type), dangerous=False)
-    (results, topt) = output["optimization"]
-    # Find which of the minimizations gave the best result,
-    # and use the parameter vector for that minimization
-    ind_best = np.argmin([r.cost for r in results])
-
-    theta_best = results[ind_best].x.copy()
-    #The following commented lines reconstruct the model and sps object,
-    # if a parameter file continaing the `build_*` methods was saved along with the results
-    #model = reader.get_model(result)
-    #sps = reader.get_sps(result)
-
-    # let's look at what's stored in the `result` dictionary
-    print(result.keys())
-
-    # maximum a posteriori (of the locations visited by the MCMC sampler)
+    result, obs, _ = reader.results_from("prospector_result.h5", dangerous=False)
     imax = np.argmax(result['lnprobability'])
-    if results_type == "emcee":
-        i, j = np.unravel_index(imax, result['lnprobability'].shape)
-        theta_max = result['chain'][i, j, :].copy()
-        thin = 5
-    else:
-        theta_max = result["chain"][imax, :]
-        thin = 1
 
-    # randomly chosen parameters from chain
-    randint = np.random.randint
-    if results_type == "emcee":
-        nwalkers, niter = run_params['nwalkers'], run_params['niter']
-        theta = result['chain'][randint(nwalkers), randint(niter)]
-    else:
-        theta = result["chain"][randint(len(result["chain"]))]
-
-    plot_resulting_fit(model, obs, sps, theta, theta_max, tde_name, path)
-
-    print('Optimization value: {}'.format(theta_best))
+    i, j = np.unravel_index(imax, result['lnprobability'].shape)
+    theta_max = result['chain'][i, j, :].copy()
     print('MAP value: {}'.format(theta_max))
-    cornerfig = reader.subcorner(result, start=0, thin=thin, truths=theta_best,
-                                 fig=subplots(5, 5, figsize=(27, 27))[0])
-
-    cornerfig.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_fit_host_cornerplot.png'), dpi=300)
-    show()
+    fit_plot = plot_resulting_fit(model, obs, sps, theta_max, tde_name, path)
+    try:
+        os.mkdir(os.path.join(path, tde_name, 'plots'))
+    except:
+        pass
+    fit_plot.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_host_fit.png'), dpi=300)
+    plt.show()
+    cornerfig = corner_plot(result, tde_name, path)
+    cornerfig.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_cornerplot.png'), dpi=300)
+    plt.show()
     os.chdir(path)
-

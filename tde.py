@@ -25,7 +25,7 @@ from astroquery.vizier import Vizier
 from astroquery.simbad import Simbad
 import astropy.units as units
 import gPhoton.gAperture as gaperture
-from fit_host import run_prospector
+from fit_host import *
 warnings.simplefilter('ignore', category=AstropyWarning)
 
 
@@ -68,7 +68,7 @@ class TDE:
         """
         This function download all Swift/UVOT observations on the TDE, as well as ZTF data if available:
 
-        -Finds the position of the event (Ra, Dec) based on IAU Transient Name Server (TNS)
+        -Finds the position of the event (Ra, Dec) based on IAU's Transient Name Server (TNS)
         -Finds and download all Swift observation to 'path'
         -Search for ZTF observations and download it to 'path'
         -finds Galactic extinction in the LoS, E(B-V)
@@ -621,12 +621,30 @@ class TDE:
             plt.show()
         os.chdir(self.work_dir)
 
-    def fit_host_sed(self):
+    def fit_host_sed(self, withmpi=True, n_cores=2, init_theta=None,):
 
         if np.isfinite(float(self.z)):
-            run_prospector(self.name, self.work_dir, self.z)
+            run_prospector(self.name, self.work_dir, self.z, init_theta=None, withmpi=True)
         else:
             raise Exception('You need to define a redshift (z) for the source before fitting the host SED')
+
+    def plot_host_sed_fit(self):
+        init_theta = [1e10, 0, 0.05, 1, 5]
+
+        obs, sps, model, run_params = configure(self.name, self.work_dir, self.z, init_theta)
+        os.chdir(self.host_dir)
+
+        result, obs, _ = reader.results_from("prospector_result.h5", dangerous=False)
+        imax = np.argmax(result['lnprobability'])
+
+        i, j = np.unravel_index(imax, result['lnprobability'].shape)
+        theta_max = result['chain'][i, j, :].copy()
+        print('MAP value: {}'.format(theta_max))
+        fit_plot = plot_resulting_fit(model, obs, sps, theta_max, tde_name, path)
+        plt.show()
+        cornerfig = corner_plot(result, tde_name, path)
+        plt.show()
+        os.chdir(self.work_dir)
 
     @staticmethod
     def _do_sw_photo(sw_dir, bands, aper_cor):
@@ -1161,3 +1179,4 @@ if __name__ == "__main__":
     tde_name = 'AT2018fyk'
     path = '/home/muryel/Dropbox/data/TDEs/'
     tde = TDE(tde_name, path)
+    tde.plot_host_sed_fit()
