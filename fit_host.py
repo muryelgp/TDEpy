@@ -1,5 +1,5 @@
 import os
-
+from prospect.io import write_results as writer
 import matplotlib.pyplot as plt
 import numpy as np
 from prospect.fitting import fit_model
@@ -35,7 +35,7 @@ def build_obs(path, tde, **extras):
 
     tde_dir = os.path.join(path, tde)
     try:
-        band, wl_c, ab_mag, ab_mag_err, catalogs = np.loadtxt(os.path.join(tde_dir, 'host', 'host_photometry.txt'),
+        band, wl_c, ab_mag, ab_mag_err, catalogs = np.loadtxt(os.path.join(tde_dir, 'host', 'host_phot.txt'),
                                                               dtype={'names': (
                                                                   'band', 'wl_0', 'ab_mag', 'ab_mag_err', 'catalog'),
                                                                   'formats': (
@@ -303,14 +303,23 @@ def configure(tde_name, path, z, init_theta):
     return obs, sps, model, run_params
 
 
+def save_results(model, obs, sps, theta_max, tde_name, path):
+    mspec_map, mphot_map, _ = model.mean_model(theta_max, obs, sps=sps)
+    wphot = obs["phot_wave"]
+
+    pass
+
+
 def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
+    os.chdir(os.path.join(path, tde_name, 'host'))
+
     if init_theta is None:
         init_theta = [1e10, 0, 0.05, 1, 5]
 
     obs, sps, model, run_params = configure(tde_name, path, z, init_theta)
     print(model)
     print("\nInitial free parameter vector theta:\n  {}\n".format(model.theta))
-
+    '''
     if withmpi & ('logzsol' in model.free_params):
         dummy_obs = dict(filters=None, wavelength=None)
 
@@ -331,10 +340,7 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
         from multiprocessing import cpu_count
 
         with Pool() as pool:
-
-            # The subprocesses will run up to this point in the code
             nprocs = n_cores
-
             output = fit_model(obs, model, sps, pool=pool, queue_size=nprocs, lnprobfn=lnprobfn_fixed,
                                **run_params)
     else:
@@ -343,8 +349,7 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
     # output = fit_model(obs, model, sps, lnprobfn=lnprobfn, **run_params)
     print('done emcee in {0}s'.format(output["sampling"][1]))
 
-    from prospect.io import write_results as writer
-    os.chdir(os.path.join(path, tde_name, 'host'))
+   
 
     if os.path.exists("demo_emcee_mcmc.h5"):
         os.system('rm demo_emcee_mcmc.h5')
@@ -356,12 +361,20 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
                       toptimize=output["optimization"][1])
 
     print('Finished')
-
+    '''
     result, obs, _ = reader.results_from("prospector_result.h5", dangerous=False)
     imax = np.argmax(result['lnprobability'])
 
     i, j = np.unravel_index(imax, result['lnprobability'].shape)
     theta_max = result['chain'][i, j, :].copy()
+
+
+    # saving results
+    save_results(model, obs, sps, theta_max, tde_name, path)
+    
+
+
+
     print('MAP value: {}'.format(theta_max))
     fit_plot = plot_resulting_fit(model, obs, sps, theta_max, tde_name, path)
     try:

@@ -26,6 +26,7 @@ from astroquery.simbad import Simbad
 import astropy.units as units
 import gPhoton.gAperture as gaperture
 from fit_host import *
+
 warnings.simplefilter('ignore', category=AstropyWarning)
 
 
@@ -377,7 +378,7 @@ class TDE:
             os.chdir(self.host_dir)
         except:
             os.chdir(self.host_dir)
-        host_file = open(os.path.join(self.host_dir, 'host_photometry.txt'), 'w')
+        host_file = open(os.path.join(self.host_dir, 'host_phot.txt'), 'w')
         host_file.write('band wl_0 ab_mag ab_mag_err catalog \n')
 
         # Searching for Wise data
@@ -392,10 +393,15 @@ class TDE:
             W1, W2, W3, W4 = self._vega_to_ab(obj['W1mag'][0], 'W1'), self._vega_to_ab(obj['W2mag'][0], 'W2'), \
                              self._vega_to_ab(obj['W3mag'][0], 'W3'), self._vega_to_ab(obj['W4mag'][0], 'W4')
             e_W1, e_W2, e_W3, e_W4 = obj['e_W1mag'][0], obj['e_W2mag'][0], obj['e_W3mag'][0], obj['e_W4mag'][0]
-            host_file.write(self._format_host_photo('W4', 221940, W4, e_W4, 'WISE'))
-            host_file.write(self._format_host_photo('W3', 120820, W3, e_W3, 'WISE'))
-            host_file.write(self._format_host_photo('W2', 46180, W2, e_W2, 'WISE'))
-            host_file.write(self._format_host_photo('W1', 33500, W1, e_W1, 'WISE'))
+
+            if np.isfinite(W4 * e_W4):
+                host_file.write(self._format_host_photo('W4', 221940, W4, e_W4, 'WISE'))
+            if np.isfinite(W3 * e_W3):
+                host_file.write(self._format_host_photo('W3', 120820, W3, e_W3, 'WISE'))
+            if np.isfinite(W2 * e_W2):
+                host_file.write(self._format_host_photo('W2', 46180, W2, e_W2, 'WISE'))
+            if np.isfinite(W1 * e_W1):
+                host_file.write(self._format_host_photo('W1', 33500, W1, e_W1, 'WISE'))
         except:
             print('No WISE data found')
             pass
@@ -415,10 +421,14 @@ class TDE:
                          self._vega_to_ab(obj['Hmag'][0], 'H'), self._vega_to_ab(obj['Kmag'][0], 'K')
             e_Y, e_J, e_H, e_K = obj['e_Ymag'][0], obj['e_Jmag'][0], obj['e_Hmag'][0], obj['e_Kmag'][0]
 
-            host_file.write(self._format_host_photo('K', 22010, K, e_K, 'UKIDSS'))
-            host_file.write(self._format_host_photo('H', 16313, H, e_H, 'UKIDSS'))
-            host_file.write(self._format_host_photo('J', 12483, J, e_J, 'UKIDSS'))
-            host_file.write(self._format_host_photo('Y', 10305, Y, e_Y, 'UKIDSS'))
+            if np.isfinite(K * e_K):
+                host_file.write(self._format_host_photo('K', 22010, K, e_K, 'UKIDSS'))
+            if np.isfinite(H * e_H):
+                host_file.write(self._format_host_photo('H', 16313, H, e_H, 'UKIDSS'))
+            if np.isfinite(J * e_J):
+                host_file.write(self._format_host_photo('J', 12483, J, e_J, 'UKIDSS'))
+            if np.isfinite(Y * e_Y):
+                host_file.write(self._format_host_photo('Y', 10305, Y, e_Y, 'UKIDSS'))
 
         except:
             print('No UKIDSS data found')
@@ -437,9 +447,12 @@ class TDE:
                            self._vega_to_ab(obj['Kmag'][0], 'Ks')
                 e_J, e_H, e_Ks = obj['e_Jmag'][0], obj['e_Hmag'][0], obj['e_Kmag'][0]
 
-                host_file.write(self._format_host_photo('Ks', 21590, Ks, e_Ks, '2MASS'))
-                host_file.write(self._format_host_photo('H', 16313, H, e_H, '2MASS'))
-                host_file.write(self._format_host_photo('J', 12483, J, e_J, '2MASS'))
+                if np.isfinite(Ks * e_Ks):
+                    host_file.write(self._format_host_photo('Ks', 21590, Ks, e_Ks, '2MASS'))
+                if np.isfinite(H * e_H):
+                    host_file.write(self._format_host_photo('H', 16313, H, e_H, '2MASS'))
+                if np.isfinite(J * e_J):
+                    host_file.write(self._format_host_photo('J', 12483, J, e_J, '2MASS'))
             except:
                 print('No 2MASS Data found')
                 pass
@@ -457,11 +470,16 @@ class TDE:
                 e_y, e_z, e_i, e_r, e_g = obj['e_ymag'][0], obj['e_zmag'][0], obj['e_imag'][0], obj['e_rmag'][0], \
                                           obj['e_gmag'][0]
 
-                host_file.write(self._format_host_photo('y', 9620, y, e_y, 'PAN-STARRS'))
-                host_file.write(self._format_host_photo('z', 8660, z, e_z, 'PAN-STARRS'))
-                host_file.write(self._format_host_photo('i', 7520, i, e_i, 'PAN-STARRS'))
-                host_file.write(self._format_host_photo('r', 6170, r, e_r, 'PAN-STARRS'))
-                host_file.write(self._format_host_photo('g', 4810, g, e_g, 'PAN-STARRS'))
+                if np.isfinite(y * e_y):
+                    host_file.write(self._format_host_photo('y', 9620, y, e_y, 'PAN-STARRS'))
+                if np.isfinite(z * e_z):
+                    host_file.write(self._format_host_photo('z', 8660, z, e_z, 'PAN-STARRS'))
+                if np.isfinite(i * e_i):
+                    host_file.write(self._format_host_photo('i', 7520, i, e_i, 'PAN-STARRS'))
+                if np.isfinite(r * e_r):
+                    host_file.write(self._format_host_photo('r', 6170, r, e_r, 'PAN-STARRS'))
+                if np.isfinite(g * e_g):
+                    host_file.write(self._format_host_photo('g', 4810, g, e_g, 'PAN-STARRS'))
 
             except:
                 print('No PAN-STARRS Data found')
@@ -480,12 +498,16 @@ class TDE:
                 Y, z, i, r, g = obj['Ymag'][0], obj['zmag'][0], obj['imag'][0], obj['rmag'][0], obj['gmag'][0]
                 e_Y, e_z, e_i, e_r, e_g = obj['e_Ymag'][0], obj['e_zmag'][0], obj['e_imag'][0], obj['e_rmag'][0], \
                                           obj['e_gmag'][0]
-
-                host_file.write(self._format_host_photo('Y', 10305, Y, e_Y, 'DES'))
-                host_file.write(self._format_host_photo('z', 8660, z, e_z, 'DES'))
-                host_file.write(self._format_host_photo('i', 7520, i, e_i, 'DES'))
-                host_file.write(self._format_host_photo('r', 6170, r, e_r, 'DES'))
-                host_file.write(self._format_host_photo('g', 4810, g, e_g, 'DES'))
+                if np.isfinite(Y * e_Y):
+                    host_file.write(self._format_host_photo('Y', 10305, Y, e_Y, 'DES'))
+                if np.isfinite(z * e_z):
+                    host_file.write(self._format_host_photo('z', 8660, z, e_z, 'DES'))
+                if np.isfinite(i * e_i):
+                    host_file.write(self._format_host_photo('i', 7520, i, e_i, 'DES'))
+                if np.isfinite(r * e_r):
+                    host_file.write(self._format_host_photo('r', 6170, r, e_r, 'DES'))
+                if np.isfinite(g * e_g):
+                    host_file.write(self._format_host_photo('g', 4810, g, e_g, 'DES'))
             except:
                 print('No DES Data found')
                 pass
@@ -504,11 +526,16 @@ class TDE:
                     e_u, e_z, e_i, e_r, e_g, e_v = obj['e_uPSF'][0], obj['e_zPSF'][0], obj['e_iPSF'][0], \
                                                    obj['e_rPSF'][0], obj['e_gPSF'][0], obj['e_vPSF'][0]
 
-                    host_file.write(self._format_host_photo('z', 8660, z, e_z, 'SkyMapper'))
-                    host_file.write(self._format_host_photo('i', 7520, i, e_i, 'SkyMapper'))
-                    host_file.write(self._format_host_photo('r', 6170, r, e_r, 'SkyMapper'))
-                    host_file.write(self._format_host_photo('g', 4810, g, e_g, 'SkyMapper'))
-                    host_file.write(self._format_host_photo('v', 4110, v, e_v, 'SkyMapper'))
+                    if np.isfinite(z * e_z):
+                        host_file.write(self._format_host_photo('z', 8660, z, e_z, 'SkyMapper'))
+                    if np.isfinite(i * e_i):
+                        host_file.write(self._format_host_photo('i', 7520, i, e_i, 'SkyMapper'))
+                    if np.isfinite(r * e_r):
+                        host_file.write(self._format_host_photo('r', 6170, r, e_r, 'SkyMapper'))
+                    if np.isfinite(g * e_g):
+                        host_file.write(self._format_host_photo('g', 4810, g, e_g, 'SkyMapper'))
+                    if np.isfinite(v * e_v):
+                        host_file.write(self._format_host_photo('v', 4110, v, e_v, 'SkyMapper'))
 
                 except:
                     print('No SkyMapper Data found')
@@ -522,7 +549,8 @@ class TDE:
         try:
             obj = result[0]
             u, e_u = obj['upmag'][0] - 0.04, obj['e_upmag'][0]
-            host_file.write(self._format_host_photo('u', 3500, u, e_u, 'SDSS'))
+            if np.isfinite(u * e_u):
+                host_file.write(self._format_host_photo('u', 3500, u, e_u, 'SDSS'))
         except:
             try:
                 v = Vizier(
@@ -530,7 +558,8 @@ class TDE:
                 result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/358/smss'])
                 obj = result[0]
                 u, e_u = obj['uPSF'][0] - 0.04, obj['e_uPSF'][0]
-                host_file.write(self._format_host_photo('u', 3500, u, e_u, 'SkyMapper'))
+                if np.isfinite(u * e_u):
+                    host_file.write(self._format_host_photo('u', 3500, u, e_u, 'SkyMapper'))
             except:
                 pass
 
@@ -564,8 +593,10 @@ class TDE:
             fuv = np.nan
             e_fuv = np.nan
 
-        host_file.write(self._format_host_photo('NUV', 2271, nuv, e_nuv, 'GALEX'))
-        host_file.write(self._format_host_photo('FUV', 1528, fuv, e_fuv, 'GALEX'))
+        if np.isfinite(nuv * e_nuv):
+            host_file.write(self._format_host_photo('NUV', 2271, nuv, e_nuv, 'GALEX'))
+        if np.isfinite(fuv * e_fuv):
+            host_file.write(self._format_host_photo('FUV', 1528, fuv, e_fuv, 'GALEX'))
         host_file.close()
         self.plot_host_sed()
         os.chdir(self.work_dir)
@@ -576,7 +607,7 @@ class TDE:
         You should run download_host_data() first.
         """
         try:
-            band, wl_c, ab_mag, ab_mag_err, catalogs = np.loadtxt(os.path.join(self.host_dir, 'host_photometry.txt'),
+            band, wl_c, ab_mag, ab_mag_err, catalogs = np.loadtxt(os.path.join(self.host_dir, 'host_phot.txt'),
                                                                   dtype={'names': (
                                                                       'band', 'wl_0', 'ab_mag', 'ab_mag_err',
                                                                       'catalog'),
@@ -592,7 +623,8 @@ class TDE:
                       'SkyMapper': "X", 'SDSS': "v", 'GALEX': "^"}
 
         finite = (np.isfinite(ab_mag)) & (np.isfinite(ab_mag_err))
-        fig, ax = plt.subplots()
+
+        fig, ax = plt.subplots(figsize=(16, 8))
         for catalog in np.unique(catalogs[finite]):
             flag = (catalogs == catalog) & (np.isfinite(ab_mag)) & (np.isfinite(ab_mag_err))
             ax.errorbar(wl_c[flag], ab_mag[flag], yerr=ab_mag_err[flag], marker=marker_dic[catalog], fmt='o',
@@ -621,10 +653,10 @@ class TDE:
             plt.show()
         os.chdir(self.work_dir)
 
-    def fit_host_sed(self, withmpi=True, n_cores=2, init_theta=None,):
+    def fit_host_sed(self, withmpi=True, n_cores=2, init_theta=None):
 
         if np.isfinite(float(self.z)):
-            run_prospector(self.name, self.work_dir, self.z, init_theta=None, withmpi=True)
+            run_prospector(self.name, self.work_dir, self.z, withmpi=withmpi, n_cores=n_cores, init_theta=init_theta)
         else:
             raise Exception('You need to define a redshift (z) for the source before fitting the host SED')
 
@@ -1175,8 +1207,7 @@ class TDE:
 
 
 if __name__ == "__main__":
-
     tde_name = 'AT2018fyk'
     path = '/home/muryel/Dropbox/data/TDEs/'
     tde = TDE(tde_name, path)
-    tde.plot_host_sed_fit()
+    tde.fit_host_sed()
