@@ -285,10 +285,12 @@ class TDE:
         for band in bands:
             # Loading and plotting Swift data
             if band[0] == 's':
-                obsid, mjd, mag, mage, abmag, abmage, flu, flue, ct, cte, = \
-                    np.loadtxt(os.path.join(self.tde_dir, 'photometry', str(band) + '.txt'), skiprows=2,
-                               unpack=True)
+                if host_sub:
+                    path = os.path.join(self.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')
+                else:
+                    path = os.path.join(self.tde_dir, 'photometry', 'obs', str(band) + '.txt')
 
+                obsid, mjd, mag, mage, abmag, abmage, flu, flue, ct, cte, = np.loadtxt(path, skiprows=2, unpack=True)
                 flag = (abmag > 0) & (ct > 0)
                 ax.errorbar(mjd[flag], abmag[flag], yerr=abmage[flag], marker='D', linestyle='-',
                             color=color_dic[band],
@@ -297,7 +299,7 @@ class TDE:
 
             # Loading and plotting ZTF data, only if it is present and host_sub=True
             elif band[0] == 'z' and host_sub:
-                if os.path.exists(os.path.join(self.tde_dir, 'photometry', str(band) + '.txt')):
+                if os.path.exists(os.path.join(self.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')):
                     mjd, abmag, abmage = np.loadtxt(os.path.join(self.tde_dir, self.name, 'photometry', str(band)
                                                                  + '.txt'), skiprows=2, unpack=True)
                     ax.errorbar(mjd, abmag, yerr=abmage, marker='D', linestyle='-',
@@ -859,7 +861,15 @@ class TDE:
                 os.mkdir(phot_dir)
                 os.chdir(phot_dir)
 
-            g = open(os.path.join(phot_dir, 'sw_' + band + '.txt'), 'w')
+            obs_dir = os.path.join(phot_dir, 'obs')
+
+            try:
+                os.chdir(obs_dir)
+            except:
+                os.mkdir(obs_dir)
+                os.chdir(obs_dir)
+
+            g = open(os.path.join(obs_dir, 'sw_' + band + '.txt'), 'w')
             g.write('#Values already corrected for Galactic extinction  \n')
             g.write('obsid mjd vega vega_err ab ab_err flux flux_err ctrate ctrate_err \n')
             for yy in range(len(mjd)):
@@ -1210,4 +1220,4 @@ if __name__ == "__main__":
     tde_name = 'AT2018fyk'
     path = '/home/muryel/Dropbox/data/TDEs/'
     tde = TDE(tde_name, path)
-    tde.fit_host_sed()
+    tde.fit_host_sed(n_cores=4)

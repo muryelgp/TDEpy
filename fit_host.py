@@ -1,4 +1,6 @@
 import os
+
+import sedpy
 from prospect.io import write_results as writer
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,6 +14,10 @@ import prospect.io.read_results as reader
 
 plt.rcParams.update({'font.size': 16})
 
+def mag_to_flux(ab_mag, wl):
+    fnu = (10.**(-0.4*(48.6 + ab_mag)))
+    flam_g = (2.99792458e+18 * fnu) / (wl**2.)
+    return flam_g
 
 def build_obs(path, tde, **extras):
     """Build a dictionary of observational data.
@@ -54,7 +60,9 @@ def build_obs(path, tde, **extras):
                   'SkyMapper_g': 'hsc_g', 'SkyMapper_v': 'stromgren_v',
                   'SDSS_u': 'sdss_u0', 'GALEX_NUV': 'galex_NUV', 'GALEX_FUV': 'galex_FUV'}
 
-    catalog_bands = [catalogs[i] + '_' + band[i] for i in range(len(catalogs))]
+    flag = np.isfinite(ab_mag*ab_mag_err)
+
+    catalog_bands = [catalogs[flag][i] + '_' + band[flag][i] for i in range(len(catalogs[flag]))]
     filternames = [filter_dic[i] for i in catalog_bands]
     # And here we instantiate the `Filter()` objects using methods in `sedpy`,
     # and put the resultinf list of Filter objects in the "filters" key of the `obs` dictionary
@@ -62,21 +70,21 @@ def build_obs(path, tde, **extras):
 
     # Now we store the measured fluxes for a single object, **in the same order as "filters"**
     # The units of the fluxes need to be maggies (Jy/3631) so we will do the conversion here too.
-    mags = np.array(ab_mag)
+    mags = np.array(ab_mag[flag])
     obs["maggies"] = 10 ** (-0.4 * mags)
 
     # And now we store the uncertainties (again in units of maggies)
     # In this example we are going to fudge the uncertainties based on the supplied `snr` meta-parameter.
-    obs["maggies_unc"] = np.array(ab_mag_err) * obs["maggies"]
+    obs["maggies_unc"] = np.array(ab_mag_err[flag]) * obs["maggies"]
 
     # Now we need a mask, which says which flux values to consider in the likelihood.
     # IMPORTANT: the mask is *True* for values that you *want* to fit,
     # and *False* for values you want to ignore.  Here we ignore the spitzer bands.
-    obs["phot_mask"] = np.array(np.isfinite(ab_mag) * np.isfinite(ab_mag_err))
+    obs["phot_mask"] = np.array(np.isfinite(ab_mag[flag]) * np.isfinite(ab_mag_err[flag]))
 
     # This is an array of effective wavelengths for each of the filters.
     # It is not necessary, but it can be useful for plotting so we store it here as a convenience
-    obs["phot_wave"] = np.array(wl_c)
+    obs["phot_wave"] = np.array(wl_c[flag])
 
     obs["wavelength"] = None
     obs["spectrum"] = None
@@ -303,18 +311,163 @@ def configure(tde_name, path, z, init_theta):
     return obs, sps, model, run_params
 
 
-def save_results(model, obs, sps, theta_max, tde_name, path):
-    mspec_map, mphot_map, _ = model.mean_model(theta_max, obs, sps=sps)
+def save_results(result, model, obs, sps, theta_max, tde_name, path):
+    tde_dir = os.path.join(path, tde_name)
+    band, _, _, _, catalogs = np.loadtxt(os.path.join(tde_dir, 'host', 'host_phot.txt'),
+                                                          dtype={'names': (
+                                                              'band', 'wl_0', 'ab_mag', 'ab_mag_err', 'catalog'),
+                                                              'formats': (
+                                                                  'U3', np.float, np.float, np.float, 'U10')},
+                                                          unpack=True, skiprows=1)
+
+
+    # Adding new bands (Swift, SDSS, HST)
     wphot = obs["phot_wave"]
 
-    pass
+
+    obs['filters'].append(sedpy.observate.Filter('bessell_V'))
+    wphot = np.append(wphot, 5468)
+    band = np.append(band, 'V')
+    catalogs = np.append(catalogs, 'Swift UVOT')
+
+    obs['filters'].append(sedpy.observate.Filter('bessell_B'))
+    wphot = np.append(wphot, 4392)
+    band = np.append(band, 'B')
+    catalogs = np.append(catalogs, 'Swift UVOT')
+
+    obs['filters'].append(sedpy.observate.Filter('bessell_U'))
+    wphot = np.append(wphot, 3465)
+    band = np.append(band, 'U')
+    catalogs = np.append(catalogs, 'Swift UVOT')
 
 
+    obs['filters'].append(sedpy.observate.Filter('uvot_w1'))
+    wphot = np.append(wphot, 2600)
+    band = np.append(band, 'UV-W1')
+    catalogs = np.append(catalogs, 'Swift UVOT')
+
+    obs['filters'].append(sedpy.observate.Filter('uvot_m2'))
+    wphot = np.append(wphot, 2246)
+    band = np.append(band, 'UV-M2')
+    catalogs = np.append(catalogs, 'Swift UVOT')
+
+    obs['filters'].append(sedpy.observate.Filter('uvot_w2'))
+    wphot = np.append(wphot, 1928)
+    band = np.append(band, 'UV-W2')
+    catalogs = np.append(catalogs, 'Swift UVOT')
+
+    obs['filters'].append(sedpy.observate.Filter('sdss_u0'))
+    wphot = np.append(wphot, 3551)
+    band = np.append(band, 'u')
+    catalogs = np.append(catalogs, 'SDSS')
+
+    obs['filters'].append(sedpy.observate.Filter('sdss_g0'))
+    wphot = np.append(wphot, 4686)
+    band = np.append(band, 'g')
+    catalogs = np.append(catalogs, 'SDSS')
+
+    obs['filters'].append(sedpy.observate.Filter('sdss_r0'))
+    wphot = np.append(wphot, 6166)
+    band = np.append(band, 'r')
+    catalogs = np.append(catalogs, 'SDSS')
+
+    obs['filters'].append(sedpy.observate.Filter('sdss_i0'))
+    wphot = np.append(wphot, 7480)
+    band = np.append(band, 'i')
+    catalogs = np.append(catalogs, 'SDSS')
+
+    obs['filters'].append(sedpy.observate.Filter('sdss_z0'))
+    wphot = np.append(wphot, 8932)
+    band = np.append(band, 'z')
+    catalogs = np.append(catalogs, 'SDSS')
+
+    obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f275w'))
+    wphot = np.append(wphot, 2750)
+    band = np.append(band, 'F275W')
+    catalogs = np.append(catalogs, 'HST WFC3')
+
+    obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f336w'))
+    wphot = np.append(wphot, 3375)
+    band = np.append(band, 'F336W')
+    catalogs = np.append(catalogs, 'HST WFC3')
+
+    obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f475w'))
+    wphot = np.append(wphot, 4550)
+    band = np.append(band, 'F475W')
+    catalogs = np.append(catalogs, 'HST WFC3')
+
+    obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f555w'))
+    wphot = np.append(wphot, 5410)
+    band = np.append(band, 'F555W')
+    catalogs = np.append(catalogs, 'HST WFC3')
+
+    obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f606w'))
+    wphot = np.append(wphot, 5956)
+    band = np.append(band, 'F606W')
+    catalogs = np.append(catalogs, 'HST WFC3')
+
+    obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f814w'))
+    wphot = np.append(wphot, 8353)
+    band = np.append(band, 'F814W')
+    catalogs = np.append(catalogs, 'HST WFC3')
+
+
+    # Creating modelled photometry and spectra
+    mspec_map, mphot_map, _ = model.mean_model(theta_max, obs, sps=sps)
+
+    # Correcting for redshift
+    a = 1.0 + model.params.get('zred', 0.0)  # cosmological redshifting
+    wspec = sps.wavelengths
+    wspec *= a
+
+    # Measuring error on the modelled spectra and photometry
+    randint = np.random.randint
+    nwalkers, niter = 100, 500
+    err_phot = []
+    err_spec = []
+    for i in range(1e4):
+        theta = result['chain'][randint(nwalkers), 500 + randint(niter)]
+        mspec, mphot, mextra = model.mean_model(theta, obs, sps=sps)
+        err_phot.append(mphot)
+        err_spec.append(mspec)
+
+    err_phot = np.std(err_phot, axis=0)
+    err_phot_mag = abs(np.log10(abs(mphot_map-err_phot))/-0.4 - np.log10(mphot_map)/-0.4)
+    small_err = np.round(err_phot_mag, 2) < 0.01
+    err_phot_mag[small_err] = 0.01
+
+
+    # Saving modelled photometry
+    host_dir = os.path.join(tde_dir, 'host')
+    host_file = open(os.path.join(host_dir, 'host_model_phot.txt'), 'w')
+    host_file.write('band' + '\t' + 'wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'catalog' + '\n')
+    phot_mag = -2.5*np.log10(mphot_map)
+    for yy in range(len(wphot)):
+        host_file.write(str(band[yy]) + '\t' + str(wphot[yy]) + '\t' + '{:.2f}'.format(phot_mag[yy]) + '\t' + '{:.2f}'.format(
+            err_phot_mag[yy]) + '\t' + str(catalogs[yy]) + '\n')
+    host_file.close()
+
+
+
+    # Saving modelled spectrum
+    spec_mag = -2.5*np.log10(mspec_map)
+    err_spec = (np.std(err_spec, axis=0))
+    err_spec_mag = abs(np.log10(abs(mspec_map - err_spec)) / -0.4 - np.log10(mspec_map) / -0.4)
+    spec_flux = mag_to_flux(spec_mag, wspec)
+    err_spec_flux = spec_flux - mag_to_flux(spec_mag+err_spec_mag, wspec)
+
+    host_file = open(os.path.join(host_dir, 'host_model_spec.txt'), 'w')
+    host_file.write('wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux' + '\t' + 'flux_err' + '\n')
+    for yy in range(len(wspec)):
+        host_file.write('{:.2f}'.format(wspec[yy]) + '\t' + '{:.2f}'.format(spec_mag[yy]) + '\t' +
+                        '{:.2f}'.format(err_spec_mag[yy]) + '\t' + str(spec_flux[yy]) +
+                        '\t' + str(err_spec_flux[yy]) + '\n')
+    host_file.close()
 def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
     os.chdir(os.path.join(path, tde_name, 'host'))
 
     if init_theta is None:
-        init_theta = [1e10, 0, 0.05, 1, 5]
+        init_theta = [1e10, 0, 0.05, 1, 1]
 
     obs, sps, model, run_params = configure(tde_name, path, z, init_theta)
     print(model)
@@ -351,8 +504,8 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
 
    
 
-    if os.path.exists("demo_emcee_mcmc.h5"):
-        os.system('rm demo_emcee_mcmc.h5')
+    if os.path.exists("prospector_result.h5"):
+        os.system('rm prospector_result.h5')
 
     hfile = "prospector_result.h5"
     writer.write_hdf5(hfile, run_params, model, obs,
@@ -370,10 +523,7 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
 
 
     # saving results
-    save_results(model, obs, sps, theta_max, tde_name, path)
-    
-
-
+    save_results(result, model, obs, sps, theta_max, tde_name, path)
 
     print('MAP value: {}'.format(theta_max))
     fit_plot = plot_resulting_fit(model, obs, sps, theta_max, tde_name, path)
