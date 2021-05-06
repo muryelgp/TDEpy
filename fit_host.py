@@ -9,26 +9,21 @@ from prospect.fitting import lnprobfn
 from prospect.likelihood import lnlike_spec, lnlike_phot
 from prospect.models.templates import TemplateLibrary
 import prospect.io.read_results as reader
+from prospect.sources import CSPSpecBasis
 
 # re-defining plotting defaults
 
 plt.rcParams.update({'font.size': 16})
 
+
 def mag_to_flux(ab_mag, wl):
-    fnu = (10.**(-0.4*(48.6 + ab_mag)))
-    flam_g = (2.99792458e+18 * fnu) / (wl**2.)
+    fnu = (10. ** (-0.4 * (48.6 + ab_mag)))
+    flam_g = (2.99792458e+18 * fnu) / (wl ** 2.)
     return flam_g
 
-def build_obs(path, tde, **extras):
+
+def build_obs(path, tde):
     """Build a dictionary of observational data.
-
-    :param snr:
-        The S/N to assign to the photometry, since none are reported
-        in Johnson et al. 2013
-
-    :param ldist:
-        The luminosity distance to assume for translating absolute magnitudes
-        into apparent magnitudes.
 
     :returns obs:
         A dictionary of observational data to use in the fit.
@@ -60,7 +55,7 @@ def build_obs(path, tde, **extras):
                   'SkyMapper_g': 'hsc_g', 'SkyMapper_v': 'stromgren_v',
                   'SDSS_u': 'sdss_u0', 'GALEX_NUV': 'galex_NUV', 'GALEX_FUV': 'galex_FUV'}
 
-    flag = np.isfinite(ab_mag*ab_mag_err)
+    flag = np.isfinite(ab_mag * ab_mag_err)
 
     catalog_bands = [catalogs[flag][i] + '_' + band[flag][i] for i in range(len(catalogs[flag]))]
     filternames = [filter_dic[i] for i in catalog_bands]
@@ -98,22 +93,15 @@ def build_obs(path, tde, **extras):
     return obs
 
 
-def build_model(object_redshift=None, init_theta=None, **extras):
+def build_model(object_redshift=None, init_theta=None):
     """Build a prospect.models.SedModel object
 
     :param object_redshift: (optional, default: None)
         If given, produce spectra and observed frame photometry appropriate
         for this redshift. Otherwise, the redshift will be zero.
 
-    :param ldist: (optional, default: 10)
-        The luminosity distance (in Mpc) for the model.  Spectra and observed
-        frame (apparent) photometry will be appropriate for this luminosity distance.
-
-    :param fixed_metallicity: (optional, default: None)
-        If given, fix the model metallicity (:math:`log(Z/Z_sun)`) to the given value.
-
-    :param add_duste: (optional, default: False)
-        If `True`, add dust emission and associated (fixed) parameters to the model.
+    :param  init_theta: (optional, default: [1e10, 0, 0.05, 1, 1])
+        The initial guess on the parameters for mcmc.
 
     :returns model:
         An instance of prospect.models.SedModel
@@ -123,41 +111,32 @@ def build_model(object_redshift=None, init_theta=None, **extras):
     from prospect.models import priors
 
     # Get (a copy of) one of the prepackaged model set dictionaries.
-    # This is, somewhat confusingly, a dictionary of dictionaries, keyed by parameter name
     model_params = TemplateLibrary["parametric_sfh"]
 
-    # Now add the lumdist parameter by hand as another entry in the dictionary.
-    # This will control the distance since we are setting the redshift to zero.
-    # In `build_obs` above we used a distance of 10Mpc to convert from absolute to apparent magnitudes,
-    # so we use that here too, since the `maggies` are appropriate for that distance.
     model_params["sfh"]["init"] = 1
-    # ldist = cosmo.luminosity_distance(object_redshift).value
 
-    # model_params["lumdist"] = {"N": 1, "isfree": False, "init": ldist, "units": "Mpc"}
-
-    # Let's make some changes to initial values appropriate for our objects and data
+    # Changing the initial values appropriate for our objects and data
     model_params["dust2"]["init"] = init_theta[2]
     model_params["tau"]["init"] = init_theta[4]
     model_params["mass"]["init"] = init_theta[0]
     model_params["logzsol"]["init"] = init_theta[1]
     model_params["tage"]["init"] = init_theta[3]
 
-    # These are dwarf galaxies, so lets also adjust the metallicity prior,
-    # the tau parameter upward, and the mass prior downward
+    # Setting the priors forms and limits
     model_params["dust2"]["prior"] = priors.TopHat(mini=0.0, maxi=2.85)
     model_params["tau"]["prior"] = priors.TopHat(mini=0.1, maxi=30)
     model_params["mass"]["prior"] = priors.LogUniform(mini=1e6, maxi=1e12)
     model_params["logzsol"]["prior"] = priors.TopHat(mini=-1.8, maxi=0.2)
     model_params["tage"]["prior"] = priors.TopHat(mini=8, maxi=13.3)
 
-    # If we are going to be using emcee, it is useful to provide a
-    # minimum scale for the cloud of walkers (the default is 0.1)
+    # Setting the spread of the walkers for the mcmc sampling
     model_params["dust2"]["disp_floor"] = 0.1
     model_params["tau"]["disp_floor"] = 1
     model_params["mass"]["disp_floor"] = 1e7
     model_params["logzsol"]['disp_floor'] = 0.1
     model_params["tage"]["disp_floor"] = 1
 
+    # Fixing and defining the object redshift
     model_params["zred"]['isfree'] = False
     model_params["zred"]['init'] = object_redshift
 
@@ -167,74 +146,78 @@ def build_model(object_redshift=None, init_theta=None, **extras):
     return model
 
 
-def build_sps(zcontinuous=1, **extras):
-    """
-    :param zcontinuous:
-        A vlue of 1 insures that we use interpolation between SSPs to
-        have a continuous metallicity parameter (`logzsol`)
-        See python-FSPS documentation for details
-    """
-    from prospect.sources import CSPSpecBasis
+def build_sps(zcontinuous=1):
     sps = CSPSpecBasis(zcontinuous=zcontinuous)
     return sps
 
 
-def plot_resulting_fit(model, obs, sps, theta_max, tde_name, path):
-    mspec_map, mphot_map, _ = model.mean_model(theta_max, obs, sps=sps)
-    wphot = obs["phot_wave"]
-    # spectroscopic wavelengths
+def plot_resulting_fit(tde_name, path):
+    tde_dir = os.path.join(path, tde_name)
+    host_dir = os.path.join(tde_dir, 'host')
 
-    a = 1.0 + model.params.get('zred', 0.0)  # cosmological redshifting
-    if obs["wavelength"] is None:
-        # *restframe* spectral wavelengths, since obs["wavelength"] is None
-        wspec = sps.wavelengths
-        wspec *= a  # redshift them
-    else:
-        wspec = obs["wavelength"]
+    fig, ax = plt.subplots(figsize=(16, 8))
 
-    xmin, xmax = np.min(wphot) * 0.8, np.max(wphot) / 0.8
-    temp = np.interp(np.linspace(xmin, xmax, 10000), wspec, mspec_map)
-    ymin, ymax = temp.min() * 0.5, temp.max() / 0.3
-    fig = plt.figure(figsize=(16, 8))
 
-    mask = obs["phot_mask"]
+    band, obs_wl_c, obs_ab_mag, obs_ab_mag_err, catalogs = np.loadtxt(os.path.join(host_dir, 'host_phot.txt'),
+                                                          dtype={'names': (
+                                                              'band', 'wl_0', 'ab_mag', 'ab_mag_err',
+                                                              'catalog'),
+                                                              'formats': (
+                                                                  'U3', np.float, np.float, np.float, 'U10')},
+                                                          unpack=True, skiprows=1)
+    n_bands = len(band)
 
-    # loglog(wspec, mspec, label='Model spectrum (random draw)',
-    # lw=0.7, color='navy', alpha=0.7)
-    plt.loglog(wspec, mspec_map, label='Model spectrum (MAP)',
-               lw=0.7, color='green', alpha=0.7)
-    # loglog(wspec, initial_spec, label='Model spectrum (init)',
-    #       lw=0.7, color='black', alpha=0.7)
+    band, model_wl_c, model_ab_mag, model_ab_mag_err, catalogs = np.loadtxt(os.path.join(host_dir, 'host_model_phot.txt'),
+                                                                      dtype={'names': (
+                                                                          'band', 'wl_0', 'ab_mag', 'ab_mag_err',
+                                                                          'catalog'),
+                                                                          'formats': (
+                                                                              'U3', np.float, np.float, np.float,
+                                                                              'U10')},
+                                                                      unpack=True, skiprows=1)
+    band_flag = [i < n_bands for i in range(len(model_wl_c))]
 
-    # errorbar(wphot[mask], mphot[mask], label='Model photometry (random draw)',
-    #     marker='s', markersize=10, alpha=0.8, ls='', lw=3,
-    #     markerfacecolor='none', markeredgecolor='blue',
-    #     markeredgewidth=3)
-    plt.errorbar(wphot[mask], mphot_map[mask], label='Model photometry (MAP)',
-                 marker='s', markersize=10, alpha=0.8, ls='', lw=3,
+    spec_wl_0, spec_ab_mag, spec_ab_mag_err, spec_flux, spec_flux_err = np.loadtxt(os.path.join(host_dir, 'host_model_spec.txt'),
+                                                                      dtype={'names': (
+                                                                          'wl_0', 'ab_mag', 'ab_mag_err',
+                                                                          'flux', 'flux_err'),
+                                                                          'formats': (
+                                                                              np.float, np.float, np.float,
+                                                                              np.float, np.float)},
+                                                                      unpack=True, skiprows=1)
+
+
+
+    ax.plot(spec_wl_0, spec_ab_mag, label='Model spectrum (MAP)',
+               lw=0.7, color='green', alpha=0.8)
+    ax.fill_between(spec_wl_0, spec_ab_mag+spec_ab_mag_err, spec_ab_mag-spec_ab_mag_err, color='green', alpha=0.2, label='Posterior')
+    ax.errorbar(model_wl_c[band_flag], model_ab_mag[band_flag], yerr=model_ab_mag_err[band_flag], label='Model photometry (MAP)',
+                 marker='s', markersize=8, alpha=0.85, ls='', lw=3, ecolor='green', capsize=5,
                  markerfacecolor='none', markeredgecolor='green',
                  markeredgewidth=3)
-    plt.errorbar(wphot[mask], obs['maggies'][mask], yerr=obs['maggies_unc'][mask],
+    ax.errorbar(obs_wl_c, obs_ab_mag, yerr=obs_ab_mag_err,
                  label='Observed photometry', ecolor='red',
-                 marker='o', markersize=10, ls='', lw=3, alpha=0.8,
+                 marker='o', markersize=8, ls='', lw=3, alpha=0.85, capsize=5,
                  markerfacecolor='none', markeredgecolor='red',
                  markeredgewidth=3)
-    # errorbar(wphot[mask], initial_phot[mask], label='Model photometry (init)',
-    #         marker='s', markersize=10, alpha=0.8, ls='', lw=3,
-    #         markerfacecolor='none', markeredgecolor='grey',
-    #         markeredgewidth=3)
 
-    plt.xlabel('Wavelength [A]')
-    plt.ylabel('Flux Density [maggies]')
-    plt.xlim([xmin, xmax])
-    plt.ylim([ymin, ymax])
-    plt.legend(loc='best', fontsize=20)
-    plt.tight_layout()
-
+    temp = np.interp(np.linspace(700, 300000, 10000), spec_wl_0, spec_ab_mag)
+    ymin, ymax = temp.min() * 0.85, temp.max() * 1.1
+    ax.invert_yaxis()
+    plt.xscale('log')
+    ax.set_xlim(700, 300000)
+    ax.set_xticks([1e3, 1e4, 1e5])
+    ax.set_xticklabels(['0.1', '1', '10'])
+    ax.set_ylim(ymax, ymin)
+    ax.set_ylabel('AB mag', fontsize=14)
+    ax.set_xlabel(r'Wavelength $[\mu m]$', fontsize=14)
+    ax.set_title('Host Galaxy SED Fit (' + tde_name + ')')
+    plt.legend(loc=4)
+    plt.show()
     return fig
 
 
-def corner_plot(result, tde_name, path):
+def corner_plot(result):
     imax = np.argmax(result['lnprobability'])
 
     i, j = np.unravel_index(imax, result['lnprobability'].shape)
@@ -242,7 +225,7 @@ def corner_plot(result, tde_name, path):
 
     try:
         parnames = np.array(result['theta_labels'], dtype='U20')
-    except(KeyError):
+    except KeyError:
         parnames = np.array(result['model'].theta_labels())
     ind_show = slice(None)
     thin = 5
@@ -257,7 +240,7 @@ def corner_plot(result, tde_name, path):
     if wghts is not None:
         wghts = wghts[start::thin]
     samples = trace.reshape(trace.shape[0] * trace.shape[1], trace.shape[2])
-    logify = ["mass"]
+    logify = ["mass", "tau"]
     # logify some parameters
     xx = samples.copy()
     for p in logify:
@@ -281,32 +264,22 @@ def corner_plot(result, tde_name, path):
             bounds.append((theta_max[i] - 4 * mean_dist, theta_max[i] + 4 * mean_dist))
 
     cornerfig = reader.subcorner(result, thin=5,
-                                 fig=plt.subplots(5, 5, figsize=(27, 27))[0], logify=["mass"], range=bounds)
+                                 fig=plt.subplots(5, 5, figsize=(27, 27))[0], logify=["mass", "tau"], range=bounds)
 
     return cornerfig
 
 
 def configure(tde_name, path, z, init_theta):
-    run_params = {}
-    run_params["object_redshift"] = z
-    run_params["fixed_metallicity"] = False
-    run_params["add_duste"] = False
-    run_params["verbose"] = True
+    # Setting same paraters for the mcmc sampling
+    run_params = {"object_redshift": z, "fixed_metallicity": False, "add_duste": False, "verbose": True,
+                  "optimize": False, "emcee": True, "dynesty": False, "nwalkers": 100, "niter": 1000, "nburn": [500]}
 
     # Instantiating observation object and sps
-    obs = build_obs(path, tde_name, **run_params)
-    sps = build_sps(**run_params)
+    obs = build_obs(path, tde_name)
+    sps = build_sps()
 
     # Instantiating model object
     model = build_model(object_redshift=z, init_theta=init_theta)
-
-    # Generate the model SED at the initial value of theta
-    run_params["optimize"] = False
-    run_params["emcee"] = True
-    run_params["dynesty"] = False
-    run_params["nwalkers"] = 100
-    run_params["niter"] = 1000
-    run_params["nburn"] = [500]
 
     return obs, sps, model, run_params
 
@@ -314,47 +287,44 @@ def configure(tde_name, path, z, init_theta):
 def save_results(result, model, obs, sps, theta_max, tde_name, path):
     tde_dir = os.path.join(path, tde_name)
     band, _, _, _, catalogs = np.loadtxt(os.path.join(tde_dir, 'host', 'host_phot.txt'),
-                                                          dtype={'names': (
-                                                              'band', 'wl_0', 'ab_mag', 'ab_mag_err', 'catalog'),
-                                                              'formats': (
-                                                                  'U3', np.float, np.float, np.float, 'U10')},
-                                                          unpack=True, skiprows=1)
-
+                                         dtype={'names': (
+                                             'band', 'wl_0', 'ab_mag', 'ab_mag_err', 'catalog'),
+                                             'formats': (
+                                                 'U3', np.float, np.float, np.float, 'U10')},
+                                         unpack=True, skiprows=1)
 
     # Adding new bands (Swift, SDSS, HST)
     wphot = obs["phot_wave"]
 
-
     obs['filters'].append(sedpy.observate.Filter('bessell_V'))
     wphot = np.append(wphot, 5468)
     band = np.append(band, 'V')
-    catalogs = np.append(catalogs, 'Swift UVOT')
+    catalogs = np.append(catalogs, 'Swift/UVOT')
 
     obs['filters'].append(sedpy.observate.Filter('bessell_B'))
     wphot = np.append(wphot, 4392)
     band = np.append(band, 'B')
-    catalogs = np.append(catalogs, 'Swift UVOT')
+    catalogs = np.append(catalogs, 'Swift/UVOT')
 
     obs['filters'].append(sedpy.observate.Filter('bessell_U'))
     wphot = np.append(wphot, 3465)
     band = np.append(band, 'U')
-    catalogs = np.append(catalogs, 'Swift UVOT')
-
+    catalogs = np.append(catalogs, 'Swift/UVOT')
 
     obs['filters'].append(sedpy.observate.Filter('uvot_w1'))
     wphot = np.append(wphot, 2600)
     band = np.append(band, 'UV-W1')
-    catalogs = np.append(catalogs, 'Swift UVOT')
+    catalogs = np.append(catalogs, 'Swift/UVOT')
 
     obs['filters'].append(sedpy.observate.Filter('uvot_m2'))
     wphot = np.append(wphot, 2246)
     band = np.append(band, 'UV-M2')
-    catalogs = np.append(catalogs, 'Swift UVOT')
+    catalogs = np.append(catalogs, 'Swift/UVOT')
 
     obs['filters'].append(sedpy.observate.Filter('uvot_w2'))
     wphot = np.append(wphot, 1928)
     band = np.append(band, 'UV-W2')
-    catalogs = np.append(catalogs, 'Swift UVOT')
+    catalogs = np.append(catalogs, 'Swift/UVOT')
 
     obs['filters'].append(sedpy.observate.Filter('sdss_u0'))
     wphot = np.append(wphot, 3551)
@@ -384,33 +354,32 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path):
     obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f275w'))
     wphot = np.append(wphot, 2750)
     band = np.append(band, 'F275W')
-    catalogs = np.append(catalogs, 'HST WFC3')
+    catalogs = np.append(catalogs, 'HST/WFC3')
 
     obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f336w'))
     wphot = np.append(wphot, 3375)
     band = np.append(band, 'F336W')
-    catalogs = np.append(catalogs, 'HST WFC3')
+    catalogs = np.append(catalogs, 'HST/WFC3')
 
     obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f475w'))
     wphot = np.append(wphot, 4550)
     band = np.append(band, 'F475W')
-    catalogs = np.append(catalogs, 'HST WFC3')
+    catalogs = np.append(catalogs, 'HST/WFC3')
 
     obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f555w'))
     wphot = np.append(wphot, 5410)
     band = np.append(band, 'F555W')
-    catalogs = np.append(catalogs, 'HST WFC3')
+    catalogs = np.append(catalogs, 'HST/WFC3')
 
     obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f606w'))
     wphot = np.append(wphot, 5956)
     band = np.append(band, 'F606W')
-    catalogs = np.append(catalogs, 'HST WFC3')
+    catalogs = np.append(catalogs, 'HST/WFC3')
 
     obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f814w'))
     wphot = np.append(wphot, 8353)
     band = np.append(band, 'F814W')
-    catalogs = np.append(catalogs, 'HST WFC3')
-
+    catalogs = np.append(catalogs, 'HST/WFC3')
 
     # Creating modelled photometry and spectra
     mspec_map, mphot_map, _ = model.mean_model(theta_max, obs, sps=sps)
@@ -420,41 +389,39 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path):
     wspec = sps.wavelengths
     wspec *= a
 
-    # Measuring error on the modelled spectra and photometry
+    # Measuring errors on the modelled spectra and photometry
     randint = np.random.randint
     nwalkers, niter = 100, 500
     err_phot = []
     err_spec = []
-    for i in range(1e4):
+    for i in range(int(1e4)):
         theta = result['chain'][randint(nwalkers), 500 + randint(niter)]
         mspec, mphot, mextra = model.mean_model(theta, obs, sps=sps)
         err_phot.append(mphot)
         err_spec.append(mspec)
 
     err_phot = np.std(err_phot, axis=0)
-    err_phot_mag = abs(np.log10(abs(mphot_map-err_phot))/-0.4 - np.log10(mphot_map)/-0.4)
+    err_phot_mag = abs(np.log10(abs(mphot_map - err_phot)) / -0.4 - np.log10(mphot_map) / -0.4)
     small_err = np.round(err_phot_mag, 2) < 0.01
     err_phot_mag[small_err] = 0.01
-
 
     # Saving modelled photometry
     host_dir = os.path.join(tde_dir, 'host')
     host_file = open(os.path.join(host_dir, 'host_model_phot.txt'), 'w')
     host_file.write('band' + '\t' + 'wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'catalog' + '\n')
-    phot_mag = -2.5*np.log10(mphot_map)
+    phot_mag = -2.5 * np.log10(mphot_map)
     for yy in range(len(wphot)):
-        host_file.write(str(band[yy]) + '\t' + str(wphot[yy]) + '\t' + '{:.2f}'.format(phot_mag[yy]) + '\t' + '{:.2f}'.format(
-            err_phot_mag[yy]) + '\t' + str(catalogs[yy]) + '\n')
+        host_file.write(
+            str(band[yy]) + '\t' + str(wphot[yy]) + '\t' + '{:.2f}'.format(phot_mag[yy]) + '\t' + '{:.2f}'.format(
+                err_phot_mag[yy]) + '\t' + str(catalogs[yy]) + '\n')
     host_file.close()
 
-
-
     # Saving modelled spectrum
-    spec_mag = -2.5*np.log10(mspec_map)
+    spec_mag = -2.5 * np.log10(mspec_map)
     err_spec = (np.std(err_spec, axis=0))
     err_spec_mag = abs(np.log10(abs(mspec_map - err_spec)) / -0.4 - np.log10(mspec_map) / -0.4)
     spec_flux = mag_to_flux(spec_mag, wspec)
-    err_spec_flux = spec_flux - mag_to_flux(spec_mag+err_spec_mag, wspec)
+    err_spec_flux = spec_flux - mag_to_flux(spec_mag + err_spec_mag, wspec)
 
     host_file = open(os.path.join(host_dir, 'host_model_spec.txt'), 'w')
     host_file.write('wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux' + '\t' + 'flux_err' + '\n')
@@ -463,6 +430,8 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path):
                         '{:.2f}'.format(err_spec_mag[yy]) + '\t' + str(spec_flux[yy]) +
                         '\t' + str(err_spec_flux[yy]) + '\n')
     host_file.close()
+
+
 def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
     os.chdir(os.path.join(path, tde_name, 'host'))
 
@@ -472,7 +441,7 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
     obs, sps, model, run_params = configure(tde_name, path, z, init_theta)
     print(model)
     print("\nInitial free parameter vector theta:\n  {}\n".format(model.theta))
-    '''
+
     if withmpi & ('logzsol' in model.free_params):
         dummy_obs = dict(filters=None, wavelength=None)
 
@@ -514,26 +483,30 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
                       toptimize=output["optimization"][1])
 
     print('Finished')
-    '''
-    result, obs, _ = reader.results_from("prospector_result.h5", dangerous=False)
-    imax = np.argmax(result['lnprobability'])
 
+    # Loading results file
+    result, obs, _ = reader.results_from("prospector_result.h5", dangerous=False)
+
+    # Finding the Maximum A Posteriori (MAP) model
+    imax = np.argmax(result['lnprobability'])
     i, j = np.unravel_index(imax, result['lnprobability'].shape)
     theta_max = result['chain'][i, j, :].copy()
-
 
     # saving results
     save_results(result, model, obs, sps, theta_max, tde_name, path)
 
+
     print('MAP value: {}'.format(theta_max))
-    fit_plot = plot_resulting_fit(model, obs, sps, theta_max, tde_name, path)
+    fit_plot = plot_resulting_fit(tde_name, path)
+
     try:
         os.mkdir(os.path.join(path, tde_name, 'plots'))
     except:
         pass
-    fit_plot.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_host_fit.png'), dpi=300)
+
+    fit_plot.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_host_fit.png'), bbox_inches='tight', dpi=300)
     plt.show()
-    cornerfig = corner_plot(result, tde_name, path)
-    cornerfig.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_cornerplot.png'), dpi=300)
+    corner_fig = corner_plot(result)
+    corner_fig.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_cornerplot.png'), bbox_inches='tight', dpi=300)
     plt.show()
     os.chdir(path)

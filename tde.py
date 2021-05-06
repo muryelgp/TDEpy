@@ -25,7 +25,7 @@ from astroquery.vizier import Vizier
 from astroquery.simbad import Simbad
 import astropy.units as units
 import gPhoton.gAperture as gaperture
-from fit_host import *
+import fit_host as fit_host
 
 warnings.simplefilter('ignore', category=AstropyWarning)
 
@@ -75,7 +75,7 @@ class TDE:
         -finds Galactic extinction in the LoS, E(B-V)
         -Save all infos into tde_name_info.fits file in the 'path'
 
-        obs: This function only works for TNS objects, i.e. those with names begining with 'AT', e.g. AT2018dyb.
+        obs: This function only works for TNS objects, i.e. those with names beginning with 'AT', e.g. AT2018dyb.
         """
 
         if not self.is_tns:
@@ -83,7 +83,7 @@ class TDE:
                 'For now this functions only works for AT* named sources (e.g, AT2020zso)\n for non IAU names you '
                 'should download the data manually and run directly \'sw_photometry()\'')
 
-        print('Searching for ' + str(self.name) + ' informations...')
+        print('Searching for ' + str(self.name) + ' information...')
         try:
             # Getting RA and DEC and other infos from TNS
             self.ra, self.dec, self.z, self.host_name, self.other_name = self._search_tns(str(self.name)[2:])
@@ -286,11 +286,11 @@ class TDE:
             # Loading and plotting Swift data
             if band[0] == 's':
                 if host_sub:
-                    path = os.path.join(self.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')
+                    data_path = os.path.join(self.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')
                 else:
-                    path = os.path.join(self.tde_dir, 'photometry', 'obs', str(band) + '.txt')
+                    data_path = os.path.join(self.tde_dir, 'photometry', 'obs', str(band) + '.txt')
 
-                obsid, mjd, mag, mage, abmag, abmage, flu, flue, ct, cte, = np.loadtxt(path, skiprows=2, unpack=True)
+                obsid, mjd, mag, mage, abmag, abmage, flu, flue, ct, cte, = np.loadtxt(data_path, skiprows=2, unpack=True)
                 flag = (abmag > 0) & (ct > 0)
                 ax.errorbar(mjd[flag], abmag[flag], yerr=abmage[flag], marker='D', linestyle='-',
                             color=color_dic[band],
@@ -625,24 +625,24 @@ class TDE:
                       'SkyMapper': "X", 'SDSS': "v", 'GALEX': "^"}
 
         finite = (np.isfinite(ab_mag)) & (np.isfinite(ab_mag_err))
-
+        flag = True
         fig, ax = plt.subplots(figsize=(16, 8))
         for catalog in np.unique(catalogs[finite]):
             flag = (catalogs == catalog) & (np.isfinite(ab_mag)) & (np.isfinite(ab_mag_err))
             ax.errorbar(wl_c[flag], ab_mag[flag], yerr=ab_mag_err[flag], marker=marker_dic[catalog], fmt='o',
                         color=color_dic[catalog],
-                        linewidth=1, markeredgecolor='black', markersize=6, elinewidth=0.7, capsize=1.7,
-                        label=catalog)
+                        linewidth=3, markeredgecolor='black', markersize=10, elinewidth=3, capsize=5, capthick=3,
+                        markeredgewidth=1, label=catalog)
 
         ax.invert_yaxis()
-
         plt.xscale('log')
         ax.set_xlim(700, 300000)
-        ax.set_ylim(25.5, 11.5)
         ax.set_xticks([1e3, 1e4, 1e5])
         ax.set_xticklabels(['0.1', '1', '10'])
+        ymin, ymax = np.min(ab_mag) * 0.85, np.max(ab_mag) * 1.1
+        ax.set_ylim(ymax, ymin)
         ax.set_ylabel('AB mag', fontsize=14)
-        ax.set_xlabel(r'$\lambda \ [\mu m]$', fontsize=14)
+        ax.set_xlabel(r'Wavelength $[\mu m]$', fontsize=14)
         ax.set_title('Host Galaxy SED (' + self.name + ')')
         plt.legend(loc=4)
         try:
@@ -658,26 +658,26 @@ class TDE:
     def fit_host_sed(self, withmpi=True, n_cores=2, init_theta=None):
 
         if np.isfinite(float(self.z)):
-            run_prospector(self.name, self.work_dir, self.z, withmpi=withmpi, n_cores=n_cores, init_theta=init_theta)
+            fit_host.run_prospector(self.name, self.work_dir, self.z, withmpi=withmpi, n_cores=n_cores, init_theta=init_theta)
         else:
             raise Exception('You need to define a redshift (z) for the source before fitting the host SED')
 
-    def plot_host_sed_fit(self):
-        init_theta = [1e10, 0, 0.05, 1, 5]
-
-        obs, sps, model, run_params = configure(self.name, self.work_dir, self.z, init_theta)
+    def plot_host_sed_fit(self, corner_plot=False):
         os.chdir(self.host_dir)
 
-        result, obs, _ = reader.results_from("prospector_result.h5", dangerous=False)
+        result, obs, _ = fit_host.reader.results_from("prospector_result.h5", dangerous=False)
         imax = np.argmax(result['lnprobability'])
 
         i, j = np.unravel_index(imax, result['lnprobability'].shape)
         theta_max = result['chain'][i, j, :].copy()
         print('MAP value: {}'.format(theta_max))
-        fit_plot = plot_resulting_fit(model, obs, sps, theta_max, tde_name, path)
+        fit_host.plot_resulting_fit(self.name, self.work_dir)
         plt.show()
-        cornerfig = corner_plot(result, tde_name, path)
-        plt.show()
+
+        if corner_plot:
+            fit_host.corner_plot(result)
+            plt.show()
+
         os.chdir(self.work_dir)
 
     @staticmethod
@@ -1012,7 +1012,16 @@ class TDE:
             except:
                 pass
 
-        ztf_g = open(os.path.join(cwd_tde, 'photometry', 'ztf_g.txt'), 'w')
+        try:
+            os.path.join(cwd_tde, 'photometry')
+        except:
+            pass
+        try:
+            os.mkdir(os.path.join(cwd_tde, 'photometry', 'host_sub'))
+        except:
+            pass
+
+        ztf_g = open(os.path.join(cwd_tde, 'photometry', 'host_sub', 'ztf_g.txt'), 'w')
         ztf_g.write('#Values already corrected for host galaxy contamination  \n')
         ztf_g.write('mjd ab_mag ab_mag_err \n')
         for yy in range(len(mjd_g)):
@@ -1020,7 +1029,7 @@ class TDE:
                 mage_g[yy]) + '\n')
         ztf_g.close()
 
-        ztf_r = open(os.path.join(cwd_tde, 'photometry', 'ztf_r.txt'), 'w')
+        ztf_r = open(os.path.join(cwd_tde, 'photometry', 'host_sub', 'ztf_r.txt'), 'w')
         ztf_r.write('#Values already corrected for host galaxy contamination  \n')
         ztf_r.write('mjd ab_mag ab_mag_err \n')
         for yy in range(len(mjd_r)):
@@ -1029,9 +1038,9 @@ class TDE:
         ztf_r.close()
 
     @staticmethod
-    def _save_info(tde_dir, tde_name, other_name, ra, dec, target_id, n_sw_obs, ebv, z, host_name):
+    def _save_info(tde_dir, name, other_name, ra, dec, target_id, n_sw_obs, ebv, z, host_name):
         from astropy.table import Table
-        t = Table({'TDE_name': np.array([str(tde_name)]),
+        t = Table({'TDE_name': np.array([str(name)]),
                    'other_name': np.array([str(other_name)]),
                    'ra': np.array([float(ra)]),
                    'dec': np.array([float(dec)]),
@@ -1040,7 +1049,7 @@ class TDE:
                    'E(B-V)': np.array([str(ebv)]),
                    'z': np.array([str(z)]),
                    'host_name': np.array([str(host_name)])})
-        t.write(tde_dir + '/' + str(tde_name) + '_info.fits', format='fits', overwrite=True)
+        t.write(tde_dir + '/' + str(name) + '_info.fits', format='fits', overwrite=True)
 
     @staticmethod
     def _load_info(dir, name):
@@ -1116,7 +1125,7 @@ class TDE:
             return None
 
     @staticmethod
-    def _get_target_id(tde_name, ra, dec):
+    def _get_target_id(name, ra, dec):
         try:
             dfs = pd.read_html('https://www.swift.ac.uk/swift_portal/getobject.php?name=' +
                                str(ra) +
@@ -1132,7 +1141,7 @@ class TDE:
         while len(t_id) != 8:
             t_id = '0' + t_id
 
-        print(str(tde_name) + ' Swift Target ID is ' + str(t_id) + ' and there are ' + str(int(n_obs)) +
+        print(str(name) + ' Swift Target ID is ' + str(t_id) + ' and there are ' + str(int(n_obs)) +
               ' observations for this target!')
         return t_id, int(n_obs)
 
@@ -1217,7 +1226,9 @@ class TDE:
 
 
 if __name__ == "__main__":
+
     tde_name = 'AT2018fyk'
     path = '/home/muryel/Dropbox/data/TDEs/'
     tde = TDE(tde_name, path)
     tde.fit_host_sed(n_cores=4)
+    tde.plot_host_sed_fit(corner_plot=True)
