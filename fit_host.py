@@ -22,6 +22,11 @@ def mag_to_flux(ab_mag, wl):
     return flam_g
 
 
+def flux_to_mag(flux, wl):
+    mag = -2.5 * np.log10((flux / 2.99792458e+18) * wl ** 2) - 48.6
+    return mag
+
+
 def build_obs(path, tde):
     """Build a dictionary of observational data.
 
@@ -40,8 +45,8 @@ def build_obs(path, tde):
                                                               dtype={'names': (
                                                                   'band', 'wl_0', 'ab_mag', 'ab_mag_err', 'catalog'),
                                                                   'formats': (
-                                                                      'U3', np.float, np.float, np.float, 'U10')},
-                                                              unpack=True, skiprows=1)
+                                                                      'U5', np.float, np.float, np.float, 'U10')},
+                                                              unpack=True, skiprows=2)
     except:
         raise Exception('We should run download_host_data() before trying to fit it.')
 
@@ -57,29 +62,30 @@ def build_obs(path, tde):
 
     flag = np.isfinite(ab_mag * ab_mag_err)
 
-    catalog_bands = [catalogs[flag][i] + '_' + band[flag][i] for i in range(len(catalogs[flag]))]
+    catalog_bands = [catalogs[i] + '_' + band[i] for i in range(len(catalogs))]
     filternames = [filter_dic[i] for i in catalog_bands]
     # And here we instantiate the `Filter()` objects using methods in `sedpy`,
     # and put the resultinf list of Filter objects in the "filters" key of the `obs` dictionary
     obs["filters"] = sedpy.observate.load_filters(filternames)
 
-    # Now we store the measured fluxes for a single object, **in the same order as "filters"**
-    # The units of the fluxes need to be maggies (Jy/3631) so we will do the conversion here too.
-    mags = np.array(ab_mag[flag])
-    obs["maggies"] = 10 ** (-0.4 * mags)
+    obs["phot_wave"] = np.zeros(flag.shape)
+    obs["phot_mask"] = np.zeros(flag.shape)
+    obs["maggies"] = np.zeros(flag.shape)
+    obs["maggies_unc"] = np.zeros(flag.shape)
+    obs["phot_mask"] = np.ones(np.shape(flag), dtype=bool)
 
-    # And now we store the uncertainties (again in units of maggies)
-    # In this example we are going to fudge the uncertainties based on the supplied `snr` meta-parameter.
-    obs["maggies_unc"] = np.array(ab_mag_err[flag]) * obs["maggies"]
-
-    # Now we need a mask, which says which flux values to consider in the likelihood.
-    # IMPORTANT: the mask is *True* for values that you *want* to fit,
-    # and *False* for values you want to ignore.  Here we ignore the spitzer bands.
-    obs["phot_mask"] = np.array(np.isfinite(ab_mag[flag]) * np.isfinite(ab_mag_err[flag]))
-
-    # This is an array of effective wavelengths for each of the filters.
-    # It is not necessary, but it can be useful for plotting so we store it here as a convenience
-    obs["phot_wave"] = np.array(wl_c[flag])
+    # Measurments
+    for i in range(len(flag)):
+        if flag[i]:
+            mags = np.array(ab_mag[i])
+            mags_err = np.array(ab_mag_err[i])
+            obs["maggies"][i] = 10 ** (-0.4 * mags)
+            obs["maggies_unc"][i] = obs["maggies"][i] - 10**(-0.4*(mags+mags_err))
+            obs["phot_wave"][i] = np.array(wl_c[i])
+        else:
+            obs["maggies"][i] = 10 ** (-0.4 * 27)
+            obs["maggies_unc"][i] = 10 ** (-0.4 * 27) - 10 ** (-0.4 * 28)
+            obs["phot_wave"][i] = np.array(wl_c[i])
 
     obs["wavelength"] = None
     obs["spectrum"] = None
@@ -114,27 +120,30 @@ def build_model(object_redshift=None, init_theta=None):
     model_params = TemplateLibrary["parametric_sfh"]
 
     model_params["sfh"]["init"] = 1
-
+    print(init_theta)
     # Changing the initial values appropriate for our objects and data
-    model_params["dust2"]["init"] = init_theta[2]
-    model_params["tau"]["init"] = init_theta[4]
     model_params["mass"]["init"] = init_theta[0]
     model_params["logzsol"]["init"] = init_theta[1]
+    model_params["dust2"]["init"] = init_theta[2]
     model_params["tage"]["init"] = init_theta[3]
+    model_params["tau"]["init"] = init_theta[4]
+
+
+
 
     # Setting the priors forms and limits
-    model_params["dust2"]["prior"] = priors.TopHat(mini=0.0, maxi=2.85)
-    model_params["tau"]["prior"] = priors.TopHat(mini=0.1, maxi=30)
     model_params["mass"]["prior"] = priors.LogUniform(mini=1e6, maxi=1e12)
     model_params["logzsol"]["prior"] = priors.TopHat(mini=-1.8, maxi=0.2)
-    model_params["tage"]["prior"] = priors.TopHat(mini=8, maxi=13.3)
+    model_params["dust2"]["prior"] = priors.TopHat(mini=0.0, maxi=1.0)
+    model_params["tage"]["prior"] = priors.TopHat(mini=0.1, maxi=13.3)
+    model_params["tau"]["prior"] = priors.TopHat(mini=1e-2, maxi=10)
 
     # Setting the spread of the walkers for the mcmc sampling
-    model_params["dust2"]["disp_floor"] = 0.1
-    model_params["tau"]["disp_floor"] = 1
-    model_params["mass"]["disp_floor"] = 1e7
+    model_params["mass"]["disp_floor"] = 1e8
     model_params["logzsol"]['disp_floor'] = 0.1
-    model_params["tage"]["disp_floor"] = 1
+    model_params["dust2"]["disp_floor"] = 0.001
+    model_params["tage"]["disp_floor"] = 0.1
+    model_params["tau"]["disp_floor"] = 0.1
 
     # Fixing and defining the object redshift
     model_params["zred"]['isfree'] = False
@@ -157,53 +166,62 @@ def plot_resulting_fit(tde_name, path):
 
     fig, ax = plt.subplots(figsize=(16, 8))
 
-
-    band, obs_wl_c, obs_ab_mag, obs_ab_mag_err, catalogs = np.loadtxt(os.path.join(host_dir, 'host_phot.txt'),
-                                                          dtype={'names': (
-                                                              'band', 'wl_0', 'ab_mag', 'ab_mag_err',
-                                                              'catalog'),
-                                                              'formats': (
-                                                                  'U3', np.float, np.float, np.float, 'U10')},
-                                                          unpack=True, skiprows=1)
+    band, obs_wl_c, obs_ab_mag, obs_ab_mag_err, catalogs = \
+        np.loadtxt(os.path.join(host_dir, 'host_phot.txt'),
+                   dtype={'names': (
+                       'band', 'wl_0', 'ab_mag', 'ab_mag_err',
+                       'catalog'),
+                       'formats': (
+                           'U5', np.float, np.float, np.float,
+                           'U10')},
+                   unpack=True, skiprows=2)
     n_bands = len(band)
 
-    band, model_wl_c, model_ab_mag, model_ab_mag_err, catalogs = np.loadtxt(os.path.join(host_dir, 'host_model_phot.txt'),
-                                                                      dtype={'names': (
-                                                                          'band', 'wl_0', 'ab_mag', 'ab_mag_err',
-                                                                          'catalog'),
-                                                                          'formats': (
-                                                                              'U3', np.float, np.float, np.float,
-                                                                              'U10')},
-                                                                      unpack=True, skiprows=1)
+    band, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
+        np.loadtxt(os.path.join(host_dir, 'host_model_phot.txt'),
+                   dtype={'names': (
+                       'band', 'wl_0', 'ab_mag', 'ab_mag_err',
+                       'flux', 'flux_err', 'catalog'),
+                       'formats': (
+                           'U3', np.float, np.float, np.float,
+                           np.float, np.float, 'U10')},
+                   unpack=True, skiprows=1)
     band_flag = [i < n_bands for i in range(len(model_wl_c))]
 
-    spec_wl_0, spec_ab_mag, spec_ab_mag_err, spec_flux, spec_flux_err = np.loadtxt(os.path.join(host_dir, 'host_model_spec.txt'),
-                                                                      dtype={'names': (
-                                                                          'wl_0', 'ab_mag', 'ab_mag_err',
-                                                                          'flux', 'flux_err'),
-                                                                          'formats': (
-                                                                              np.float, np.float, np.float,
-                                                                              np.float, np.float)},
-                                                                      unpack=True, skiprows=1)
-
-
+    spec_wl_0, spec_ab_mag, spec_ab_mag_err, spec_flux, spec_flux_err = np.loadtxt(
+        os.path.join(host_dir, 'host_model_spec.txt'),
+        dtype={'names': (
+            'wl_0', 'ab_mag', 'ab_mag_err',
+            'flux', 'flux_err'),
+            'formats': (
+                np.float, np.float, np.float,
+                np.float, np.float)},
+        unpack=True, skiprows=1)
 
     ax.plot(spec_wl_0, spec_ab_mag, label='Model spectrum (MAP)',
-               lw=0.7, color='green', alpha=0.8)
-    ax.fill_between(spec_wl_0, spec_ab_mag+spec_ab_mag_err, spec_ab_mag-spec_ab_mag_err, color='green', alpha=0.2, label='Posterior')
-    ax.errorbar(model_wl_c[band_flag], model_ab_mag[band_flag], yerr=model_ab_mag_err[band_flag], label='Model photometry (MAP)',
-                 marker='s', markersize=8, alpha=0.85, ls='', lw=3, ecolor='green', capsize=5,
-                 markerfacecolor='none', markeredgecolor='green',
-                 markeredgewidth=3)
-    ax.errorbar(obs_wl_c, obs_ab_mag, yerr=obs_ab_mag_err,
-                 label='Observed photometry', ecolor='red',
-                 marker='o', markersize=8, ls='', lw=3, alpha=0.85, capsize=5,
-                 markerfacecolor='none', markeredgecolor='red',
-                 markeredgewidth=3)
+            lw=0.7, color='green', alpha=0.8)
+    ax.errorbar(model_wl_c[band_flag], model_ab_mag[band_flag], yerr=model_ab_mag_err[band_flag],
+                label='Model photometry (MAP)',
+                marker='s', markersize=8, alpha=0.85, ls='', lw=3, ecolor='green', capsize=5,
+                markerfacecolor='none', markeredgecolor='green',
+                markeredgewidth=3)
+
+    is_up_lim = ~np.isfinite(obs_ab_mag_err)
+    ax.errorbar(obs_wl_c[~is_up_lim], obs_ab_mag[~is_up_lim], yerr=obs_ab_mag_err[~is_up_lim],
+                label='Observed photometry', ecolor='red',
+                marker='o', markersize=8, ls='', lw=3, alpha=0.85, capsize=5,
+                markerfacecolor='none', markeredgecolor='red',
+                markeredgewidth=3)
+    ax.invert_yaxis()
+    ax.errorbar(obs_wl_c[is_up_lim], obs_ab_mag[is_up_lim], yerr=0.5, lolims=np.ones(np.shape(obs_ab_mag_err[is_up_lim]), dtype=bool),
+               marker='o', fmt='o',  ecolor='red', alpha=0.85, lw=3, markeredgecolor='red',
+               markerfacecolor='none', markersize=8, elinewidth=2, capsize=6, capthick=3,
+               markeredgewidth=3)
+
 
     temp = np.interp(np.linspace(700, 300000, 10000), spec_wl_0, spec_ab_mag)
     ymin, ymax = temp.min() * 0.85, temp.max() * 1.1
-    ax.invert_yaxis()
+
     plt.xscale('log')
     ax.set_xlim(700, 300000)
     ax.set_xticks([1e3, 1e4, 1e5])
@@ -213,7 +231,6 @@ def plot_resulting_fit(tde_name, path):
     ax.set_xlabel(r'Wavelength $[\mu m]$', fontsize=14)
     ax.set_title('Host Galaxy SED Fit (' + tde_name + ')')
     plt.legend(loc=4)
-    plt.show()
     return fig
 
 
@@ -258,10 +275,11 @@ def corner_plot(result):
         sig1 = theta_max[i] - np.percentile((data[:, i]), 16)
         sig2 = np.percentile((data[:, i]), 84) - theta_max[i]
         mean_dist = np.mean([sig1, sig2])
-        if i == 0:
+        if i == 0 or i == 4:
             bounds.append((np.log10(theta_max[i]) - 4 * mean_dist, np.log10(theta_max[i]) + 4 * mean_dist))
         else:
             bounds.append((theta_max[i] - 4 * mean_dist, theta_max[i] + 4 * mean_dist))
+
 
     cornerfig = reader.subcorner(result, thin=5,
                                  fig=plt.subplots(5, 5, figsize=(27, 27))[0], logify=["mass", "tau"], range=bounds)
@@ -290,8 +308,8 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path):
                                          dtype={'names': (
                                              'band', 'wl_0', 'ab_mag', 'ab_mag_err', 'catalog'),
                                              'formats': (
-                                                 'U3', np.float, np.float, np.float, 'U10')},
-                                         unpack=True, skiprows=1)
+                                                 'U5', np.float, np.float, np.float, 'U10')},
+                                         unpack=True, skiprows=2)
 
     # Adding new bands (Swift, SDSS, HST)
     wphot = obs["phot_wave"]
@@ -313,17 +331,17 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path):
 
     obs['filters'].append(sedpy.observate.Filter('uvot_w1'))
     wphot = np.append(wphot, 2600)
-    band = np.append(band, 'UV-W1')
+    band = np.append(band, 'UVW1')
     catalogs = np.append(catalogs, 'Swift/UVOT')
 
     obs['filters'].append(sedpy.observate.Filter('uvot_m2'))
     wphot = np.append(wphot, 2246)
-    band = np.append(band, 'UV-M2')
+    band = np.append(band, 'UVM2')
     catalogs = np.append(catalogs, 'Swift/UVOT')
 
     obs['filters'].append(sedpy.observate.Filter('uvot_w2'))
     wphot = np.append(wphot, 1928)
-    band = np.append(band, 'UV-W2')
+    band = np.append(band, 'UVW2')
     catalogs = np.append(catalogs, 'Swift/UVOT')
 
     obs['filters'].append(sedpy.observate.Filter('sdss_u0'))
@@ -400,20 +418,25 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path):
         err_phot.append(mphot)
         err_spec.append(mspec)
 
+    # Saving modelled photometry
     err_phot = np.std(err_phot, axis=0)
     err_phot_mag = abs(np.log10(abs(mphot_map - err_phot)) / -0.4 - np.log10(mphot_map) / -0.4)
     small_err = np.round(err_phot_mag, 2) < 0.01
     err_phot_mag[small_err] = 0.01
+    phot_mag = -2.5 * np.log10(mphot_map)
 
-    # Saving modelled photometry
+    phot_flux = mag_to_flux(phot_mag, wphot)
+    err_phot_flux = phot_flux - mag_to_flux(phot_mag + err_phot_mag, wphot)
+
     host_dir = os.path.join(tde_dir, 'host')
     host_file = open(os.path.join(host_dir, 'host_model_phot.txt'), 'w')
-    host_file.write('band' + '\t' + 'wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'catalog' + '\n')
-    phot_mag = -2.5 * np.log10(mphot_map)
+    host_file.write(
+        'band' + '\t' + 'wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux' + '\t' + 'flux_err' + '\t' + 'catalog' + '\n')
     for yy in range(len(wphot)):
         host_file.write(
             str(band[yy]) + '\t' + str(wphot[yy]) + '\t' + '{:.2f}'.format(phot_mag[yy]) + '\t' + '{:.2f}'.format(
-                err_phot_mag[yy]) + '\t' + str(catalogs[yy]) + '\n')
+                err_phot_mag[yy]) + '\t' + str(phot_flux[yy]) + '\t' + str(
+                err_phot_flux[yy]) + '\t' + str(catalogs[yy]) + '\n')
     host_file.close()
 
     # Saving modelled spectrum
@@ -432,15 +455,61 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path):
     host_file.close()
 
 
+def host_sub_lc(tde_name, path):
+    tde_dir = os.path.join(path, tde_name)
+    host_dir = os.path.join(tde_dir, 'host')
+    band_dic = dict(sw_uu='U', sw_bb='B', sw_vv='V', sw_w1='UVW1', sw_m2='UVM2',
+                    sw_w2='UVW2')
+    band_wl_dic = dict(sw_uu=3465, sw_bb=4392, sw_vv=5468, sw_w1=2600, sw_m2=2246,
+                    sw_w2=1928)
+
+    bands = ['sw_uu', 'sw_bb', 'sw_vv', 'sw_w1', 'sw_m2', 'sw_w2']
+
+
+    host_band, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
+        np.loadtxt(os.path.join(host_dir, 'host_model_phot.txt'),
+                   dtype={'names': (
+                       'band', 'wl_0', 'ab_mag', 'ab_mag_err',
+                       'flux', 'flux_err', 'catalog'),
+                       'formats': (
+                           'U5', np.float, np.float, np.float,
+                           np.float, np.float, 'U10')},
+                   unpack=True, skiprows=1)
+
+    for band in bands:
+        # Loading and plotting Swift data
+        data_path = os.path.join(tde_dir, 'photometry', 'obs', str(band) + '.txt')
+        if os.path.exists(data_path):
+            obsid, mjd, mag, mage, abmag, abmage, flu, flue, ct, cte, = np.loadtxt(data_path, skiprows=2, unpack=True)
+
+            host_band_flag = host_band == band_dic[band]
+            band_wl = band_wl_dic[band]
+
+            host_sub_abmag = -2.5 * np.log10(10 ** (-0.4 * abmag) - 10 ** (-0.4 * model_ab_mag[host_band_flag]))
+            host_sub_flu = flu - model_flux[host_band_flag]
+            host_sub_flue = flue
+            host_sub_abmage = abmage
+
+            write_path = os.path.join(tde_dir, 'photometry', 'host_sub', str(band) + '.txt')
+            g = open(write_path, 'w')
+            g.write('#Values already corrected for Galactic extinction and with host contribution subtracted\n')
+            g.write('obsid mjd ab_mag ab_mag_err flux flux_err \n')
+            for yy in range(len(mjd)):
+                if mjd[yy] > 0:
+                    obsid_yy = str('000' + str(int(obsid[yy])))
+                    g.write(obsid_yy + '\t' + str(mjd[yy]) + '\t' + '{:.2f}'.format(host_sub_abmag[yy]) + '\t' +
+                            '{:.2f}'.format(host_sub_abmage[yy]) + '\t' + str(host_sub_flu[yy]) + '\t' +
+                            str(host_sub_flue[yy]) + '\n')
+            g.close()
+
+
 def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
     os.chdir(os.path.join(path, tde_name, 'host'))
 
     if init_theta is None:
-        init_theta = [1e10, 0, 0.05, 1, 1]
+        init_theta = [1e10, -0.5, 0.01, 13, 5]
 
     obs, sps, model, run_params = configure(tde_name, path, z, init_theta)
-    print(model)
-    print("\nInitial free parameter vector theta:\n  {}\n".format(model.theta))
 
     if withmpi & ('logzsol' in model.free_params):
         dummy_obs = dict(filters=None, wavelength=None)
@@ -450,7 +519,6 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
         logzsol_grid = np.around(np.arange(lo, hi, step=0.1), decimals=2)
         sps.update(**model.params)  # make sure we are caching the correct IMF / SFH / etc
         for logzsol in logzsol_grid:
-            print(logzsol)
             model.params["logzsol"] = np.array([logzsol])
             _ = model.predict(model.theta, obs=dummy_obs, sps=sps)
 
@@ -470,8 +538,6 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
 
     # output = fit_model(obs, model, sps, lnprobfn=lnprobfn, **run_params)
     print('done emcee in {0}s'.format(output["sampling"][1]))
-
-   
 
     if os.path.exists("prospector_result.h5"):
         os.system('rm prospector_result.h5')
@@ -495,6 +561,8 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
     # saving results
     save_results(result, model, obs, sps, theta_max, tde_name, path)
 
+    # Writing host subtracted light curves
+    host_sub_lc(tde_name, path)
 
     print('MAP value: {}'.format(theta_max))
     fit_plot = plot_resulting_fit(tde_name, path)
@@ -507,6 +575,7 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
     fit_plot.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_host_fit.png'), bbox_inches='tight', dpi=300)
     plt.show()
     corner_fig = corner_plot(result)
-    corner_fig.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_cornerplot.png'), bbox_inches='tight', dpi=300)
+    corner_fig.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_cornerplot.png'), bbox_inches='tight',
+                       dpi=300)
     plt.show()
     os.chdir(path)

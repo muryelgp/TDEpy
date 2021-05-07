@@ -24,7 +24,7 @@ from astropy.io import fits
 from astroquery.vizier import Vizier
 from astroquery.simbad import Simbad
 import astropy.units as units
-import gPhoton.gAperture as gaperture
+import gPhoton.gAperture
 import fit_host as fit_host
 
 warnings.simplefilter('ignore', category=AstropyWarning)
@@ -63,9 +63,9 @@ class TDE:
         # Checking if info file has already been created
         if os.path.exists(os.path.join(self.tde_dir, self.name + '_info.fits')):
             self.other_name, self.ra, self.dec, self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name = \
-                self._load_info(self.tde_dir, self.name)
+                self._load_info(self.work_dir, self.name)
 
-    def download_data(self):
+    def download_data(self, fixed_target_id=False, target_id=None, n_sw_obs=None):
         """
         This function download all Swift/UVOT observations on the TDE, as well as ZTF data if available:
 
@@ -92,8 +92,10 @@ class TDE:
 
         # Getting Swift Target ID and number of observations
         print('Searching for Swift observations.....')
-        self.target_id, self.n_sw_obs = self._get_target_id(self.name, self.ra, self.dec)
-
+        if not fixed_target_id:
+            self.target_id, self.n_sw_obs = self._get_target_id(self.name, self.ra, self.dec)
+        else:
+            self.target_id, self.n_sw_obs = target_id, n_sw_obs
         # Creating/entering Swift dir
         try:
             os.mkdir(self.sw_dir)
@@ -281,51 +283,66 @@ class TDE:
             if bands is None:
                 bands = ['sw_uu', 'sw_bb', 'sw_vv', 'sw_w1', 'sw_m2', 'sw_w2', 'ztf_r, ztf_g']
 
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(12, 8))
         for band in bands:
             # Loading and plotting Swift data
             if band[0] == 's':
                 if host_sub:
-                    data_path = os.path.join(self.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')
+                    try:
+                        data_path = os.path.join(self.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')
+                        obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=2,
+                                                                                           unpack=True)
+                    except:
+                        continue
                 else:
-                    data_path = os.path.join(self.tde_dir, 'photometry', 'obs', str(band) + '.txt')
+                    try:
+                        data_path = os.path.join(self.tde_dir, 'photometry', 'obs', str(band) + '.txt')
+                        obsid, mjd, mag, mage, abmag, abmage, flu, flue, ct, cte, = np.loadtxt(data_path, skiprows=2,
+                                                                                           unpack=True)
+                    except:
+                        continue
 
-                obsid, mjd, mag, mage, abmag, abmage, flu, flue, ct, cte, = np.loadtxt(data_path, skiprows=2, unpack=True)
-                flag = (abmag > 0) & (ct > 0)
-                ax.errorbar(mjd[flag], abmag[flag], yerr=abmage[flag], marker='D', linestyle='-',
-                            color=color_dic[band],
-                            linewidth=1, markeredgecolor='black', markersize=4, elinewidth=0.7, capsize=1.7,
-                            label=legend_dic[band])
+                flag = abmag > 0
+                if np.sum(flag) > 0:
+                    ax.errorbar(mjd[flag], abmag[flag], yerr=abmage[flag], marker='D', linestyle='',
+                                color=color_dic[band],
+                                linewidth=1, markeredgecolor='black', markersize=4, elinewidth=0.7, capsize=0,
+                                label=legend_dic[band])
 
             # Loading and plotting ZTF data, only if it is present and host_sub=True
             elif band[0] == 'z' and host_sub:
                 if os.path.exists(os.path.join(self.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')):
                     mjd, abmag, abmage = np.loadtxt(os.path.join(self.tde_dir, self.name, 'photometry', str(band)
                                                                  + '.txt'), skiprows=2, unpack=True)
-                    ax.errorbar(mjd, abmag, yerr=abmage, marker='D', linestyle='-',
+                    ax.errorbar(mjd, abmag, yerr=abmage, marker='D', linestyle='',
                                 color=color_dic[band],
-                                linewidth=1, markeredgecolor='black', markersize=4, elinewidth=0.7, capsize=1.7,
+                                linewidth=1, markeredgecolor='black', markersize=4, elinewidth=0.7, capsize=0,
                                 label=legend_dic[band])
                 else:
                     pass
             else:
                 break
 
-            ax.set_xlabel('MJD', fontsize=14)
-            ax.set_ylabel('AB mag', fontsize=14)
-            ax.set_ylim(ax.get_ylim()[0] - 2, ax.get_ylim()[1] + 1)
-            ax.invert_yaxis()
-            ax.set_title(self.name, fontsize=14)
-            plt.legend(ncol=2)
-            if write_plot:
-                try:
-                    os.chdir(self.plot_dir)
-                except:
-                    os.mkdir(self.plot_dir)
-                    os.chdir(self.plot_dir)
-                plt.savefig(os.path.join(self.plot_dir, self.name + '_light_curve.' + figure_ext), bbox_inches='tight')
-            if show_plot:
-                plt.show()
+        ax.set_xlabel('MJD', fontsize=14)
+        ax.set_ylabel('AB mag', fontsize=14)
+        ax.invert_yaxis()
+        if host_sub:
+            title = self.name + ' host subtracted light curve'
+            fig_name = self.name + '_host_sub_light_curve'
+        else:
+            title = self.name + ' light curve'
+            fig_name = self.name + '_light_curve'
+        ax.set_title(title)
+        plt.legend(ncol=2)
+        if write_plot:
+            try:
+                os.chdir(self.plot_dir)
+            except:
+                os.mkdir(self.plot_dir)
+                os.chdir(self.plot_dir)
+            plt.savefig(os.path.join(self.plot_dir, fig_name + figure_ext), bbox_inches='tight')
+        if show_plot:
+            plt.show()
 
     def download_host_data(self):
         """
@@ -344,7 +361,7 @@ class TDE:
         ra_host = dec_host = None
         print('Searching for ' + self.name + ' host galaxy data:')
         if self.host_name != 'None':
-            print('The host galaxy name is ' + self.host_name)
+            print('The host galaxy name is ' + str(self.host_name))
             result = Simbad.query_object(self.host_name)
             if result is not None:
                 ra_host = result['RA'][0]
@@ -381,7 +398,8 @@ class TDE:
         except:
             os.chdir(self.host_dir)
         host_file = open(os.path.join(self.host_dir, 'host_phot.txt'), 'w')
-        host_file.write('band wl_0 ab_mag ab_mag_err catalog \n')
+        host_file.write("# If GALEX's ab_mag=25 it means that there was no detection in the position\n")
+        host_file.write('band' + '\t' + 'wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'catalog' + '\n')
 
         # Searching for Wise data
         print('Searching WISE data...')
@@ -568,31 +586,31 @@ class TDE:
         # Getting GALEX data
         print('Measuring UV photometry from GALEX data...')
         try:
-            nuv_data = gaperture("NUV", [ra_host, dec_host], radius=0.0014, coadd=True, overwrite=True)
+            nuv_data = gPhoton.gAperture("NUV", [ra_host, dec_host], radius=0.0014, coadd=True, overwrite=True)
             try:
                 nuv = nuv_data['mag'][0]
             except:
-                nuv = np.nan
+                nuv = 25
             try:
                 e_nuv = nuv_data['mag_err_1'][0]
             except:
                 e_nuv = np.nan
         except:
-            nuv = np.nan
+            nuv = 25
             e_nuv = np.nan
 
         try:
-            fuv_data = gaperture('FUV', [ra_host, dec_host], radius=0.0014, coadd=True, overwrite=True)
+            fuv_data = gPhoton.gAperture('FUV', [ra_host, dec_host], radius=0.0014, coadd=True, overwrite=True)
             try:
                 fuv = fuv_data['mag'][0]
             except:
-                fuv = np.nan
+                fuv = 25
             try:
                 e_fuv = fuv_data['mag_err_1'][0]
             except:
                 e_fuv = np.nan
         except:
-            fuv = np.nan
+            fuv = 25
             e_fuv = np.nan
 
         if np.isfinite(nuv * e_nuv):
@@ -614,27 +632,34 @@ class TDE:
                                                                       'band', 'wl_0', 'ab_mag', 'ab_mag_err',
                                                                       'catalog'),
                                                                       'formats': (
-                                                                          'U3', np.float, np.float, np.float, 'U10')},
-                                                                  unpack=True, skiprows=1)
+                                                                          'U5', np.float, np.float, np.float, 'U10')},
+                                                                  unpack=True, skiprows=2)
         except:
             raise Exception('We should run download_host_data() before trying to plot it.')
 
         color_dic = {"WISE": "maroon", "UKIDSS": "coral", "2MASS": 'red', 'PAN-STARRS': 'green', 'DES': 'lime',
                      'SkyMapper': 'greenyellow', 'SDSS': 'blue', 'GALEX': 'darkviolet'}
-        marker_dic = {"WISE": "o", "UKIDSS": "d", "2MASS": "D", 'PAN-STARRS': "*", 'DES': "P",
-                      'SkyMapper': "X", 'SDSS': "v", 'GALEX': "^"}
+        marker_dic = {"WISE": "D", "UKIDSS": "D", "2MASS": "D", 'PAN-STARRS': "D", 'DES': "D",
+                      'SkyMapper': "D", 'SDSS': "D", 'GALEX': "D"}
 
         finite = (np.isfinite(ab_mag)) & (np.isfinite(ab_mag_err))
-        flag = True
+
         fig, ax = plt.subplots(figsize=(16, 8))
         for catalog in np.unique(catalogs[finite]):
             flag = (catalogs == catalog) & (np.isfinite(ab_mag)) & (np.isfinite(ab_mag_err))
             ax.errorbar(wl_c[flag], ab_mag[flag], yerr=ab_mag_err[flag], marker=marker_dic[catalog], fmt='o',
                         color=color_dic[catalog],
-                        linewidth=3, markeredgecolor='black', markersize=10, elinewidth=3, capsize=5, capthick=3,
+                        linewidth=3, markeredgecolor='black', markersize=8, elinewidth=3, capsize=5, capthick=3,
+                        markeredgewidth=1, label=catalog)
+        ax.invert_yaxis()
+        for catalog in np.unique(catalogs[~finite]):
+            flag = (catalogs == catalog)
+            ax.errorbar(wl_c[flag], ab_mag[flag], yerr=0.5, lolims=np.ones(np.shape(ab_mag[flag]), dtype=bool),
+                        marker=marker_dic[catalog], fmt='o', color=color_dic[catalog],
+                        markeredgecolor='black', markersize=8, elinewidth=2, capsize=6, capthick=3,
                         markeredgewidth=1, label=catalog)
 
-        ax.invert_yaxis()
+
         plt.xscale('log')
         ax.set_xlim(700, 300000)
         ax.set_xticks([1e3, 1e4, 1e5])
@@ -655,10 +680,13 @@ class TDE:
             plt.show()
         os.chdir(self.work_dir)
 
-    def fit_host_sed(self, withmpi=True, n_cores=2, init_theta=None):
-
+    def fit_host_sed(self, n_cores, multi_processing=True, init_theta=None):
+        if self.z is None:
+            self.z = np.nan
         if np.isfinite(float(self.z)):
-            fit_host.run_prospector(self.name, self.work_dir, self.z, withmpi=withmpi, n_cores=n_cores, init_theta=init_theta)
+            print('Starting fitting ' + self.name + ' host galaxy SED')
+            print('THIS PROCESS WILL TAKE A LOT OF TIME!! try to increase the numbers of processing cores (n_cores), if possible..')
+            fit_host.run_prospector(self.name, self.work_dir, self.z, withmpi=multi_processing, n_cores=n_cores, init_theta=init_theta)
         else:
             raise Exception('You need to define a redshift (z) for the source before fitting the host SED')
 
@@ -671,13 +699,16 @@ class TDE:
         i, j = np.unravel_index(imax, result['lnprobability'].shape)
         theta_max = result['chain'][i, j, :].copy()
         print('MAP value: {}'.format(theta_max))
-        fit_host.plot_resulting_fit(self.name, self.work_dir)
+        fit_plot = fit_host.plot_resulting_fit(self.name, self.work_dir)
+        fit_plot.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_host_fit.png'), bbox_inches='tight',
+                         dpi=300)
         plt.show()
 
         if corner_plot:
-            fit_host.corner_plot(result)
+            c_plt = fit_host.corner_plot(result)
+            c_plt.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_cornerplot.png'), bbox_inches='tight',
+                               dpi=300)
             plt.show()
-
         os.chdir(self.work_dir)
 
     @staticmethod
@@ -741,7 +772,7 @@ class TDE:
                     ct.append(f[1].data['CORR_RATE'][0])  # uncorrected no matter what...
                     cte.append(f[1].data['CORR_RATE_ERR'][0])
                     if band == 'uu':
-                        if f[1].data['MAG'][0] <= f[1].data['MAG_LIM'][0] + 1:
+                        if f[1].data['MAG'][0] + f[1].data['MAG_ERR'][0] <= f[1].data['MAG_LIM'][0]:
                             mag.append(f[1].data['MAG'][0] - extcorr[0])
                             mage.append(f[1].data['MAG_ERR'][0])
                             flu.append(f[1].data['FLUX_AA'][0] / (10. ** (-0.4 * extcorr[0])))
@@ -758,7 +789,7 @@ class TDE:
                             abmage.append(-99)
 
                     elif band == 'bb':
-                        if f[1].data['MAG'][0] <= f[1].data['MAG_LIM'][0] + 1:
+                        if f[1].data['MAG'][0] + f[1].data['MAG_ERR'][0] <= f[1].data['MAG_LIM'][0]:
                             mag.append(f[1].data['MAG'][0] - extcorr[1])
                             mage.append(f[1].data['MAG_ERR'][0])
                             flu.append(f[1].data['FLUX_AA'][0] / (10. ** (-0.4 * extcorr[1])))
@@ -774,7 +805,7 @@ class TDE:
                             abmag.append(-99)
                             abmage.append(-99)
                     elif band == 'vv':
-                        if f[1].data['MAG'][0] <= f[1].data['MAG_LIM'][0] + 1:
+                        if f[1].data['MAG'][0] + f[1].data['MAG_ERR'][0] <= f[1].data['MAG_LIM'][0]:
                             mag.append(f[1].data['MAG'][0] - extcorr[2])
                             mage.append(f[1].data['MAG_ERR'][0])
                             flu.append(f[1].data['FLUX_AA'][0] / (10. ** (-0.4 * extcorr[2])))
@@ -790,7 +821,7 @@ class TDE:
                             abmag.append(-99)
                             abmage.append(-99)
                     elif band == 'w1':
-                        if f[1].data['MAG'][0] <= f[1].data['MAG_LIM'][0] + 1:
+                        if f[1].data['MAG'][0] + f[1].data['MAG_ERR'][0] <= f[1].data['MAG_LIM'][0]:
                             mag.append(f[1].data['MAG'][0] - extcorr[3])
                             mage.append(f[1].data['MAG_ERR'][0])
                             flu.append(f[1].data['FLUX_AA'][0] / (10. ** (-0.4 * extcorr[3])))
@@ -806,7 +837,7 @@ class TDE:
                             abmag.append(-99)
                             abmage.append(-99)
                     elif band == 'm2':
-                        if f[1].data['MAG'][0] <= f[1].data['MAG_LIM'][0] + 1:
+                        if f[1].data['MAG'][0] + f[1].data['MAG_ERR'][0] <= f[1].data['MAG_LIM'][0]:
                             mag.append(f[1].data['MAG'][0] - extcorr[4])
                             mage.append(f[1].data['MAG_ERR'][0])
                             flu.append(f[1].data['FLUX_AA'][0] / (10. ** (-0.4 * extcorr[4])))
@@ -822,7 +853,7 @@ class TDE:
                             abmag.append(-99)
                             abmage.append(-99)
                     elif band == 'w2':
-                        if f[1].data['MAG'][0] <= f[1].data['MAG_LIM'][0] + 1:
+                        if f[1].data['MAG'][0] + f[1].data['MAG_ERR'][0] <= f[1].data['MAG_LIM'][0]:
                             mag.append(f[1].data['MAG'][0] - extcorr[5])
                             mage.append(f[1].data['MAG_ERR'][0])
                             flu.append(f[1].data['FLUX_AA'][0] / (10. ** (-0.4 * extcorr[5])))
@@ -871,7 +902,8 @@ class TDE:
 
             g = open(os.path.join(obs_dir, 'sw_' + band + '.txt'), 'w')
             g.write('#Values already corrected for Galactic extinction  \n')
-            g.write('obsid mjd vega vega_err ab ab_err flux flux_err ctrate ctrate_err \n')
+            g.write('obsid' + '\t' + 'mjd' + '\t' + 'vega_mag' + '\t' + 'vega_mag_err' + '\t' + 'ab_mag' + '\t' +
+                    'ab_mag_err' + '\t' + 'flux' + '\t' + 'flux_err' + '\t' + 'ctrate' + '\t' + 'ctrate_err \n')
             for yy in range(len(mjd)):
                 g.write(str(obsid[yy]) + '\t' + str(mjd[yy]) + '\t' + '{:.2f}'.format(mag[yy]) + '\t' + '{:.2f}'.format(
                     mage[yy]) + '\t' + '{:.2f}'.format(abmag[yy]) + '\t' + '{:.2f}'.format(abmage[yy]) + '\t' + str(
@@ -1053,14 +1085,18 @@ class TDE:
 
     @staticmethod
     def _load_info(dir, name):
-        info = fits.open(dir + '/' + str(name) + '_info.fits')
+        info = fits.open(os.path.join(dir, name, str(name) + '_info.fits'))
         other_name = info[1].data['other_name'][0]
         ra = info[1].data['ra'][0]
         dec = info[1].data['dec'][0]
         target_id = info[1].data['sw_target_id'][0]
         n_sw_obs = info[1].data['n_sw_obs'][0]
         ebv = float(info[1].data['E(B-V)'][0])
-        z, host_name = float(info[1].data['z'][0]), info[1].data['host_name'][0]
+        z, host_name = (info[1].data['z'][0]), info[1].data['host_name'][0]
+        if z == 'None':
+            z = None
+        if host_name== 'None':
+            host_name = None
         info.close()
         return other_name, ra, dec, target_id, n_sw_obs, ebv, z, host_name
 
@@ -1227,8 +1263,8 @@ class TDE:
 
 if __name__ == "__main__":
 
-    tde_name = 'AT2018fyk'
+    tde_name = 'AT2020ocn'
     path = '/home/muryel/Dropbox/data/TDEs/'
     tde = TDE(tde_name, path)
-    tde.fit_host_sed(n_cores=4)
-    tde.plot_host_sed_fit(corner_plot=True)
+
+
