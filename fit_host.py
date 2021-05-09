@@ -1,5 +1,4 @@
 import os
-
 import sedpy
 from prospect.io import write_results as writer
 import matplotlib.pyplot as plt
@@ -58,7 +57,8 @@ def build_obs(path, tde):
                   'DES_Y': 'decam_Y', 'DES_z': 'decam_z', 'DES_i': 'decam_i', 'DES_r': 'decam_r', 'DES_g': 'decam_g',
                   'SkyMapper_u': 'sdss_u0', 'SkyMapper_z': 'hsc_z', 'SkyMapper_i': 'hsc_i', 'SkyMapper_r': 'hsc_r',
                   'SkyMapper_g': 'hsc_g', 'SkyMapper_v': 'stromgren_v',
-                  'SDSS_u': 'sdss_u0', 'GALEX_NUV': 'galex_NUV', 'GALEX_FUV': 'galex_FUV'}
+                  'SDSS_u': 'sdss_u0', 'GALEX_NUV': 'galex_NUV', 'GALEX_FUV': 'galex_FUV',
+                  'Swift/UVOT_UVW1': 'uvot_w2', 'Swift/UVOT_UVW2': 'uvot_w2', 'Swift/UVOT_UVM2': 'uvot_m2'}
 
     flag = np.isfinite(ab_mag * ab_mag_err)
 
@@ -83,8 +83,8 @@ def build_obs(path, tde):
             obs["maggies_unc"][i] = obs["maggies"][i] - 10**(-0.4*(mags+mags_err))
             obs["phot_wave"][i] = np.array(wl_c[i])
         else:
-            obs["maggies"][i] = 10 ** (-0.4 * 27)
-            obs["maggies_unc"][i] = 10 ** (-0.4 * 27) - 10 ** (-0.4 * 28)
+            obs["maggies"][i] = 0
+            obs["maggies_unc"][i] = 10 ** (-0.4 * ab_mag[i])
             obs["phot_wave"][i] = np.array(wl_c[i])
 
     obs["wavelength"] = None
@@ -120,7 +120,7 @@ def build_model(object_redshift=None, init_theta=None):
     model_params = TemplateLibrary["parametric_sfh"]
 
     model_params["sfh"]["init"] = 1
-    print(init_theta)
+    #print(init_theta)
     # Changing the initial values appropriate for our objects and data
     model_params["mass"]["init"] = init_theta[0]
     model_params["logzsol"]["init"] = init_theta[1]
@@ -134,7 +134,7 @@ def build_model(object_redshift=None, init_theta=None):
     # Setting the priors forms and limits
     model_params["mass"]["prior"] = priors.LogUniform(mini=1e6, maxi=1e12)
     model_params["logzsol"]["prior"] = priors.TopHat(mini=-1.8, maxi=0.2)
-    model_params["dust2"]["prior"] = priors.TopHat(mini=0.0, maxi=1.0)
+    model_params["dust2"]["prior"] = priors.ClippedNormal(mean=0.05, sigma=0.1, mini=0.0, maxi=0.2) #priors.TopHat(mini=0.0, maxi=1.0)
     model_params["tage"]["prior"] = priors.TopHat(mini=0.1, maxi=13.3)
     model_params["tau"]["prior"] = priors.TopHat(mini=1e-2, maxi=10)
 
@@ -485,8 +485,8 @@ def host_sub_lc(tde_name, path):
             host_band_flag = host_band == band_dic[band]
             band_wl = band_wl_dic[band]
 
-            host_sub_abmag = -2.5 * np.log10(10 ** (-0.4 * abmag) - 10 ** (-0.4 * model_ab_mag[host_band_flag]))
-            host_sub_flu = flu - model_flux[host_band_flag]
+            host_sub_abmag = -2.5 * np.log10(10 ** (-0.4 * abmag) - 10 ** (-0.4 * model_ab_mag[host_band_flag][0]))
+            host_sub_flu = flu - model_flux[host_band_flag][0]
             host_sub_flue = flue
             host_sub_abmage = abmage
 
@@ -507,7 +507,7 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
     os.chdir(os.path.join(path, tde_name, 'host'))
 
     if init_theta is None:
-        init_theta = [1e10, -0.5, 0.01, 13, 5]
+        init_theta = [1e10, -0.5, 0.01, 13, 1]
 
     obs, sps, model, run_params = configure(tde_name, path, z, init_theta)
 

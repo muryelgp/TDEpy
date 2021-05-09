@@ -398,7 +398,7 @@ class TDE:
         except:
             os.chdir(self.host_dir)
         host_file = open(os.path.join(self.host_dir, 'host_phot.txt'), 'w')
-        host_file.write("# If GALEX's ab_mag=25 it means that there was no detection in the position\n")
+        host_file.write("# if ab_mag_err = nan it means the measurement is a upper limit\n")
         host_file.write('band' + '\t' + 'wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'catalog' + '\n')
 
         # Searching for Wise data
@@ -586,7 +586,7 @@ class TDE:
         # Getting GALEX data
         print('Measuring UV photometry from GALEX data...')
         try:
-            nuv_data = gPhoton.gAperture("NUV", [ra_host, dec_host], radius=0.0014, coadd=True, overwrite=True)
+            nuv_data = gPhoton.gAperture("NUV", [ra_host, dec_host], radius=0.0014, annulus=[0.0015, 0.0050], coadd=True, overwrite=True)
             try:
                 nuv = nuv_data['mag'][0]
             except:
@@ -600,7 +600,7 @@ class TDE:
             e_nuv = np.nan
 
         try:
-            fuv_data = gPhoton.gAperture('FUV', [ra_host, dec_host], radius=0.0014, coadd=True, overwrite=True)
+            fuv_data = gPhoton.gAperture('FUV', [ra_host, dec_host], radius=0.0014, annulus=[0.0015, 0.0050], coadd=True, overwrite=True)
             try:
                 fuv = fuv_data['mag'][0]
             except:
@@ -638,24 +638,22 @@ class TDE:
             raise Exception('We should run download_host_data() before trying to plot it.')
 
         color_dic = {"WISE": "maroon", "UKIDSS": "coral", "2MASS": 'red', 'PAN-STARRS': 'green', 'DES': 'lime',
-                     'SkyMapper': 'greenyellow', 'SDSS': 'blue', 'GALEX': 'darkviolet'}
-        marker_dic = {"WISE": "D", "UKIDSS": "D", "2MASS": "D", 'PAN-STARRS': "D", 'DES': "D",
-                      'SkyMapper': "D", 'SDSS': "D", 'GALEX': "D"}
+                     'SkyMapper': 'greenyellow', 'SDSS': 'blue', 'GALEX': 'darkviolet', 'Swift/UVOT': 'darkviolet'}
 
         finite = (np.isfinite(ab_mag)) & (np.isfinite(ab_mag_err))
 
         fig, ax = plt.subplots(figsize=(16, 8))
         for catalog in np.unique(catalogs[finite]):
             flag = (catalogs == catalog) & (np.isfinite(ab_mag)) & (np.isfinite(ab_mag_err))
-            ax.errorbar(wl_c[flag], ab_mag[flag], yerr=ab_mag_err[flag], marker=marker_dic[catalog], fmt='o',
+            ax.errorbar(wl_c[flag], ab_mag[flag], yerr=ab_mag_err[flag], marker='D', fmt='o',
                         color=color_dic[catalog],
                         linewidth=3, markeredgecolor='black', markersize=8, elinewidth=3, capsize=5, capthick=3,
                         markeredgewidth=1, label=catalog)
         ax.invert_yaxis()
         for catalog in np.unique(catalogs[~finite]):
-            flag = (catalogs == catalog)
+            flag = (catalogs == catalog) & (~np.isfinite(ab_mag_err))
             ax.errorbar(wl_c[flag], ab_mag[flag], yerr=0.5, lolims=np.ones(np.shape(ab_mag[flag]), dtype=bool),
-                        marker=marker_dic[catalog], fmt='o', color=color_dic[catalog],
+                        marker='D', fmt='o', color=color_dic[catalog],
                         markeredgecolor='black', markersize=8, elinewidth=2, capsize=6, capthick=3,
                         markeredgewidth=1, label=catalog)
 
@@ -1266,5 +1264,6 @@ if __name__ == "__main__":
     tde_name = 'AT2020ocn'
     path = '/home/muryel/Dropbox/data/TDEs/'
     tde = TDE(tde_name, path)
-
+    tde.z = 0.0705
+    tde.download_host_data()
 
