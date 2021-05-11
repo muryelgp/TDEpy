@@ -480,15 +480,15 @@ class TDE:
         if dec_host > -30:
             print('Searching PAN-STARRS data...')
             v = Vizier(
-                columns=['RAJ2000', 'DEJ2000', 'objID', 'ymag', 'zmag', 'imag', 'rmag', 'gmag', 'e_ymag', 'e_zmag',
-                         'e_imag', 'e_rmag', 'e_gmag', "+_r"])
+                columns=['RAJ2000', 'DEJ2000', 'objID', 'yKmag', 'zKmag', 'iKmag', 'rKmag', 'gKmag', 'e_yKmag', 'e_zKmag',
+                         'e_iKmag', 'e_rKmag', 'e_gKmag', "+_r"])
             result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/349/ps1'])
             try:
                 obj = result[0]
 
-                y, z, i, r, g = obj['ymag'][0], obj['zmag'][0], obj['imag'][0], obj['rmag'][0], obj['gmag'][0]
-                e_y, e_z, e_i, e_r, e_g = obj['e_ymag'][0], obj['e_zmag'][0], obj['e_imag'][0], obj['e_rmag'][0], \
-                                          obj['e_gmag'][0]
+                y, z, i, r, g = obj['yKmag'][0], obj['zKmag'][0], obj['iKmag'][0], obj['rKmag'][0], obj['gKmag'][0]
+                e_y, e_z, e_i, e_r, e_g = obj['e_yKmag'][0], obj['e_zKmag'][0], obj['e_iKmag'][0], obj['e_rKmag'][0], \
+                                          obj['e_gKmag'][0]
 
                 if np.isfinite(y * e_y):
                     host_file.write(self._format_host_photo('y', 9620, y, e_y, 'PAN-STARRS'))
@@ -564,11 +564,11 @@ class TDE:
         # Searching SDSS u band photometry
         print('Searching SDSS data...')
         v = Vizier(
-            columns=['RAJ2000', 'DEJ2000', 'upmag', 'e_upmag', "+_r"])
+            columns=['RAJ2000', 'DEJ2000', 'umag', 'e_umag', "+_r"])
         result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['V/147/sdss12'])
         try:
             obj = result[0]
-            u, e_u = obj['upmag'][0] - 0.04, obj['e_upmag'][0]
+            u, e_u = obj['umag'][0] - 0.04, obj['e_umag'][0]
             if np.isfinite(u * e_u):
                 host_file.write(self._format_host_photo('u', 3500, u, e_u, 'SDSS'))
         except:
@@ -678,13 +678,13 @@ class TDE:
             plt.show()
         os.chdir(self.work_dir)
 
-    def fit_host_sed(self, n_cores, multi_processing=True, init_theta=None):
+    def fit_host_sed(self, n_cores, multi_processing=True, init_theta=None, n_walkers=None, n_inter=None, n_burn=None):
         if self.z is None:
             self.z = np.nan
         if np.isfinite(float(self.z)):
             print('Starting fitting ' + self.name + ' host galaxy SED')
             print('THIS PROCESS WILL TAKE A LOT OF TIME!! try to increase the numbers of processing cores (n_cores), if possible..')
-            fit_host.run_prospector(self.name, self.work_dir, self.z, withmpi=multi_processing, n_cores=n_cores, init_theta=init_theta)
+            fit_host.run_prospector(self.name, self.work_dir, self.z, withmpi=multi_processing, n_cores=n_cores, init_theta=init_theta, n_walkers=n_walkers, n_inter=n_inter, n_burn=n_burn)
         else:
             raise Exception('You need to define a redshift (z) for the source before fitting the host SED')
 
@@ -1265,5 +1265,9 @@ if __name__ == "__main__":
     path = '/home/muryel/Dropbox/data/TDEs/'
     tde = TDE(tde_name, path)
     tde.z = 0.0705
-    tde.download_host_data()
+    #tde.download_host_data()
+    #tde.plot_host_sed()
+    tde.fit_host_sed(n_cores=4, n_walkers=200, n_inter=10000, n_burn=[1000])
+    #init_theta=[3.83504434e+09, -1.59135055e-03, 1.01154677e-02,  1.84299484e+00, 1.64446718e-01]
+
 

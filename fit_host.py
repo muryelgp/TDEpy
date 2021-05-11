@@ -5,10 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from prospect.fitting import fit_model
 from prospect.fitting import lnprobfn
-from prospect.likelihood import lnlike_spec, lnlike_phot
-from prospect.models.templates import TemplateLibrary
 import prospect.io.read_results as reader
 from prospect.sources import CSPSpecBasis
+from prospect.models.templates import TemplateLibrary, describe
 
 # re-defining plotting defaults
 
@@ -58,7 +57,7 @@ def build_obs(path, tde):
                   'SkyMapper_u': 'sdss_u0', 'SkyMapper_z': 'hsc_z', 'SkyMapper_i': 'hsc_i', 'SkyMapper_r': 'hsc_r',
                   'SkyMapper_g': 'hsc_g', 'SkyMapper_v': 'stromgren_v',
                   'SDSS_u': 'sdss_u0', 'GALEX_NUV': 'galex_NUV', 'GALEX_FUV': 'galex_FUV',
-                  'Swift/UVOT_UVW1': 'uvot_w2', 'Swift/UVOT_UVW2': 'uvot_w2', 'Swift/UVOT_UVM2': 'uvot_m2'}
+                  'Swift/UVOT_UVW1': 'uvot_w1', 'Swift/UVOT_UVW2': 'uvot_w2', 'Swift/UVOT_UVM2': 'uvot_m2'}
 
     flag = np.isfinite(ab_mag * ab_mag_err)
 
@@ -99,7 +98,7 @@ def build_obs(path, tde):
     return obs
 
 
-def build_model(object_redshift=None, init_theta=None):
+def build_model(object_redshift=None, init_theta=None, add_duste=True):
     """Build a prospect.models.SedModel object
 
     :param object_redshift: (optional, default: None)
@@ -119,7 +118,7 @@ def build_model(object_redshift=None, init_theta=None):
     # Get (a copy of) one of the prepackaged model set dictionaries.
     model_params = TemplateLibrary["parametric_sfh"]
 
-    model_params["sfh"]["init"] = 1
+    model_params["sfh"]["init"] = 4
     #print(init_theta)
     # Changing the initial values appropriate for our objects and data
     model_params["mass"]["init"] = init_theta[0]
@@ -134,20 +133,29 @@ def build_model(object_redshift=None, init_theta=None):
     # Setting the priors forms and limits
     model_params["mass"]["prior"] = priors.LogUniform(mini=1e6, maxi=1e12)
     model_params["logzsol"]["prior"] = priors.TopHat(mini=-1.8, maxi=0.2)
-    model_params["dust2"]["prior"] = priors.ClippedNormal(mean=0.05, sigma=0.1, mini=0.0, maxi=0.2) #priors.TopHat(mini=0.0, maxi=1.0)
-    model_params["tage"]["prior"] = priors.TopHat(mini=0.1, maxi=13.3)
-    model_params["tau"]["prior"] = priors.TopHat(mini=1e-2, maxi=10)
+    model_params["dust2"]["prior"] = priors.TopHat(mini=0.001, maxi=0.2)
+    model_params["tage"]["prior"] = priors.TopHat(mini=0.001, maxi=13.8)
+    model_params["tau"]["prior"] = priors.Uniform(mini=0.001, maxi=30)
 
     # Setting the spread of the walkers for the mcmc sampling
     model_params["mass"]["disp_floor"] = 1e8
-    model_params["logzsol"]['disp_floor'] = 0.1
-    model_params["dust2"]["disp_floor"] = 0.001
-    model_params["tage"]["disp_floor"] = 0.1
-    model_params["tau"]["disp_floor"] = 0.1
+    model_params["logzsol"]['disp_floor'] = 0.5
+    model_params["dust2"]["disp_floor"] = 0.1
+    model_params["tage"]["disp_floor"] = 5.0
+    model_params["tau"]["disp_floor"] = 3.0
+
+    model_params["mass"]["init_disp"] = 1e8
+    model_params["logzsol"]['init_disp'] = 0.5
+    model_params["dust2"]["init_disp"] = 0.1
+    model_params["tage"]["init_disp"] = 5.0
+    model_params["tau"]["init_disp"] = 3.0
+
 
     # Fixing and defining the object redshift
     model_params["zred"]['isfree'] = False
     model_params["zred"]['init'] = object_redshift
+    #model_params.update(TemplateLibrary["dust_emission"])
+
 
     # Now instantiate the model object using this dictionary of parameter specifications
     model = SedModel(model_params)
@@ -175,7 +183,7 @@ def plot_resulting_fit(tde_name, path):
                            'U5', np.float, np.float, np.float,
                            'U10')},
                    unpack=True, skiprows=2)
-    n_bands = len(band)
+
 
     band, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
         np.loadtxt(os.path.join(host_dir, 'host_model_phot.txt'),
@@ -183,9 +191,11 @@ def plot_resulting_fit(tde_name, path):
                        'band', 'wl_0', 'ab_mag', 'ab_mag_err',
                        'flux', 'flux_err', 'catalog'),
                        'formats': (
-                           'U3', np.float, np.float, np.float,
+                           'U5', np.float, np.float, np.float,
                            np.float, np.float, 'U10')},
                    unpack=True, skiprows=1)
+
+    n_bands = int(np.where(band == 'V')[0])
     band_flag = [i < n_bands for i in range(len(model_wl_c))]
 
     spec_wl_0, spec_ab_mag, spec_ab_mag_err, spec_flux, spec_flux_err = np.loadtxt(
@@ -287,22 +297,9 @@ def corner_plot(result):
     return cornerfig
 
 
-def configure(tde_name, path, z, init_theta):
-    # Setting same paraters for the mcmc sampling
-    run_params = {"object_redshift": z, "fixed_metallicity": False, "add_duste": False, "verbose": True,
-                  "optimize": False, "emcee": True, "dynesty": False, "nwalkers": 100, "niter": 1000, "nburn": [500]}
-
-    # Instantiating observation object and sps
-    obs = build_obs(path, tde_name)
-    sps = build_sps()
-
-    # Instantiating model object
-    model = build_model(object_redshift=z, init_theta=init_theta)
-
-    return obs, sps, model, run_params
 
 
-def save_results(result, model, obs, sps, theta_max, tde_name, path):
+def save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, n_inter, n_burn):
     tde_dir = os.path.join(path, tde_name)
     band, _, _, _, catalogs = np.loadtxt(os.path.join(tde_dir, 'host', 'host_phot.txt'),
                                          dtype={'names': (
@@ -409,11 +406,11 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path):
 
     # Measuring errors on the modelled spectra and photometry
     randint = np.random.randint
-    nwalkers, niter = 100, 500
+    nwalkers, niter = n_walkers, n_inter - n_burn[-1]
     err_phot = []
     err_spec = []
-    for i in range(int(1e4)):
-        theta = result['chain'][randint(nwalkers), 500 + randint(niter)]
+    for i in range(1000):
+        theta = result['chain'][randint(nwalkers), n_burn[-1] + randint(niter)]
         mspec, mphot, mextra = model.mean_model(theta, obs, sps=sps)
         err_phot.append(mphot)
         err_spec.append(mspec)
@@ -503,13 +500,43 @@ def host_sub_lc(tde_name, path):
             g.close()
 
 
-def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
+def configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn):
+    # Setting same paraters for the mcmc sampling
+    run_params = {"object_redshift": z, "fixed_metallicity": False, "add_duste": True, "verbose": True,
+                  "optimize": True, "emcee": True, "dynesty": False, "nwalkers": n_walkers, "niter": n_inter, "nburn": n_burn,
+                  "min_method": "lm", "nmin": 2}
+
+    # Instantiating observation object and sps
+    obs = build_obs(path, tde_name)
+    sps = build_sps()
+
+    # Instantiating model object
+    model = build_model(object_redshift=z, init_theta=init_theta)
+
+    return obs, sps, model, run_params
+
+
+def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None, n_walkers=None, n_inter=None, n_burn=None):
     os.chdir(os.path.join(path, tde_name, 'host'))
 
     if init_theta is None:
-        init_theta = [1e10, -0.5, 0.01, 13, 1]
+        init_theta = [1e10, -1.5, 0.01, 13, 1]
 
-    obs, sps, model, run_params = configure(tde_name, path, z, init_theta)
+    if n_walkers is None:
+        n_walkers = 100
+
+    if n_inter is None:
+        n_inter = 1000
+
+    if n_burn is None:
+        n_burn = [500]
+
+    obs, sps, model, run_params = configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn)
+    print(model)
+    print(model.initial_theta)
+    model_params = TemplateLibrary["parametric_sfh"]
+    print(model_params)
+
 
     if withmpi & ('logzsol' in model.free_params):
         dummy_obs = dict(filters=None, wavelength=None)
@@ -559,7 +586,7 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None):
     theta_max = result['chain'][i, j, :].copy()
 
     # saving results
-    save_results(result, model, obs, sps, theta_max, tde_name, path)
+    save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, n_inter, n_burn)
 
     # Writing host subtracted light curves
     host_sub_lc(tde_name, path)
