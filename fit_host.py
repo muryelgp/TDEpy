@@ -409,7 +409,7 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, 
     nwalkers, niter = n_walkers, n_inter - n_burn[-1]
     err_phot = []
     err_spec = []
-    for i in range(1000):
+    for i in range(int(1e4)):
         theta = result['chain'][randint(nwalkers), n_burn[-1] + randint(niter)]
         mspec, mphot, mextra = model.mean_model(theta, obs, sps=sps)
         err_phot.append(mphot)
