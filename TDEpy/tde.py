@@ -227,13 +227,13 @@ class TDE:
                 self._create_reg(self.ra, self.dec, radius, self.sw_dir)
 
             # Doing photometry in the Swift data
-            bands = ['uu', 'bb', 'vv', 'w1', 'm2', 'w2']
 
-            self._do_sw_photo(self.sw_dir, bands, aper_cor)
+
+            self._do_sw_photo(self.sw_dir, aper_cor)
 
             # saving to files
             if write_to_file:
-                self._write_files(self.tde_dir, self.sw_dir, bands, self.ebv)
+                self._write_files(self.tde_dir, self.sw_dir, self.ebv)
             else:
                 pass
 
@@ -295,7 +295,7 @@ class TDE:
                 else:
                     try:
                         data_path = os.path.join(self.tde_dir, 'photometry', 'obs', str(band) + '.txt')
-                        obsid, mjd, mag, mage, abmag, abmage, flu, flue, ct, cte, = np.loadtxt(data_path, skiprows=2,
+                        obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=2,
                                                                                            unpack=True)
                     except:
                         continue
@@ -721,7 +721,8 @@ class TDE:
         t.write(self.tde_dir + '/' + str(self.name) + '_info.fits', format='fits', overwrite=True)
 
     @staticmethod
-    def _do_sw_photo(sw_dir, bands, aper_cor):
+    def _do_sw_photo(sw_dir, aper_cor):
+        bands = ['uu', 'bb', 'vv', 'w1', 'm2', 'w2']
         os.system('ls -d 0* >> datadirs.txt')
         dirs = [line.rstrip('\n').rstrip('/') for line in open('datadirs.txt')]
         os.system('rm datadirs.txt')
@@ -754,11 +755,12 @@ class TDE:
             os.chdir(sw_dir)
 
     @staticmethod
-    def _write_files(tde_dir, sw_dir, bands, ebv):
+    def _write_files(tde_dir, sw_dir, ebv):
         extcorr = np.array([5.00, 4.16, 3.16, 6.74, 8.53, 8.14]) * ebv
-        abcorr = [1.02, -0.13, -0.01, 1.51, 1.69, 1.73]
-        for band in bands:
-            obsid, mjd, mag, mage, flu, flue, ct, cte, abmag, abmage = [], [], [], [], [], [], [], [], [], []
+        bands = ['uu', 'bb', 'vv', 'w1', 'm2', 'w2']
+
+        for band_i, band in enumerate(bands):
+            obsid, mjd, ab_mag, ab_mag_err, flux, flux_err,   = [], [], [], [], [], []
             os.chdir(sw_dir)
             os.system('ls -d 0* >> datadirs.txt')
             dirs = [line.rstrip('\n').rstrip('/') for line in open('datadirs.txt')]
@@ -781,120 +783,27 @@ class TDE:
                     mjd.append(mjdref + t)
                     f.close()
                     f = fits.open(band + '.fits')
-                    ct.append(f[1].data['CORR_RATE'][0])  # uncorrected no matter what...
-                    cte.append(f[1].data['CORR_RATE_ERR'][0])
-                    if band == 'uu':
-                        if f[1].data['MAG'][0] + f[1].data['MAG_ERR'][0] <= f[1].data['MAG_LIM'][0]:
-                            mag.append(f[1].data['MAG'][0] - extcorr[0])
-                            mage.append(f[1].data['MAG_ERR'][0])
-                            flu.append(f[1].data['FLUX_AA'][0] / (10. ** (-0.4 * extcorr[0])))
-                            flue.append(f[1].data['FLUX_AA_ERR'][0])
-                            abmag.append(f[1].data['MAG'][0] + abcorr[0] - extcorr[0])
-                            abmage.append(f[1].data['MAG_ERR'][0])
-                        else:
-                            # append null values if below detection limit
-                            mag.append(-99)
-                            mage.append(-99)
-                            flu.append(-99)
-                            flue.append(-99)
-                            abmag.append(-99)
-                            abmage.append(-99)
-
-                    elif band == 'bb':
-                        if f[1].data['MAG'][0] + f[1].data['MAG_ERR'][0] <= f[1].data['MAG_LIM'][0]:
-                            mag.append(f[1].data['MAG'][0] - extcorr[1])
-                            mage.append(f[1].data['MAG_ERR'][0])
-                            flu.append(f[1].data['FLUX_AA'][0] / (10. ** (-0.4 * extcorr[1])))
-                            flue.append(f[1].data['FLUX_AA_ERR'][0])
-                            abmag.append(f[1].data['MAG'][0] + abcorr[1] - extcorr[1])
-                            abmage.append(f[1].data['MAG_ERR'][0])
-                        else:
-                            # append null values if below detection limit
-                            mag.append(-99)
-                            mage.append(-99)
-                            flu.append(-99)
-                            flue.append(-99)
-                            abmag.append(-99)
-                            abmage.append(-99)
-                    elif band == 'vv':
-                        if f[1].data['MAG'][0] + f[1].data['MAG_ERR'][0] <= f[1].data['MAG_LIM'][0]:
-                            mag.append(f[1].data['MAG'][0] - extcorr[2])
-                            mage.append(f[1].data['MAG_ERR'][0])
-                            flu.append(f[1].data['FLUX_AA'][0] / (10. ** (-0.4 * extcorr[2])))
-                            flue.append(f[1].data['FLUX_AA_ERR'][0])
-                            abmag.append(f[1].data['MAG'][0] + abcorr[2] - extcorr[2])
-                            abmage.append(f[1].data['MAG_ERR'][0])
-                        else:
-                            # append null values if below detection limit
-                            mag.append(-99)
-                            mage.append(-99)
-                            flu.append(-99)
-                            flue.append(-99)
-                            abmag.append(-99)
-                            abmage.append(-99)
-                    elif band == 'w1':
-                        if f[1].data['MAG'][0] + f[1].data['MAG_ERR'][0] <= f[1].data['MAG_LIM'][0]:
-                            mag.append(f[1].data['MAG'][0] - extcorr[3])
-                            mage.append(f[1].data['MAG_ERR'][0])
-                            flu.append(f[1].data['FLUX_AA'][0] / (10. ** (-0.4 * extcorr[3])))
-                            flue.append(f[1].data['FLUX_AA_ERR'][0])
-                            abmag.append(f[1].data['MAG'][0] + abcorr[3] - extcorr[3])
-                            abmage.append(f[1].data['MAG_ERR'][0])
-                        else:
-                            # append null values if below detection limit
-                            mag.append(-99)
-                            mage.append(-99)
-                            flu.append(-99)
-                            flue.append(-99)
-                            abmag.append(-99)
-                            abmage.append(-99)
-                    elif band == 'm2':
-                        if f[1].data['MAG'][0] + f[1].data['MAG_ERR'][0] <= f[1].data['MAG_LIM'][0]:
-                            mag.append(f[1].data['MAG'][0] - extcorr[4])
-                            mage.append(f[1].data['MAG_ERR'][0])
-                            flu.append(f[1].data['FLUX_AA'][0] / (10. ** (-0.4 * extcorr[4])))
-                            flue.append(f[1].data['FLUX_AA_ERR'][0])
-                            abmag.append(f[1].data['MAG'][0] + abcorr[4] - extcorr[4])
-                            abmage.append(f[1].data['MAG_ERR'][0])
-                        else:
-                            # append null values if below detection limit
-                            mag.append(-99)
-                            mage.append(-99)
-                            flu.append(-99)
-                            flue.append(-99)
-                            abmag.append(-99)
-                            abmage.append(-99)
-                    elif band == 'w2':
-                        if f[1].data['MAG'][0] + f[1].data['MAG_ERR'][0] <= f[1].data['MAG_LIM'][0]:
-                            mag.append(f[1].data['MAG'][0] - extcorr[5])
-                            mage.append(f[1].data['MAG_ERR'][0])
-                            flu.append(f[1].data['FLUX_AA'][0] / (10. ** (-0.4 * extcorr[5])))
-                            flue.append(f[1].data['FLUX_AA_ERR'][0])
-                            abmag.append(f[1].data['MAG'][0] + abcorr[5] - extcorr[5])
-                            abmage.append(f[1].data['MAG_ERR'][0])
-                        else:
-                            # append null values if below detection limit
-                            mag.append(-99)
-                            mage.append(-99)
-                            flu.append(-99)
-                            flue.append(-99)
-                            abmag.append(-99)
-                            abmage.append(-99)
+                    if f[1].data['AB_MAG'][0] <= f[1].data['AB_MAG_LIM'][0]:
+                        ab_mag.append(f[1].data['AB_MAG'][0] - extcorr[band_i])
+                        ab_mag_err.append(f[1].data['AB_MAG_ERR'][0])
+                        flux.append(f[1].data['FLUX_AA'][0] / (10. ** (-0.4 * extcorr[band_i])))
+                        flux_err.append(f[1].data['FLUX_AA_ERR'][0])
+                    else:
+                        ab_mag.append(-99)
+                        ab_mag_err.append(-99)
+                        flux.append(-99)
+                        flux_err.append(-99)
                     f.close()
                     os.chdir(sw_dir)
                 else:
                     # append null values
                     mjd.append(-1)
-                    mag.append(-99)
-                    mage.append(-99)
-                    flu.append(-99)
-                    flue.append(-99)
-                    abmag.append(-99)
-                    abmage.append(-99)
-                    ct.append(-99)
-                    cte.append(-99)
-
+                    ab_mag.append(-99)
+                    ab_mag_err.append(-99)
+                    flux.append(-99)
+                    flux_err.append(-99)
                     os.chdir(sw_dir)
+
             os.chdir(tde_dir)
             phot_dir = os.path.join(tde_dir, 'photometry')
 
@@ -913,14 +822,12 @@ class TDE:
                 os.chdir(obs_dir)
 
             g = open(os.path.join(obs_dir, 'sw_' + band + '.txt'), 'w')
-            g.write('#Values already corrected for Galactic extinction  \n')
-            g.write('obsid' + '\t' + 'mjd' + '\t' + 'vega_mag' + '\t' + 'vega_mag_err' + '\t' + 'ab_mag' + '\t' +
-                    'ab_mag_err' + '\t' + 'flux' + '\t' + 'flux_err' + '\t' + 'ctrate' + '\t' + 'ctrate_err \n')
+            g.write('#Values already corrected for Galactic extinction for an E(B-V) = ' + str(ebv) + '\n')
+            g.write('obsid' + '\t' + 'mjd' + '\t' + 'ab_mag' + '\t' +
+                    'ab_mag_err' + '\t' + 'flux' + '\t' + 'flux_err' + '\n')
             for yy in range(len(mjd)):
-                g.write(str(obsid[yy]) + '\t' + str(mjd[yy]) + '\t' + '{:.2f}'.format(mag[yy]) + '\t' + '{:.2f}'.format(
-                    mage[yy]) + '\t' + '{:.2f}'.format(abmag[yy]) + '\t' + '{:.2f}'.format(abmage[yy]) + '\t' + str(
-                    flu[yy]) + '\t' + str(flue[yy]) + '\t' + '{:.4f}'.format(ct[yy]) + '\t' + '{:.4f}'.format(
-                    cte[yy]) + '\n')
+                g.write(str(obsid[yy]) + '\t' + str(mjd[yy]) + '\t' + '{:.2f}'.format(ab_mag[yy]) + '\t' + '{:.2f}'.format(
+                    ab_mag_err[yy]) + '\t' + str(flux[yy]) + '\t' + str(flux_err[yy]) + '\n')
             g.close()
 
     @staticmethod
@@ -1264,5 +1171,5 @@ if __name__ == "__main__":
     path = '/home/muryel/Dropbox/data/TDEs/'
     tde = TDE(tde_name, path)
     tde.z = 0.0705
-    tde.fit_host_sed(n_cores=2)
+    tde.sw_photometry()
 
