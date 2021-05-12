@@ -543,7 +543,7 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None, n_walke
     print(model.initial_theta)
     model_params = TemplateLibrary["parametric_sfh"]
     print(model_params)
-    '''
+
 
     if withmpi & ('logzsol' in model.free_params):
         dummy_obs = dict(filters=None, wavelength=None)
@@ -583,7 +583,7 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None, n_walke
                       toptimize=output["optimization"][1])
 
     print('Finished')
-    '''
+
     # Loading results file
     result, obs, _ = reader.results_from("prospector_result.h5", dangerous=False)
 

@@ -52,6 +52,10 @@ class TDE:
         self.sw_dir = os.path.join(self.tde_dir, 'swift')
         self.plot_dir = os.path.join(self.tde_dir, 'plots')
         self.host_dir = os.path.join(self.tde_dir, 'host')
+        self.other_name, self.ra, self.dec, self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name = \
+            None, None, None, None, None, None, None, None
+
+
 
         # Checking if object/folder was already created
         try:
@@ -63,7 +67,7 @@ class TDE:
         # Checking if info file has already been created
         if os.path.exists(os.path.join(self.tde_dir, self.name + '_info.fits')):
             self.other_name, self.ra, self.dec, self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name = \
-                self._load_info(self.work_dir, self.name)
+                self._load_info()
 
     def download_data(self, fixed_target_id=False, target_id=None, n_sw_obs=None):
         """
@@ -127,8 +131,7 @@ class TDE:
         self.ebv = self._get_ebv(self.ra, self.dec)  # E(B-V) from Schlafly & Finkbeiner 2011
 
         # Saving info into a fits file
-        self._save_info(self.tde_dir, self.name, self.other_name, round(self.ra, 6), round(self.dec, 6), self.target_id,
-                        self.n_sw_obs, self.ebv, self.z, self.host_name)
+        self.save_info()
 
         os.chdir(self.tde_dir)
 
@@ -198,12 +201,11 @@ class TDE:
             self.ra, self.dec, self.z = coords
             self.other_name, self.target_id, self.n_sw_obs, self.host_name = 'None', 'None', 'None', 'None'
             self.ebv = self._get_ebv(self.ra, self.dec)
-            self._save_info(self.work_dir, self.name, self.other_name, round(self.ra, 6), round(self.dec, 6),
-                            self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name)
+            self.save_info()
         if self.is_tns:
 
             self.other_name, self.ra, self.dec, self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name = \
-                self._load_info(self.work_dir, self.name)
+                self._load_info()
 
             os.chdir(self.tde_dir)
             try:
@@ -378,8 +380,7 @@ class TDE:
                 coords_host = SkyCoord(ra=ra_host, dec=dec_host, unit=(units.hourangle, units.deg), frame=FK5)
                 ra_host = coords_host.ra.deg
                 dec_host = coords_host.dec.deg
-                self._save_info(self.tde_dir, self.name, self.other_name, self.ra, self.dec, self.target_id,
-                                self.n_sw_obs, self.ebv, self.z, self.host_name)
+                self.save_info()
             else:
                 ra_host = self.ra
                 dec_host = self.dec
@@ -680,6 +681,7 @@ class TDE:
         if np.isfinite(float(self.z)):
             print('Starting fitting ' + self.name + ' host galaxy SED')
             print('THIS PROCESS WILL TAKE A LOT OF TIME!! try to increase the numbers of processing cores (n_cores), if possible..')
+            self.save_info()
             fit_host.run_prospector(self.name, self.work_dir, self.z, withmpi=multi_processing, n_cores=n_cores, init_theta=init_theta, n_walkers=n_walkers, n_inter=n_inter, n_burn=n_burn)
         else:
             raise Exception('You need to define a redshift (z) for the source before fitting the host SED')
@@ -704,6 +706,19 @@ class TDE:
                                dpi=300)
             plt.show()
         os.chdir(self.work_dir)
+
+    def save_info(self):
+        from astropy.table import Table
+        t = Table({'TDE_name': np.array([str(self.name)]),
+                   'other_name': np.array([str(self.other_name)]),
+                   'ra': np.array([float(self.ra)]),
+                   'dec': np.array([float(self.dec)]),
+                   'sw_target_id': np.array([self.target_id]),
+                   'n_sw_obs': np.array([self.n_sw_obs]),
+                   'E(B-V)': np.array([str(self.ebv)]),
+                   'z': np.array([str(self.z)]),
+                   'host_name': np.array([str(self.host_name)])})
+        t.write(self.tde_dir + '/' + str(self.name) + '_info.fits', format='fits', overwrite=True)
 
     @staticmethod
     def _do_sw_photo(sw_dir, bands, aper_cor):
@@ -1066,23 +1081,8 @@ class TDE:
                 mage_r[yy]) + '\n')
         ztf_r.close()
 
-    @staticmethod
-    def _save_info(tde_dir, name, other_name, ra, dec, target_id, n_sw_obs, ebv, z, host_name):
-        from astropy.table import Table
-        t = Table({'TDE_name': np.array([str(name)]),
-                   'other_name': np.array([str(other_name)]),
-                   'ra': np.array([float(ra)]),
-                   'dec': np.array([float(dec)]),
-                   'sw_target_id': np.array([target_id]),
-                   'n_sw_obs': np.array([n_sw_obs]),
-                   'E(B-V)': np.array([str(ebv)]),
-                   'z': np.array([str(z)]),
-                   'host_name': np.array([str(host_name)])})
-        t.write(tde_dir + '/' + str(name) + '_info.fits', format='fits', overwrite=True)
-
-    @staticmethod
-    def _load_info(dir, name):
-        info = fits.open(os.path.join(dir, name, str(name) + '_info.fits'))
+    def _load_info(self):
+        info = fits.open(os.path.join(self.work_dir, self.name, str(self.name) + '_info.fits'))
         other_name = info[1].data['other_name'][0]
         ra = info[1].data['ra'][0]
         dec = info[1].data['dec'][0]
@@ -1264,5 +1264,5 @@ if __name__ == "__main__":
     path = '/home/muryel/Dropbox/data/TDEs/'
     tde = TDE(tde_name, path)
     tde.z = 0.0705
-    tde.download_host_data()
+    tde.fit_host_sed(n_cores=2)
 
