@@ -152,7 +152,7 @@ class TDE:
             except:
                 pass
             # saving ZTF data
-            self._load_ztfdata(ztf_name)
+            self._load_ztfdata(ztf_name, self.ebv)
         else:
             print('There is not ZTF for this source')
             pass
@@ -244,7 +244,7 @@ class TDE:
         # returning to the working path
         os.chdir(self.work_dir)
 
-    def plot_light_curve(self, host_sub=False, bands=None, write_plot=True, show_plot=True, figure_ext='png'):
+    def plot_light_curve(self, host_sub=False, bands=None, write_plot=True, show_plot=True, figure_ext='png', plot_host=None):
         """
         This function plots the TDEs light curves.
 
@@ -266,30 +266,49 @@ class TDE:
 
         figure_ext: string
             The format of the figure file to be saved. Default is 'png' but it can also be 'pdf'.
+
+        plot_host:
+            In construction!
         """
 
         # Creating color and legend dictionaries for each band
-        color_dic = dict(sw_uu='blue', sw_bb='cyan', sw_vv='gold', sw_w1='rebeccapurple', sw_m2='darkviolet',
+        color_dic = dict(sw_uu='blue', sw_bb='cyan', sw_vv='gold', sw_w1='navy', sw_m2='darkviolet',
                          sw_w2='magenta', ztf_g='green', ztf_r='red')
         legend_dic = dict(sw_uu='$U$', sw_bb='$B$', sw_vv='$V$', sw_w1=r'$UV~W1$', sw_m2=r'$UV~M2$',
                           sw_w2=r'$UV~W2$', ztf_g='g', ztf_r='r')
+
+        band_dic = dict(sw_uu='U', sw_bb='B', sw_vv='V', sw_w1='UVW1', sw_m2='UVM2',
+                          sw_w2='UVW2', ztf_g='g', ztf_r='r')
+        bands_plotted = []
+        host_bands, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
+            np.loadtxt(os.path.join(self.host_dir, 'host_model_phot.txt'),
+                       dtype={'names': (
+                           'band', 'wl_0', 'ab_mag', 'ab_mag_err',
+                           'flux', 'flux_err', 'catalog'),
+                           'formats': (
+                               'U5', np.float, np.float, np.float,
+                               np.float, np.float, 'U10')},
+                       unpack=True, skiprows=1)
 
         if not host_sub:
             if bands is None:
                 bands = ['sw_uu', 'sw_bb', 'sw_vv', 'sw_w1', 'sw_m2', 'sw_w2']
         elif host_sub:
             if bands is None:
-                bands = ['sw_uu', 'sw_bb', 'sw_vv', 'sw_w1', 'sw_m2', 'sw_w2', 'ztf_r, ztf_g']
+                bands = ['sw_uu', 'sw_bb', 'sw_vv', 'sw_w1', 'sw_m2', 'sw_w2', 'ztf_r', 'ztf_g']
 
+        mjd_max = 0
         fig, ax = plt.subplots(figsize=(12, 8))
         for band in bands:
             # Loading and plotting Swift data
+            print(band)
             if band[0] == 's':
                 if host_sub:
                     try:
                         data_path = os.path.join(self.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')
-                        obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=2,
+                        obsid, mjd, abmag, abmage, flu, flue, signal_host = np.loadtxt(data_path, skiprows=2,
                                                                                            unpack=True)
+
                     except:
                         continue
                 else:
@@ -302,36 +321,61 @@ class TDE:
 
                 flag = abmag > 0
                 if np.sum(flag) > 0:
-                    ax.errorbar(mjd[flag], abmag[flag], yerr=abmage[flag], marker='D', linestyle='',
+                    ax.errorbar(mjd[flag], abmag[flag], yerr=abmage[flag], marker="o", linestyle='',
                                 color=color_dic[band],
-                                linewidth=1, markeredgecolor='black', markersize=4, elinewidth=0.7, capsize=0,
+                                linewidth=1, markeredgewidth=0.5, markeredgecolor='black', markersize=8, elinewidth=0.7, capsize=0,
                                 label=legend_dic[band])
+                    bands_plotted.append(band)
+                    if np.max(mjd[flag]) > mjd_max:
+                        mjd_max = np.max(mjd[flag])
 
             # Loading and plotting ZTF data, only if it is present and host_sub=True
-            elif band[0] == 'z' and host_sub:
+            elif band[0] == 'z':
                 if os.path.exists(os.path.join(self.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')):
-                    mjd, abmag, abmage = np.loadtxt(os.path.join(self.tde_dir, self.name, 'photometry', str(band)
-                                                                 + '.txt'), skiprows=2, unpack=True)
-                    ax.errorbar(mjd, abmag, yerr=abmage, marker='D', linestyle='',
+                    mjd, abmag, abmage, flux, fluxe = np.loadtxt(os.path.join(self.tde_dir, 'photometry', 'host_sub', str(band) + '.txt'), skiprows=2, unpack=True)
+                    ax.errorbar(mjd, abmag, yerr=abmage, marker="o", linestyle='',
                                 color=color_dic[band],
-                                linewidth=1, markeredgecolor='black', markersize=4, elinewidth=0.7, capsize=0,
+                                linewidth=1, markeredgewidth=0.5, markeredgecolor='black', markersize=8, elinewidth=0.7, capsize=0,
                                 label=legend_dic[band])
+                    bands_plotted.append(band)
+                    if np.max(mjd) > mjd_max:
+                        mjd_max = np.max(mjd)
                 else:
                     pass
             else:
                 break
+
+        if plot_host is not None:
+            # Plotting host mag
+            for band in bands_plotted:
+                # Loading and plotting Swift data
+
+                if host_sub:
+                    if band[0] == 's':
+                        band_host_flag = host_bands == band_dic[band]
+                        ax.errorbar(mjd_max + plot_host, model_ab_mag[band_host_flag][0], yerr=model_ab_mag_err[band_host_flag][0],
+                                    marker="*", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
+                                    markeredgecolor='black', markersize=15, elinewidth=0.7, capsize=0)
+                    elif band[0] == 'z':
+                        band_host_flag = host_bands == band_dic[band]
+                        ax.errorbar(mjd_max + plot_host, model_ab_mag[band_host_flag][0], yerr=model_ab_mag_err[band_host_flag][0],
+                                    marker="*", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
+                                    markeredgecolor='black', markersize=15, elinewidth=0.7, capsize=0)
 
         ax.set_xlabel('MJD', fontsize=14)
         ax.set_ylabel('AB mag', fontsize=14)
         ax.invert_yaxis()
         if host_sub:
             title = self.name + ' host subtracted light curve'
-            fig_name = self.name + '_host_sub_light_curve'
+            fig_name = self.name + '_host_sub_light_curve.'
         else:
             title = self.name + ' light curve'
-            fig_name = self.name + '_light_curve'
+            fig_name = self.name + '_light_curve.'
         ax.set_title(title)
-        plt.legend(ncol=2)
+        if len(bands_plotted) > 3:
+            plt.legend(ncol=2)
+        else:
+            plt.legend(ncol=1)
         if write_plot:
             try:
                 os.chdir(self.plot_dir)
@@ -411,13 +455,13 @@ class TDE:
                              self._vega_to_ab(obj['W3mag'][0], 'W3'), self._vega_to_ab(obj['W4mag'][0], 'W4')
             e_W1, e_W2, e_W3, e_W4 = obj['e_W1mag'][0], obj['e_W2mag'][0], obj['e_W3mag'][0], obj['e_W4mag'][0]
 
-            if np.isfinite(W4):
+            if np.isfinite(W4*e_W4):
                 host_file.write(self._format_host_photo('W4', 221940, W4, e_W4, 'WISE'))
-            if np.isfinite(W3):
+            if np.isfinite(W3*e_W3):
                 host_file.write(self._format_host_photo('W3', 120820, W3, e_W3, 'WISE'))
-            if np.isfinite(W2):
+            if np.isfinite(W2*e_W2):
                 host_file.write(self._format_host_photo('W2', 46180, W2, e_W2, 'WISE'))
-            if np.isfinite(W1):
+            if np.isfinite(W1*e_W1):
                 host_file.write(self._format_host_photo('W1', 33500, W1, e_W1, 'WISE'))
         except:
             print('No WISE data found')
@@ -488,15 +532,15 @@ class TDE:
                                           obj['e_gKmag'][0]
 
                 if np.isfinite(y):
-                    host_file.write(self._format_host_photo('y', 9620, y, e_y, 'PAN-STARRS'))
+                    host_file.write(self._format_host_photo('y', 9633, y, e_y, 'PAN-STARRS'))
                 if np.isfinite(z):
-                    host_file.write(self._format_host_photo('z', 8660, z, e_z, 'PAN-STARRS'))
+                    host_file.write(self._format_host_photo('z', 8679, z, e_z, 'PAN-STARRS'))
                 if np.isfinite(i):
-                    host_file.write(self._format_host_photo('i', 7520, i, e_i, 'PAN-STARRS'))
+                    host_file.write(self._format_host_photo('i', 7545, i, e_i, 'PAN-STARRS'))
                 if np.isfinite(r):
-                    host_file.write(self._format_host_photo('r', 6170, r, e_r, 'PAN-STARRS'))
+                    host_file.write(self._format_host_photo('r', 6215, r, e_r, 'PAN-STARRS'))
                 if np.isfinite(g):
-                    host_file.write(self._format_host_photo('g', 4810, g, e_g, 'PAN-STARRS'))
+                    host_file.write(self._format_host_photo('g', 4866, g, e_g, 'PAN-STARRS'))
 
             except:
                 print('No PAN-STARRS Data found')
@@ -576,7 +620,7 @@ class TDE:
                 obj = result[0]
                 u, e_u = obj['uPSF'][0] - 0.04, obj['e_uPSF'][0]
                 if np.isfinite(u):
-                    host_file.write(self._format_host_photo('u', 3500, u, e_u, 'SkyMapper'))
+                    host_file.write(self._format_host_photo('u', 3551, u, e_u, 'SkyMapper'))
             except:
                 pass
 
@@ -937,29 +981,38 @@ class TDE:
             json.dump(data, outfile)
 
     @staticmethod
-    def _load_ztfdata(ztf_name):
+    def _load_ztfdata(ztf_name, ebv):
         cwd_tde = os.getcwd()
         # Read offline copy of json file
         with open(os.path.join(cwd_tde, 'ztf', ztf_name + '.json')) as json_file:
             data = json.load(json_file)
 
-        mjd_r, mag_r, mage_r, mjd_g, mag_g, mage_g = [], [], [], [], [], []
+        mjd_r, mag_r, mage_r, flux_r, fluxe_r = [], [], [], [], []
+        mjd_g, mag_g, mage_g, flux_g, fluxe_g = [], [], [], [], []
 
         try:
             print('There is ' + str(len(data['candidates'])) + ' ZTF observations for this source')
         except:
             return
-
+        # extinction corrector factor [g, r]
+        ext_corr = np.array([3.60, 2.70]) * ebv
+        wl_o = np.array([4866, 6215])
         for i in range(len(data['candidates'])):
             try:
                 if data['candidates'][i]['dc_mag_r02'] == -1:
                     mjd_g.append(data['candidates'][i]['mjd'])
-                    mag_g.append(data['candidates'][i]['magpsf'])
+                    mag_g.append(data['candidates'][i]['magpsf'] - ext_corr[0])
                     mage_g.append(data['candidates'][i]['sigmapsf'])
+                    flux_g.append(fit_host.mag_to_flux(data['candidates'][i]['magpsf'] - ext_corr[0], wl_o[0]))
+                    fluxe_g.append(fit_host.mag_to_flux(data['candidates'][i]['magpsf'] - ext_corr[0], wl_o[0]) - fit_host.mag_to_flux(
+                        data['candidates'][i]['magpsf'] - ext_corr[0] + data['candidates'][i]['sigmapsf'], wl_o[0]))
                 elif data['candidates'][i]['dc_mag_g02'] == -1:
                     mjd_r.append(data['candidates'][i]['mjd'])
                     mag_r.append(data['candidates'][i]['magpsf'])
-                    mage_r.append(data['candidates'][i]['sigmapsf'])
+                    mage_r.append(data['candidates'][i]['sigmapsf'] - ext_corr[1])
+                    flux_r.append(fit_host.mag_to_flux(data['candidates'][i]['magpsf'] - ext_corr[0], wl_o[1]))
+                    fluxe_r.append(fit_host.mag_to_flux(data['candidates'][i]['magpsf'] - ext_corr[0], wl_o[1]) - fit_host.mag_to_flux(
+                        data['candidates'][i]['magpsf'] - ext_corr[1] + data['candidates'][i]['sigmapsf'], wl_o[1]))
             except:
                 pass
 
@@ -973,19 +1026,19 @@ class TDE:
             pass
 
         ztf_g = open(os.path.join(cwd_tde, 'photometry', 'host_sub', 'ztf_g.txt'), 'w')
-        ztf_g.write('#Values already corrected for host galaxy contamination  \n')
-        ztf_g.write('mjd ab_mag ab_mag_err \n')
+        ztf_g.write('#Values corrected for Galactic extinction and free from host contribution\n')
+        ztf_g.write('mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux' + '\t' + 'flux_err' + '\n')
         for yy in range(len(mjd_g)):
             ztf_g.write('{:.6f}'.format(mjd_g[yy]) + '\t' + '{:.2f}'.format(mag_g[yy]) + '\t' + '{:.2f}'.format(
-                mage_g[yy]) + '\n')
+                mage_g[yy]) + '\t' + str(flux_g[yy]) + '\t' + str(fluxe_g[yy]) + '\n')
         ztf_g.close()
 
         ztf_r = open(os.path.join(cwd_tde, 'photometry', 'host_sub', 'ztf_r.txt'), 'w')
-        ztf_r.write('#Values already corrected for host galaxy contamination  \n')
+        ztf_r.write('#Values corrected for Galactic extinction and free from host contribution\n')
         ztf_r.write('mjd ab_mag ab_mag_err \n')
         for yy in range(len(mjd_r)):
             ztf_r.write('{:.6f}'.format(mjd_r[yy]) + '\t' + '{:.2f}'.format(mag_r[yy]) + '\t' + '{:.2f}'.format(
-                mage_r[yy]) + '\n')
+                mage_r[yy]) + '\t' + str(flux_r[yy]) + '\t' + str(fluxe_r[yy]) + '\n')
         ztf_r.close()
 
     def _load_info(self):
@@ -1171,5 +1224,8 @@ if __name__ == "__main__":
     path = '/home/muryel/Dropbox/data/TDEs/'
     tde = TDE(tde_name, path)
     tde.z = 0.0705
-    tde.sw_photometry()
-
+    #tde.download_data()
+    #tde.sw_photometry()
+    tde.plot_host_sed()
+    #tde.plot_light_curve(host_sub=True)
+    #tde.plot_host_sed_fit()

@@ -205,18 +205,20 @@ def plot_resulting_fit(tde_name, path):
     n_bands = int(np.where(band == 'V')[0])
     band_flag = [i < n_bands for i in range(len(model_wl_c))]
 
-    spec_wl_0, spec_ab_mag, spec_ab_mag_err, spec_flux, spec_flux_err = np.loadtxt(
+    spec_wl_0, spec_ab_mag, spec_ab_mag_p16, spec_ab_mag_p84,  spec_flux, spec_flux_p16, spec_ab_mag_p84 = np.loadtxt(
         os.path.join(host_dir, 'host_model_spec.txt'),
         dtype={'names': (
-            'wl_0', 'ab_mag', 'ab_mag_err',
-            'flux', 'flux_err'),
+            'wl_0', 'ab_mag', 'spec_ab_mag_p16', 'spec_ab_mag_p16'
+            'flux', 'spec_flux_p16', 'spec_ab_mag_p84', 'tde/host'),
             'formats': (
                 np.float, np.float, np.float,
-                np.float, np.float)},
+                np.float, np.float, np.float, np.float, np.float)},
         unpack=True, skiprows=1)
+
 
     ax.plot(spec_wl_0, spec_ab_mag, label='Model spectrum (MAP)',
             lw=0.7, color='green', alpha=0.8)
+    ax.fill_between(spec_wl_0, spec_ab_mag - spec_ab_mag_p16, spec_ab_mag + spec_ab_mag_p84, alpha=.3, color='green', label='Posterior')
     ax.errorbar(model_wl_c[band_flag], model_ab_mag[band_flag], yerr=model_ab_mag_err[band_flag],
                 label='Model photometry (MAP)',
                 marker='s', markersize=8, alpha=0.85, ls='', lw=3, ecolor='green', capsize=5,
@@ -435,27 +437,30 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, 
     host_dir = os.path.join(tde_dir, 'host')
     host_file = open(os.path.join(host_dir, 'host_model_phot.txt'), 'w')
     host_file.write(
-        'band' + '\t' + 'wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux' + '\t' + 'flux_err' + '\t' + 'catalog' + '\n')
+        'band' + '\t' + 'wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux' + '\t' + 'flux_err' + '\t' + 'catalog/instrument' + '\n')
     for yy in range(len(wphot)):
         host_file.write(
-            str(band[yy]) + '\t' + str(wphot[yy]) + '\t' + '{:.2f}'.format(phot_mag[yy]) + '\t' + '{:.2f}'.format(
+            str(band[yy]) + '\t' + str(int(wphot[yy])) + '\t' + '{:.2f}'.format(phot_mag[yy]) + '\t' + '{:.2f}'.format(
                 err_phot_mag[yy]) + '\t' + str(phot_flux[yy]) + '\t' + str(
                 err_phot_flux[yy]) + '\t' + str(catalogs[yy]) + '\n')
     host_file.close()
 
     # Saving modelled spectrum
     spec_mag = -2.5 * np.log10(mspec_map)
-    err_spec = (np.std(err_spec, axis=0))
-    err_spec_mag = abs(np.log10(abs(mspec_map - err_spec)) / -0.4 - np.log10(mspec_map) / -0.4)
     spec_flux = mag_to_flux(spec_mag, wspec)
-    err_spec_flux = spec_flux - mag_to_flux(spec_mag + err_spec_mag, wspec)
+
+    # Dealing with posterior percentis
+    mag_p16 = spec_mag - np.percentile(-2.5*np.log10(err_spec), 16, axis=0)
+    mag_p84 = np.percentile(-2.5*np.log10(err_spec), 84, axis=0) - spec_mag
+    flux_p16 = spec_flux - np.percentile(mag_to_flux(-2.5*np.log10(err_spec), wspec), 16, axis=0)
+    flux_p85 = np.percentile(mag_to_flux(-2.5 * np.log10(err_spec), wspec), 84, axis=0) - spec_flux
 
     host_file = open(os.path.join(host_dir, 'host_model_spec.txt'), 'w')
-    host_file.write('wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux' + '\t' + 'flux_err' + '\n')
+    host_file.write('wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_p16' + '\t' + 'ab_mag_p84' + '\t' + 'flux' + '\t' + 'flux_p16' + '\t' + 'flux_p84' + '\n')
     for yy in range(len(wspec)):
         host_file.write('{:.2f}'.format(wspec[yy]) + '\t' + '{:.2f}'.format(spec_mag[yy]) + '\t' +
-                        '{:.2f}'.format(err_spec_mag[yy]) + '\t' + str(spec_flux[yy]) +
-                        '\t' + str(err_spec_flux[yy]) + '\n')
+                        '{:.2f}'.format(mag_p16[yy]) + '\t' + '{:.2f}'.format(mag_p84[yy]) + '\t' + str(spec_flux[yy]) +
+                        '\t' + str(flux_p16[yy]) + '\t' + str(flux_p85[yy]) + '\n')
     host_file.close()
 
 
@@ -470,7 +475,7 @@ def host_sub_lc(tde_name, path):
     bands = ['sw_uu', 'sw_bb', 'sw_vv', 'sw_w1', 'sw_m2', 'sw_w2']
 
 
-    host_band, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
+    host_bands, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
         np.loadtxt(os.path.join(host_dir, 'host_model_phot.txt'),
                    dtype={'names': (
                        'band', 'wl_0', 'ab_mag', 'ab_mag_err',
@@ -484,26 +489,44 @@ def host_sub_lc(tde_name, path):
         # Loading and plotting Swift data
         data_path = os.path.join(tde_dir, 'photometry', 'obs', str(band) + '.txt')
         if os.path.exists(data_path):
-            obsid, mjd, mag, mage, abmag, abmage, flu, flue, ct, cte, = np.loadtxt(data_path, skiprows=2, unpack=True)
+            obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=2, unpack=True)
 
-            host_band_flag = host_band == band_dic[band]
-            band_wl = band_wl_dic[band]
+            # selecting model fluxes at the respective band
+            host_band = host_bands == band_dic[band]
+            band_wl = model_wl_c[host_band][0]
+            host_flux = model_flux[host_band][0]
+            host_flux_err = model_flux_err[host_band][0]
 
-            host_sub_abmag = -2.5 * np.log10(10 ** (-0.4 * abmag) - 10 ** (-0.4 * model_ab_mag[host_band_flag][0]))
-            host_sub_flu = flu - model_flux[host_band_flag][0]
-            host_sub_flue = flue
-            host_sub_abmage = abmage
+            # Subtracting host contribution from the light curve
+            host_sub_flu = flu - host_flux
+            host_sub_flue = np.sqrt(flue**2 + host_flux_err**2)
+
+            #dealing with negative fluxes
+            host_sub_abmag = np.zeros(np.shape(host_sub_flu))
+            host_sub_abmage = np.zeros(np.shape(host_sub_flu))
+            sig_host = np.zeros(np.shape(host_sub_flu))
+
+            is_pos_flux = host_sub_flu > 0
+            host_sub_abmag[is_pos_flux] = flux_to_mag(host_sub_flu[is_pos_flux], band_wl)
+            host_sub_abmag[~is_pos_flux] = -99
+            host_sub_abmage[is_pos_flux] = host_sub_abmag[is_pos_flux] - flux_to_mag(host_sub_flu[is_pos_flux] + host_sub_flue[is_pos_flux], band_wl)
+            host_sub_abmage[~is_pos_flux] = -99
+            host_sub_flu[~is_pos_flux] = -99
+            host_sub_flu[~is_pos_flux] = -99
+            mjd[~is_pos_flux] = -1
+            sig_host[is_pos_flux] = host_sub_flu[is_pos_flux] / host_flux
+            sig_host[~is_pos_flux] = -99
 
             write_path = os.path.join(tde_dir, 'photometry', 'host_sub', str(band) + '.txt')
             g = open(write_path, 'w')
-            g.write('#Values already corrected for Galactic extinction and with host contribution subtracted\n')
-            g.write('obsid mjd ab_mag ab_mag_err flux flux_err \n')
+            g.write('#Values corrected for Galactic extinction and free from host contribution\n')
+            g.write('obsid' + '\t' + 'mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux' + '\t' + 'flux_err' + '\t' + 'TDE/host' + '\n')
             for yy in range(len(mjd)):
                 if mjd[yy] > 0:
                     obsid_yy = str('000' + str(int(obsid[yy])))
                     g.write(obsid_yy + '\t' + str(mjd[yy]) + '\t' + '{:.2f}'.format(host_sub_abmag[yy]) + '\t' +
                             '{:.2f}'.format(host_sub_abmage[yy]) + '\t' + str(host_sub_flu[yy]) + '\t' +
-                            str(host_sub_flue[yy]) + '\n')
+                            str(host_sub_flue[yy]) + '\t' + '{:.2f}'.format(sig_host[yy]) + '\n')
             g.close()
 
 
@@ -540,9 +563,9 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None, n_walke
 
     obs, sps, model, run_params = configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn)
     print(model)
-    print(model.initial_theta)
+    print("Initial guess: {}".format(model.initial_theta))
     model_params = TemplateLibrary["parametric_sfh"]
-    print(model_params)
+
 
 
     if withmpi & ('logzsol' in model.free_params):
