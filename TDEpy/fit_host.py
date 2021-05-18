@@ -9,6 +9,7 @@ import prospect.io.read_results as reader
 from prospect.sources import CSPSpecBasis
 from prospect.models.templates import TemplateLibrary, describe
 import pkg_resources
+import tools as tools
 
 # re-defining plotting defaults
 
@@ -421,8 +422,8 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, 
     err_phot_mag[small_err] = 0.01
     phot_mag = -2.5 * np.log10(mphot_map)
 
-    phot_flux = mag_to_flux(phot_mag, wphot)
-    err_phot_flux = phot_flux - mag_to_flux(phot_mag + err_phot_mag, wphot)
+    phot_flux = tools.mag_to_flux(phot_mag, wphot)
+    err_phot_flux = phot_flux - tools.mag_to_flux(phot_mag + err_phot_mag, wphot)
 
     host_dir = os.path.join(tde_dir, 'host')
     host_file = open(os.path.join(host_dir, 'host_model_phot.txt'), 'w')
@@ -437,13 +438,13 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, 
 
     # Saving modelled spectrum
     spec_mag = -2.5 * np.log10(mspec_map)
-    spec_flux = mag_to_flux(spec_mag, wspec)
+    spec_flux = tools.mag_to_flux(spec_mag, wspec)
 
     # Dealing with posterior percentis
     mag_p16 = spec_mag - np.percentile(-2.5*np.log10(err_spec), 16, axis=0)
     mag_p84 = np.percentile(-2.5*np.log10(err_spec), 84, axis=0) - spec_mag
-    flux_p16 = spec_flux - np.percentile(mag_to_flux(-2.5*np.log10(err_spec), wspec), 16, axis=0)
-    flux_p85 = np.percentile(mag_to_flux(-2.5 * np.log10(err_spec), wspec), 84, axis=0) - spec_flux
+    flux_p16 = spec_flux - np.percentile(tools.mag_to_flux(-2.5*np.log10(err_spec), wspec), 16, axis=0)
+    flux_p85 = np.percentile(tools.mag_to_flux(-2.5 * np.log10(err_spec), wspec), 84, axis=0) - spec_flux
 
     host_file = open(os.path.join(host_dir, 'host_model_spec.txt'), 'w')
     host_file.write('wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_p16' + '\t' + 'ab_mag_p84' + '\t' + 'flux' + '\t' + 'flux_p16' + '\t' + 'flux_p84' + '\n')
@@ -497,9 +498,9 @@ def host_sub_lc(tde_name, path):
             sig_host = np.zeros(np.shape(host_sub_flu))
 
             is_pos_flux = host_sub_flu > 0
-            host_sub_abmag[is_pos_flux] = flux_to_mag(host_sub_flu[is_pos_flux], band_wl)
+            host_sub_abmag[is_pos_flux] = tools.flux_to_mag(host_sub_flu[is_pos_flux], band_wl)
             host_sub_abmag[~is_pos_flux] = -99
-            host_sub_abmage[is_pos_flux] = host_sub_abmag[is_pos_flux] - flux_to_mag(host_sub_flu[is_pos_flux] + host_sub_flue[is_pos_flux], band_wl)
+            host_sub_abmage[is_pos_flux] = host_sub_abmag[is_pos_flux] - tools.flux_to_mag(host_sub_flu[is_pos_flux] + host_sub_flue[is_pos_flux], band_wl)
             host_sub_abmage[~is_pos_flux] = -99
             host_sub_flu[~is_pos_flux] = -99
             host_sub_flu[~is_pos_flux] = -99
