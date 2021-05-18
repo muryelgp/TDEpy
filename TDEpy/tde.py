@@ -46,8 +46,8 @@ class TDE:
         self.sw_dir = os.path.join(self.tde_dir, 'swift')
         self.plot_dir = os.path.join(self.tde_dir, 'plots')
         self.host_dir = os.path.join(self.tde_dir, 'host')
-        self.other_name, self.ra, self.dec, self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name = \
-            None, None, None, None, None, None, None, None
+        self.other_name, self.ra, self.dec, self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name, self.discovery_date = \
+            None, None, None, None, None, None, None, None, None
 
         # Checking if object/folder was already created
         try:
@@ -58,10 +58,10 @@ class TDE:
 
         # Checking if info file has already been created
         if os.path.exists(os.path.join(self.tde_dir, self.name + '_info.fits')):
-            self.other_name, self.ra, self.dec, self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name = \
+            self.other_name, self.ra, self.dec, self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name, self.discovery_date = \
                 self._load_info()
 
-    def download_data(self, fixed_target_id=False, target_id=None, n_sw_obs=None):
+    def download_data(self, target_id=None, n_obs=None):
         """
         This function download all Swift/UVOT observations on the TDE, as well as ZTF data if available:
 
@@ -74,24 +74,27 @@ class TDE:
         obs: This function only works for TNS objects, i.e. those with names beginning with 'AT', e.g. AT2018dyb.
         """
 
-        if not self.is_tns:
+        if (not self.is_tns) & (target_id is None):
             raise Exception(
-                'For now this functions only works for AT* named sources (e.g, AT2020zso)\n for non IAU names you '
-                'should download the data manually and run directly \'sw_photometry()\'')
+                '\nFor now this functions only works for AT* named sources (e.g, AT2020zso), for non IAU names you\n'
+                'need to insert both the Swift Target ID (target_id) of the source as well as the number of observations(n_obs)\n'
+                'to be downloaded. You can search for this at: https://www.swift.ac.uk/swift_portal/')
 
         print('Searching for ' + str(self.name) + ' information...')
         try:
             # Getting RA and DEC and other infos from TNS
-            self.ra, self.dec, self.z, self.host_name, self.other_name = reduction.search_tns(str(self.name)[2:])
+            self.ra, self.dec, self.z, self.host_name, self.other_name, self.discovery_date = reduction.search_tns(str(self.name)[2:])
         except:
             raise Exception('Not able to retrieve data on ' + self.name)
 
         # Getting Swift Target ID and number of observations
         print('Searching for Swift observations.....')
-        if not fixed_target_id:
+
+
+        if (target_id is None) & (n_obs is None):
             self.target_id, self.n_sw_obs = reduction.get_target_id(self.name, self.ra, self.dec)
         else:
-            self.target_id, self.n_sw_obs = target_id, n_sw_obs
+            self.target_id, self.n_sw_obs = target_id, n_obs
         # Creating/entering Swift dir
         try:
             os.mkdir(self.sw_dir)
@@ -196,7 +199,7 @@ class TDE:
             self.save_info()
         if self.is_tns:
 
-            self.other_name, self.ra, self.dec, self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name = \
+            self.other_name, self.ra, self.dec, self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name, self.discovery_date = \
                 self._load_info()
 
             os.chdir(self.tde_dir)
@@ -789,7 +792,8 @@ class TDE:
                    'n_sw_obs': np.array([self.n_sw_obs]),
                    'E(B-V)': np.array([str(self.ebv)]),
                    'z': np.array([str(self.z)]),
-                   'host_name': np.array([str(self.host_name)])})
+                   'host_name': np.array([str(self.host_name)]),
+                  'discovery_date(MJD)': np.array([float(self.discovery_date)])})
         t.write(self.tde_dir + '/' + str(self.name) + '_info.fits', format='fits', overwrite=True)
 
 
@@ -802,12 +806,13 @@ class TDE:
         n_sw_obs = info[1].data['n_sw_obs'][0]
         ebv = float(info[1].data['E(B-V)'][0])
         z, host_name = (info[1].data['z'][0]), info[1].data['host_name'][0]
+        discovery_date = info[1].data['discovery_date(MJD)'][0]
         if z == 'None':
             z = None
         if host_name == 'None':
             host_name = None
         info.close()
-        return other_name, ra, dec, target_id, n_sw_obs, ebv, z, host_name
+        return other_name, ra, dec, target_id, n_sw_obs, ebv, z, host_name, discovery_date
 
     def get_ebv(self):
         """
@@ -826,10 +831,8 @@ class TDE:
 
 
 if __name__ == "__main__":
-    tde_name = 'AT2021kty'
+    tde_name = 'AT2020ocn'
     path = '/home/muryel/Dropbox/data/TDEs/'
 
     tde = TDE(tde_name, path)
-    print(tde.ra, tde.dec)
-    tde.plot_host_sed()
-    tde.plot_light_curve()
+    tde.download_data()

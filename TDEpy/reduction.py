@@ -18,6 +18,7 @@ from photutils import centroid_sources, centroid_com
 warnings.simplefilter('ignore', category=AstropyWarning)
 from astropy.coordinates import FK5, SkyCoord
 from astropy.io import fits
+from astropy.time import Time
 import tools as tools
 
 
@@ -330,7 +331,8 @@ def search_tns(at_name):
             dec = reply['decdeg']
             print(str(reply['name_prefix']) + str(reply['objname']) + ' was found at Ra: ' + '{:.6f}'.format(ra) +
                   ' and Dec: ' + '{:.6f}'.format(dec))
-
+            discovery_time = reply['discoverydate']
+            discovery_time = Time(discovery_time, format='iso', scale='utc').mjd
             z = reply['redshift']
             host_name = reply['hostname']
             other_names = reply['internal_names']
@@ -353,7 +355,7 @@ def search_tns(at_name):
             if type(host_name) == 'NoneType':
                 host_name = None
 
-            return ra, dec, z, host_name, other_name
+            return ra, dec, z, host_name, other_name, discovery_time
 
         except Exception:
             print(str(json_string['data']['reply']['name']['110']['message'])[:-1] + ' for ' + str(object))
