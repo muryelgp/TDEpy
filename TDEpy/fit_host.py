@@ -15,16 +15,6 @@ import pkg_resources
 plt.rcParams.update({'font.size': 16})
 
 
-def mag_to_flux(ab_mag, wl):
-    fnu = (10. ** (-0.4 * (48.6 + ab_mag)))
-    flam_g = (2.99792458e+18 * fnu) / (wl ** 2.)
-    return flam_g
-
-
-def flux_to_mag(flux, wl):
-    mag = -2.5 * np.log10((flux / 2.99792458e+18) * wl ** 2) - 48.6
-    return mag
-
 
 
 def build_obs(path, tde):
