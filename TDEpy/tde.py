@@ -9,9 +9,10 @@ warnings.simplefilter('ignore', category=AstropyWarning)
 
 from astropy.coordinates import FK5, SkyCoord
 from astropy.utils.exceptions import AstropyWarning
+from astropy.time import Time
 from astroquery.irsa_dust import IrsaDust
 from astropy.io import fits
-
+import pandas as pd
 from astroquery.vizier import Vizier
 from astroquery.simbad import Simbad
 import astropy.units as units
@@ -58,7 +59,7 @@ class TDE:
 
         # Checking if info file has already been created
         if os.path.exists(os.path.join(self.tde_dir, self.name + '_info.fits')):
-            self.other_name, self.ra, self.dec, self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name, self.discovery_date = \
+            self.other_name, self.ra, self.dec, self.ebv, self.z, self.host_name, self.discovery_date = \
                 self._load_info()
 
     def download_data(self, target_id=None, n_obs=None):
@@ -76,25 +77,21 @@ class TDE:
 
         if (not self.is_tns) & (target_id is None):
             raise Exception(
-                '\nFor now this functions only works for AT* named sources (e.g, AT2020zso), for non IAU names you\n'
-                'need to insert both the Swift Target ID (target_id) of the source as well as the number of observations(n_obs)\n'
-                'to be downloaded. You can search for this at: https://www.swift.ac.uk/swift_portal/')
+                '\nFor now this functions only downloads data automatically for AT* named sources (e.g, AT2020zso),\n'
+                'for non IAU names you need to insert both the Swift Target ID (target_id) of the source as well as \n'
+                'the number of observations(n_obs) to be downloaded. You can search for this at: https://www.swift.ac.uk/swift_portal/')
 
         print('Searching for ' + str(self.name) + ' information...')
-        try:
-            # Getting RA and DEC and other infos from TNS
-            self.ra, self.dec, self.z, self.host_name, self.other_name, self.discovery_date = reduction.search_tns(str(self.name)[2:])
-        except:
-            raise Exception('Not able to retrieve data on ' + self.name)
+        if self.is_tns:
+            try:
+                # Getting RA and DEC and other infos from TNS
+                self.ra, self.dec, self.z, self.host_name, self.other_name, self.discovery_date = reduction.search_tns(str(self.name)[2:])
+            except:
+                raise Exception('Not able to retrieve data on ' + self.name)
 
         # Getting Swift Target ID and number of observations
         print('Searching for Swift observations.....')
 
-
-        if (target_id is None) & (n_obs is None):
-            self.target_id, self.n_sw_obs = reduction.get_target_id(self.name, self.ra, self.dec)
-        else:
-            self.target_id, self.n_sw_obs = target_id, n_obs
         # Creating/entering Swift dir
         try:
             os.mkdir(self.sw_dir)
@@ -102,25 +99,33 @@ class TDE:
         except:
             os.chdir(self.sw_dir)
 
-        # Checking if some or any data on the source was already downloaded
-        if os.path.exists(os.path.join(self.sw_dir, str(self.target_id) + '001')):
-            if os.path.exists(os.path.join(self.sw_dir, str(self.target_id) + str(int(self.n_sw_obs)).rjust(3, '0'))):
-                pass
-            else:
-                for i in range(2, int(self.n_sw_obs)):
-                    # Looking if the folder content is updated in relation to Swift archive
-                    if os.path.exists(os.path.join(self.sw_dir, str(self.target_id) + str(int(i)).rjust(3, '0'))):
-                        pass
-                    else:
-                        print('Updating observations..')
-                        # Downloading new observations not present in the event dir
-                        reduction.download_swift(self.target_id, self.n_sw_obs, init=int(i - 1))
-                        break
+        if self.is_tns & (target_id is None) & (n_obs is None):
+            name_list, target_id_list, n_obs_list = reduction.get_target_id(self.name, self.ra, self.dec)
+            for i in range(len(target_id_list)):
+                dfs = pd.read_html('https://www.swift.ac.uk/archive/selectseq.php?tid=' + target_id_list[i] + '&source=obs&name=' + name_list[i] + '&reproc=1&referer=portal')[3]
+                start_time = Time(dfs['Start time (UT)'][1], format='isot', scale='utc').mjd
+                if start_time < self.discovery_date - 180.0:
+                    try:
+                        os.mkdir(self.host_dir)
+                        os.chdir(self.host_dir)
+                    except:
+                        os.chdir(self.host_dir)
+                    try:
+                        os.mkdir('swift_host')
+                        os.chdir('swift_host')
+                    except:
+                        os.chdir('swift_host')
+                    print(
+                        'Downloading Swift data for Target ID ' + str(target_id_list[i]) + ', it will take some time!')
+                    reduction.download_swift(target_id_list[i], int(n_obs_list[i]), init=1)
+                    os.chdir(self.sw_dir)
+                if start_time > self.discovery_date:
+                    print('Downloading Swift data for Target ID ' + str(target_id_list[i]) + ', it will take some time!')
+                    reduction.download_swift(target_id_list[i], int(n_obs_list[i]), init=1)
         else:
-            # Downloading all available Swift data
-            print('Downloading Swift data..... it will take some time!')
-            reduction.download_swift(self.target_id, self.n_sw_obs, init=1)
-        print('All Swift data for ' + str(self.name) + ' downloaded!')
+            print('Downloading Swift data for Target ID ' + str(target_id) + ', it will take some time!')
+            reduction.download_swift(target_id, n_obs, init=1)
+            print('All Swift data for Target ID ' + str(target_id) + ' downloaded!')
 
         # Getting foreground Milky Way extinction along the line of sight, from dust map astroquery.irsa_dust
         self.ebv = self.get_ebv()  # E(B-V) from Schlafly & Finkbeiner 2011
@@ -199,7 +204,7 @@ class TDE:
             self.save_info()
         if self.is_tns:
 
-            self.other_name, self.ra, self.dec, self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name, self.discovery_date = \
+            self.other_name, self.ra, self.dec, self.ebv, self.z, self.host_name, self.discovery_date = \
                 self._load_info()
 
             os.chdir(self.tde_dir)
@@ -788,8 +793,6 @@ class TDE:
                    'other_name': np.array([str(self.other_name)]),
                    'ra': np.array([float(self.ra)]),
                    'dec': np.array([float(self.dec)]),
-                   'sw_target_id': np.array([self.target_id]),
-                   'n_sw_obs': np.array([self.n_sw_obs]),
                    'E(B-V)': np.array([str(self.ebv)]),
                    'z': np.array([str(self.z)]),
                    'host_name': np.array([str(self.host_name)]),
@@ -802,8 +805,6 @@ class TDE:
         other_name = info[1].data['other_name'][0]
         ra = info[1].data['ra'][0]
         dec = info[1].data['dec'][0]
-        target_id = info[1].data['sw_target_id'][0]
-        n_sw_obs = info[1].data['n_sw_obs'][0]
         ebv = float(info[1].data['E(B-V)'][0])
         z, host_name = (info[1].data['z'][0]), info[1].data['host_name'][0]
         discovery_date = info[1].data['discovery_date(MJD)'][0]
@@ -812,7 +813,7 @@ class TDE:
         if host_name == 'None':
             host_name = None
         info.close()
-        return other_name, ra, dec, target_id, n_sw_obs, ebv, z, host_name, discovery_date
+        return other_name, ra, dec, ebv, z, host_name, discovery_date
 
     def get_ebv(self):
         """

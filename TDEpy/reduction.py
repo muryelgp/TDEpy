@@ -376,18 +376,28 @@ def get_target_id(name, ra, dec):
     except:
         raise Exception('No Swift target found at Ra:' + str(ra) + ' and Dec:' + str(dec))
 
-    t_id = str(dfs['Target ID'][0])
-    n_obs = dfs['Number of observations'][0]
-    while len(t_id) != 8:
-        t_id = '0' + t_id
 
-    print(str(name) + ' Swift Target ID is ' + str(t_id) + ' and there are ' + str(int(n_obs)) +
-          ' observations for this target!')
-    return t_id, int(n_obs)
+    t_id_list = [str(dfs['Target ID'][i]) for i in range(len(dfs['Target ID']))]
+    n_obs_list = [str(dfs['Number of observations'][i]) for i in range(len(dfs['Number of observations']))]
+    name_list = [str(dfs['Name'][i]) for i in range(len(dfs['Name']))]
+    if len(t_id_list) > 1:
+        t_id_list = t_id_list[0:-1]
+        n_obs_list = (np.array(n_obs_list[0:-1]))
 
 
-def download_swift(target_id, n_obs, init):
-    for i in range(init, (n_obs + 1)):
+    print('Target ID, Number of observations:')
+    for i in range(len(t_id_list)):
+        print(t_id_list[i], ',', n_obs_list[i])
+
+
+
+    return name_list, t_id_list, n_obs_list
+
+
+def download_swift(target_id, n_obs, init, end=None):
+    if end is None:
+        end = n_obs
+    for i in range(init, (end + 1)):
         print('[' + str(i) + '/' + str(n_obs) + ']')
         os.system('wget -q -nv -nc -w 2 -nH --cut-dirs=2 -r --no-parent --reject "index.html*" '
                   'http://www.swift.ac.uk/archive/reproc/' + str(target_id) + str(int(i)).rjust(3,
