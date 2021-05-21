@@ -402,6 +402,7 @@ class TDE:
         Results are written in 'host' directory inside the TDE directory.
         """
         ra_host = dec_host = None
+
         print('Searching for ' + self.name + ' host galaxy data:')
         if self.host_name != 'None':
             print('The host galaxy name is ' + str(self.host_name))
@@ -415,17 +416,28 @@ class TDE:
             else:
                 self.host_name = 'None'
 
-        if self.host_name == 'None':
+        if (self.host_name == 'None') | (self.host_name[0:4] == 'NAME'):
+
             result = Simbad.query_region(SkyCoord(ra=self.ra, dec=self.dec, unit=(units.deg, units.deg)),
                                          radius=0.0014 * units.deg)
+            print(result)
             if result is not None:
-                ra_host = result['RA'][0]
-                dec_host = result['DEC'][0]
-                self.host_name = (result['MAIN_ID'][0]).decode('utf-8')
+                if result is not None:
+                    if len(result['MAIN_ID']) > 1:
+                        name_flag = [result['MAIN_ID'][i][0:4].decode('utf-8') != 'NAME' for i in range(len(result['MAIN_ID']))]
+                        print(name_flag)
+                        ra_host = result['RA'][name_flag][0]
+                        dec_host = result['DEC'][name_flag][0]
+                        self.host_name = (result['MAIN_ID'][name_flag][0]).decode('utf-8')
+                    else:
+                        ra_host = result['RA'][0]
+                        dec_host = result['DEC'][0]
+                        self.host_name = (result['MAIN_ID'][0]).decode('utf-8')
                 coords_host = SkyCoord(ra=ra_host, dec=dec_host, unit=(units.hourangle, units.deg), frame=FK5)
                 ra_host = coords_host.ra.deg
                 dec_host = coords_host.dec.deg
                 self.save_info()
+                print('The host galaxy name is ' + str(self.host_name))
             else:
                 ra_host = self.ra
                 dec_host = self.dec
@@ -628,6 +640,7 @@ if __name__ == "__main__":
     tde = TDE(tde_name, path)
     #tde.z =0.0705
     #tde.download_data()
-    tde.sw_photometry()
-    #tde.download_host_data()
-    tde.fit_host_sed(n_cores=2, read_only=True)
+    #tde.sw_photometry()
+    tde.host_name = None
+    tde.download_host_data()
+    #tde.fit_host_sed(n_cores=2, read_only=True)
