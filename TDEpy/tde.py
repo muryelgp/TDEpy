@@ -21,6 +21,7 @@ import gPhoton.gAperture
 import fit_host as fit_host
 import reduction as reduction
 import tools as tools
+import download_host as download_host
 
 warnings.simplefilter('ignore', category=AstropyWarning)
 
@@ -216,15 +217,9 @@ class TDE:
 
             print('Starting photometry for ' + self.name)
 
-            # Checking whether the .reg files already exist
-            if os.path.exists(os.path.join(self.sw_dir, 'source.reg')) and os.path.exists(
-                    os.path.join(self.sw_dir, 'bkg.reg')):
-                print('Swift .reg files present.')
-                pass
-            else:
-                print('Creating .reg files...')
-                # Creating and plotting the .reg (science and background) files using the Ra and Dec
-                reduction.create_reg(self.ra, self.dec, radius, self.sw_dir)
+
+            # Creating and plotting the .reg (science and background) files using the Ra and Dec
+            reduction.create_reg(self.ra, self.dec, radius, self.sw_dir)
 
             # Doing photometry in the Swift data
 
@@ -392,14 +387,14 @@ class TDE:
         if show_plot:
             plt.show()
 
-    def download_host_data(self, cor_2mass=False):
+    def download_host_data(self, mir='Model', nir='default/Petro', opt='Kron/Petro', uv='5'):
         """
         This function downloads and saves the host galaxy SED, from MID-IR to UV. It uses the following photometric
         catalogs:
 
         Mid-IR: AllWISE (W1, W2, W3, W4);
         Near-IR: UKIDS (Y, J, H, K) if available, otherwise uses 2MASS (J, H, Ks);
-        Optical: For Dec > -30 uses PAN-STARRS (y, z, i, r, g), for Dec < -30 uses, if avalible, DES (Y, z, i, r, g),
+        Optical: For Dec > -30 uses PAN-STARRS (y, z, i, r, g), for Dec < -30 uses, if avaliable, DES (Y, z, i, r, g),
         otherwise uses Southern SkyMapper (u, z, i, r, g, v). Also uses SDSS u band if available.
         UV: Uses gPhoton package to measure GALEX (NUV, FUV) photometry, if there is no detection in the coordinates,
         it does aperture photometry in the image.
@@ -436,264 +431,59 @@ class TDE:
                 dec_host = self.dec
 
         coords_host = SkyCoord(ra=ra_host, dec=dec_host, unit=(units.deg, units.deg))
-        W4 = W3 = W2 = W1 = Y = J = H = K = Ks = y = z = i = r = g = u = v = fuv = nuv = None
-        e_W4 = e_W3 = e_W2 = e_W1 = e_Y = e_J = e_H = e_K = e_Ks = e_y = e_z = e_i = e_r = e_g = e_u = e_v = e_fuv = e_nuv = None
+
 
         try:
             os.mkdir(self.host_dir)
             os.chdir(self.host_dir)
         except:
             os.chdir(self.host_dir)
-        host_file = open(os.path.join(self.host_dir, 'host_phot.txt'), 'w')
+
+        host_file_path = os.path.join(self.host_dir, 'host_phot.txt')
+        host_file = open(host_file_path, 'w')
         host_file.write("# if ab_mag_err = nan it means the measurement is a upper limit\n")
-        host_file.write('band' + '\t' + 'wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'catalog' + '\n')
-
-        # Searching for Wise data
-        print('Searching WISE data...')
-
-        v = Vizier(
-            columns=['RAJ2000', 'DEJ2000', 'W1mag', 'e_W1mag', 'W2mag', 'e_W2mag', 'W3mag', 'e_W3mag', 'W4mag',
-                     'e_W4mag', "+_r"])
-        result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/328'])
-        try:
-            obj = result[0]
-            W1, W2, W3, W4 = tools.vega_to_ab(obj['W1mag'][0], 'W1'), tools.vega_to_ab(obj['W2mag'][0], 'W2'), \
-                             tools.vega_to_ab(obj['W3mag'][0], 'W3'), tools.vega_to_ab(obj['W4mag'][0], 'W4')
-            e_W1, e_W2, e_W3, e_W4 = obj['e_W1mag'][0], obj['e_W2mag'][0], obj['e_W3mag'][0], obj['e_W4mag'][0]
-
-            if np.isfinite(W4 * e_W4):
-                host_file.write(tools.format_host_photo('W4', 221940, W4, e_W4, 'WISE'))
-            if np.isfinite(W3 * e_W3):
-                host_file.write(tools.format_host_photo('W3', 120820, W3, e_W3, 'WISE'))
-            if np.isfinite(W2 * e_W2):
-                host_file.write(tools.format_host_photo('W2', 46180, W2, e_W2, 'WISE'))
-            if np.isfinite(W1 * e_W1):
-                host_file.write(tools.format_host_photo('W1', 33500, W1, e_W1, 'WISE'))
-        except:
-            print('No WISE data found')
-            pass
-
-        # searching for UKIDSS
-        print('Searching UKIDSS data...')
-        v = Vizier(
-            columns=['RAJ2000', 'DEJ2000', 'pYmag', 'pJmag', 'pHmag', 'pKmag', 'e_pYmag', 'e_pJmag', 'e_pHmag',
-                     'e_pKmag', "+_r"])
-        result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/314/las8'])
-
-        try:
-
-            obj = result[0]
-
-            Y, J, H, K = tools.vega_to_ab(obj['pYmag'][0], 'Y'), tools.vega_to_ab(obj['pJmag'][0], 'J'), \
-                         tools.vega_to_ab(obj['pHmag'][0], 'H'), tools.vega_to_ab(obj['pKmag'][0], 'K')
-            e_Y, e_J, e_H, e_K = obj['e_pYmag'][0], obj['e_pJmag'][0], obj['e_pHmag'][0], obj['e_pKmag'][0]
-
-            if np.isfinite(K):
-                host_file.write(tools.format_host_photo('K', 22010, K, e_K, 'UKIDSS'))
-            if np.isfinite(H):
-                host_file.write(tools.format_host_photo('H', 16313, H, e_H, 'UKIDSS'))
-            if np.isfinite(J):
-                host_file.write(tools.format_host_photo('J', 12483, J, e_J, 'UKIDSS'))
-            if np.isfinite(Y):
-                host_file.write(tools.format_host_photo('Y', 10305, Y, e_Y, 'UKIDSS'))
-
-        except:
-            print('No UKIDSS data found')
-            pass
-
-        # Searching for 2MASS data if UKIDSS data were not found
-        if len(result) == 0:
-            if cor_2mass == False:
-                print('Searching 2MASS data...')
-                v = Vizier(
-                    columns=['RAJ2000', 'DEJ2000', 'Jmag', 'Hmag', 'Kmag', 'e_Jmag', 'e_Hmag', 'e_Kmag', "+_r"])
-                result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/246'])
-                try:
-                    obj = result[0]
-                    J, H, Ks = tools.vega_to_ab(obj['Jmag'][0], 'J'), tools.vega_to_ab(obj['Hmag'][0], 'H'), \
-                               tools.vega_to_ab(obj['Kmag'][0], 'Ks')
-                    e_J, e_H, e_Ks = obj['e_Jmag'][0], obj['e_Hmag'][0], obj['e_Kmag'][0]
-
-                    if np.isfinite(Ks):
-                        host_file.write(tools.format_host_photo('Ks', 21590, Ks, e_Ks, '2MASS'))
-                    if np.isfinite(H):
-                        host_file.write(tools.format_host_photo('H', 16313, H, e_H, '2MASS'))
-                    if np.isfinite(J):
-                        host_file.write(tools.format_host_photo('J', 12483, J, e_J, '2MASS'))
-                except:
-                    print('No 2MASS Data found')
-                    pass
-            if cor_2mass:
-                print('Searching 2MASS data...')
-                v = Vizier(
-                    columns=['RAJ2000', 'DEJ2000', 'Jstdap', 'Hstdap', 'Kstdap', 'e_Jstdap', 'e_Hstdap', 'e_Kstdap',
-                             "+_r"])
-                result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/246'])
-                try:
-                    obj = result[0]
-                    J, H, Ks = tools.vega_to_ab(obj['Jstdap'][0], 'J'), tools.vega_to_ab(obj['Hstdap'][0], 'H'), \
-                               tools.vega_to_ab(obj['Kstdap'][0], 'Ks')
-                    e_J, e_H, e_Ks = obj['e_Jstdap'][0], obj['e_Hstdap'][0], obj['e_Kstdap'][0]
-
-                    if np.isfinite(Ks):
-                        host_file.write(tools.format_host_photo('Ks', 21590, Ks, e_Ks, '2MASS'))
-                    if np.isfinite(H):
-                        host_file.write(tools.format_host_photo('H', 16313, H, e_H, '2MASS'))
-                    if np.isfinite(J):
-                        host_file.write(tools.format_host_photo('J', 12483, J, e_J, '2MASS'))
-                except:
-                    print('No 2MASS Data found')
-                    pass
-            if cor_2mass is None:
-                pass
-
-        if dec_host > -30:
-            print('Searching PAN-STARRS data...')
-            v = Vizier(
-                columns=['RAJ2000', 'DEJ2000', 'objID', 'yKmag', 'zKmag', 'iKmag', 'rKmag', 'gKmag', 'e_yKmag',
-                         'e_zKmag',
-                         'e_iKmag', 'e_rKmag', 'e_gKmag', "+_r"])
-            result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/349/ps1'])
-            try:
-                obj = result[0]
-
-                y, z, i, r, g = obj['yKmag'][0], obj['zKmag'][0], obj['iKmag'][0], obj['rKmag'][0], obj['gKmag'][0]
-                e_y, e_z, e_i, e_r, e_g = obj['e_yKmag'][0], obj['e_zKmag'][0], obj['e_iKmag'][0], obj['e_rKmag'][0], \
-                                          obj['e_gKmag'][0]
-
-                if np.isfinite(y):
-                    host_file.write(tools.format_host_photo('y', 9633, y, e_y, 'PAN-STARRS'))
-                if np.isfinite(z):
-                    host_file.write(tools.format_host_photo('z', 8679, z, e_z, 'PAN-STARRS'))
-                if np.isfinite(i):
-                    host_file.write(tools.format_host_photo('i', 7545, i, e_i, 'PAN-STARRS'))
-                if np.isfinite(r):
-                    host_file.write(tools.format_host_photo('r', 6215, r, e_r, 'PAN-STARRS'))
-                if np.isfinite(g):
-                    host_file.write(tools.format_host_photo('g', 4866, g, e_g, 'PAN-STARRS'))
-
-            except:
-                print('No PAN-STARRS Data found')
-                pass
-
-        if dec_host <= -30:
-            print('Searching DES data...')
-            v = Vizier(
-                columns=['RAJ2000', 'DEJ2000', 'Ymag', 'zmag', 'imag', 'rmag', 'gmag', 'e_Ymag', 'e_zmag', 'e_imag',
-                         'e_rmag', 'e_gmag', "+_r"])
-            result = v.query_region(coords_host,
-                                    radius=0.0014 * units.deg,
-                                    catalog=['II/357/des_dr1'])
-            try:
-                obj = result[0]
-                Y, z, i, r, g = obj['Ymag'][0], obj['zmag'][0], obj['imag'][0], obj['rmag'][0], obj['gmag'][0]
-                e_Y, e_z, e_i, e_r, e_g = obj['e_Ymag'][0], obj['e_zmag'][0], obj['e_imag'][0], obj['e_rmag'][0], \
-                                          obj['e_gmag'][0]
-                if np.isfinite(Y):
-                    host_file.write(tools.format_host_photo('Y', 10305, Y, e_Y, 'DES'))
-                if np.isfinite(z):
-                    host_file.write(tools.format_host_photo('z', 8660, z, e_z, 'DES'))
-                if np.isfinite(i):
-                    host_file.write(tools.format_host_photo('i', 7520, i, e_i, 'DES'))
-                if np.isfinite(r):
-                    host_file.write(tools.format_host_photo('r', 6170, r, e_r, 'DES'))
-                if np.isfinite(g):
-                    host_file.write(tools.format_host_photo('g', 4810, g, e_g, 'DES'))
-            except:
-                print('No DES Data found')
-                pass
-
-            if len(result) == 0:
-                print('Searching SkyMapper data...')
-                v = Vizier(
-                    columns=['RAJ2000', 'DEJ2000', 'uPetro', 'e_uPetro', 'vPetro', 'gPetro', 'rPetro', 'iPetro',
-                             'zPetro',
-                             'e_vPetro',
-                             'e_gPetro', 'e_rPetro', 'e_iPetro', 'e_zPetro', "+_r"])
-                result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/358/smss'])
-                try:
-                    obj = result[0]
-                    u, z, i, r, g, v = obj['uPetro'][0], obj['zPetro'][0], obj['iPetro'][0], obj['rPetro'][0], \
-                                       obj['gPetro'][0], obj['vPetro'][0]
-                    e_u, e_z, e_i, e_r, e_g, e_v = obj['e_uPetro'][0], obj['e_zPetro'][0], obj['e_iPetro'][0], \
-                                                   obj['e_rPetro'][0], obj['e_gPetro'][0], obj['e_vPetro'][0]
-
-                    if np.isfinite(z):
-                        host_file.write(tools.format_host_photo('z', 8660, z, e_z, 'SkyMapper'))
-                    if np.isfinite(i):
-                        host_file.write(tools.format_host_photo('i', 7520, i, e_i, 'SkyMapper'))
-                    if np.isfinite(r):
-                        host_file.write(tools.format_host_photo('r', 6170, r, e_r, 'SkyMapper'))
-                    if np.isfinite(g):
-                        host_file.write(tools.format_host_photo('g', 4810, g, e_g, 'SkyMapper'))
-                    if np.isfinite(v):
-                        host_file.write(tools.format_host_photo('v', 4110, v, e_v, 'SkyMapper'))
-                    print(u)
-                except:
-                    print('No SkyMapper Data found')
-                    pass
-
-        # Searching SDSS u band photometry
-        print('Searching SDSS data...')
-        v = Vizier(
-            columns=['RAJ2000', 'DEJ2000', 'umag', 'e_umag', "+_r"])
-        result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['V/147/sdss12'])
-        try:
-            obj = result[0]
-            u, e_u = obj['umag'][0] - 0.04, obj['e_umag'][0]
-            if np.isfinite(u):
-                host_file.write(tools.format_host_photo('u', 3500, u, e_u, 'SDSS'))
-            else:
-                try:
-                    if np.isfinite(u):
-                        host_file.write(tools.format_host_photo('u', 3551, u, e_u, 'SkyMapper'))
-                except:
-                    print('No SDSS Data found')
-                    pass
-        except:
-            try:
-                if np.isfinite(u):
-                    host_file.write(tools.format_host_photo('u', 3551, u, e_u, 'SkyMapper'))
-            except:
-                pass
-
-        # Getting GALEX data
-        print('Measuring UV photometry from GALEX data...')
-        try:
-            nuv_data = gPhoton.gAperture("NUV", [ra_host, dec_host], radius=0.0014, annulus=[0.0015, 0.0050],
-                                         coadd=True, overwrite=True)
-            try:
-                nuv = nuv_data['mag'][0]
-            except:
-                nuv = np.nan
-            try:
-                e_nuv = nuv_data['mag_err_1'][0]
-            except:
-                e_nuv = np.nan
-        except:
-            nuv = np.nan
-            e_nuv = np.nan
-
-        try:
-            fuv_data = gPhoton.gAperture('FUV', [ra_host, dec_host], radius=0.0014, annulus=[0.0015, 0.0050],
-                                         coadd=True, overwrite=True)
-            try:
-                fuv = fuv_data['mag'][0]
-            except:
-                fuv = np.nan
-            try:
-                e_fuv = fuv_data['mag_err_1'][0]
-            except:
-                e_fuv = np.nan
-        except:
-            fuv = np.nan
-            e_fuv = np.nan
-
-        if np.isfinite(nuv):
-            host_file.write(tools.format_host_photo('NUV', 2271, nuv, e_nuv, 'GALEX'))
-        if np.isfinite(fuv):
-            host_file.write(tools.format_host_photo('FUV', 1528, fuv, e_fuv, 'GALEX'))
+        host_file.write('band' + '\t' + 'wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'catalog' + '\t' + 'aperture' + '\n')
         host_file.close()
+
+        # Downloading MIR (WISE) data
+        if mir == 'Model':
+            download_host.download_mir(coords_host, host_file_path)
+        elif mir is None:
+            pass
+        else:
+            raise Exception(
+                "You need to choose which MIR magnitude (mir) to use, the options are: 'Model', or 'None'")
+
+        # Downloading NIR (UKIDSS or 2MASS) data
+        if nir == 'default/Petro':
+            download_host.download_nir(nir, coords_host, host_file_path)
+        elif nir == 'standard/PSF':
+            download_host.download_nir(nir, coords_host, host_file_path)
+        elif nir is None:
+            pass
+        else:
+            raise Exception(
+                "You need to choose which NIR magnitude (nir) to use, the options are: 'default/Petro', 'standard/PSF' or 'None'")
+
+        # Downloading Optical (Pan-Starrs or DES and/or SkyMapper and/or SDSS) data
+        if opt == 'Kron/Petro':
+            download_host.download_opt(opt, coords_host, host_file_path)
+        elif opt == 'PSF':
+            download_host.download_opt(opt, coords_host, host_file_path)
+        elif opt is None:
+            pass
+        else:
+            raise Exception("You need to choose which optical (opt) magnitude to use, the options are: 'Kron/Petro', 'PSF' or 'None'")
+
+        # Downloading UV (GALEX or UVOT) data
+        if np.float(uv) > 1:
+            download_host.download_uv(uv, coords_host, self.host_dir)
+        elif uv is None:
+            pass
+        else:
+            Exception(
+                "You need to choose the size of the aperture (uv) for UV data in arcsecs, it should be greater than 1")
+
         self.plot_host_sed()
         os.chdir(self.work_dir)
 
@@ -703,12 +493,12 @@ class TDE:
         You should run download_host_data() first.
         """
         try:
-            band, wl_c, ab_mag, ab_mag_err, catalogs = np.loadtxt(os.path.join(self.host_dir, 'host_phot.txt'),
+            band, wl_c, ab_mag, ab_mag_err, catalogs, apertures = np.loadtxt(os.path.join(self.host_dir, 'host_phot.txt'),
                                                                   dtype={'names': (
                                                                       'band', 'wl_0', 'ab_mag', 'ab_mag_err',
-                                                                      'catalog'),
+                                                                      'catalog', 'aperture'),
                                                                       'formats': (
-                                                                          'U5', np.float, np.float, np.float, 'U10')},
+                                                                          'U5', np.float, np.float, np.float, 'U10', 'U10')},
                                                                   unpack=True, skiprows=2)
         except:
             raise Exception('We should run download_host_data() before trying to plot it.')
@@ -753,7 +543,7 @@ class TDE:
             plt.show()
         os.chdir(self.work_dir)
 
-    def fit_host_sed(self, n_cores, multi_processing=True, init_theta=None, n_walkers=None, n_inter=None, n_burn=None):
+    def fit_host_sed(self, n_cores, multi_processing=True, init_theta=None, n_walkers=None, n_inter=None, n_burn=None, read_only=False):
         if self.z is None:
             self.z = np.nan
         if np.isfinite(float(self.z)):
@@ -761,8 +551,8 @@ class TDE:
             print(
                 'THIS PROCESS WILL TAKE A LOT OF TIME!! try to increase the numbers of processing cores (n_cores), if possible..')
             self.save_info()
-            fit_host.run_prospector(self.name, self.work_dir, self.z, withmpi=multi_processing, n_cores=n_cores,
-                                    init_theta=init_theta, n_walkers=n_walkers, n_inter=n_inter, n_burn=n_burn)
+            fit_host.run_prospector(self.name, self.work_dir, np.float(self.z), withmpi=multi_processing, n_cores=n_cores,
+                                    init_theta=init_theta, n_walkers=n_walkers, n_inter=n_inter, n_burn=n_burn, read_only=read_only)
         else:
             raise Exception('You need to define a redshift (z) for the source before fitting the host SED')
 
@@ -832,8 +622,12 @@ class TDE:
 
 
 if __name__ == "__main__":
-    tde_name = 'AT2020ocn'
+    tde_name = 'AT2016fnl'
     path = '/home/muryel/Dropbox/data/TDEs/'
 
     tde = TDE(tde_name, path)
-    tde.download_data()
+    #tde.z =0.0705
+    #tde.download_data()
+    tde.sw_photometry()
+    #tde.download_host_data()
+    tde.fit_host_sed(n_cores=2, read_only=True)

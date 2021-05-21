@@ -37,6 +37,7 @@ def do_sw_photo(sw_dir, aper_cor):
                 pass
             exists = os.path.isfile('sw' + str(dirs[i]) + 'u' + band + '_sk.img.gz')
             if exists:
+                os.system('rm ' + band + '.fits')
                 if aper_cor:
                     os.system('uvotsource image=sw' + str(dirs[i]) + 'u' + band + '_sk.img.gz srcreg=source.reg '
                                                                                   'bkgreg=bkg.reg sigma=3 '

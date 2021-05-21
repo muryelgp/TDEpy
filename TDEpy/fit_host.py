@@ -32,11 +32,11 @@ def build_obs(path, tde):
 
     tde_dir = os.path.join(path, tde)
     try:
-        band, wl_c, ab_mag, ab_mag_err, catalogs = np.loadtxt(os.path.join(tde_dir, 'host', 'host_phot.txt'),
+        band, wl_c, ab_mag, ab_mag_err, catalogs, apertures = np.loadtxt(os.path.join(tde_dir, 'host', 'host_phot.txt'),
                                                               dtype={'names': (
-                                                                  'band', 'wl_0', 'ab_mag', 'ab_mag_err', 'catalog'),
+                                                                  'band', 'wl_0', 'ab_mag', 'ab_mag_err', 'catalog', 'apertures'),
                                                                   'formats': (
-                                                                      'U5', np.float, np.float, np.float, 'U10')},
+                                                                      'U5', np.float, np.float, np.float, 'U10', 'U10')},
                                                               unpack=True, skiprows=2)
     except:
         raise Exception('We should run download_host_data() before trying to fit it.')
@@ -152,8 +152,9 @@ def build_model(object_redshift=None, init_theta=None, add_duste=True):
     # Fixing and defining the object redshift
     model_params["zred"]['isfree'] = False
     model_params["zred"]['init'] = object_redshift
-    #model_params.update(TemplateLibrary["dust_emission"])
 
+    #ldist = cosmo.luminosity_distance(object_redshift).value
+    #model_params["lumdist"] = {"N": 1, "isfree": False, "init": ldist, "units": "Mpc"}
 
     # Now instantiate the model object using this dictionary of parameter specifications
     model = SedModel(model_params)
@@ -172,14 +173,14 @@ def plot_resulting_fit(tde_name, path):
 
     fig, ax = plt.subplots(figsize=(16, 8))
 
-    band, obs_wl_c, obs_ab_mag, obs_ab_mag_err, catalogs = \
+    band, obs_wl_c, obs_ab_mag, obs_ab_mag_err, catalogs, apertures = \
         np.loadtxt(os.path.join(host_dir, 'host_phot.txt'),
                    dtype={'names': (
                        'band', 'wl_0', 'ab_mag', 'ab_mag_err',
-                       'catalog'),
+                       'catalog', 'aperture'),
                        'formats': (
                            'U5', np.float, np.float, np.float,
-                           'U10')},
+                           'U10', 'U10')},
                    unpack=True, skiprows=2)
 
 
@@ -301,97 +302,97 @@ def corner_plot(result):
 
 def save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, n_inter, n_burn):
     tde_dir = os.path.join(path, tde_name)
-    band, _, _, _, catalogs = np.loadtxt(os.path.join(tde_dir, 'host', 'host_phot.txt'),
+    band, _, _, _, catalogs, _ = np.loadtxt(os.path.join(tde_dir, 'host', 'host_phot.txt'),
                                          dtype={'names': (
-                                             'band', 'wl_0', 'ab_mag', 'ab_mag_err', 'catalog'),
+                                             'band', 'wl_0', 'ab_mag', 'ab_mag_err', 'catalog', 'apertures'),
                                              'formats': (
-                                                 'U5', np.float, np.float, np.float, 'U10')},
+                                                 'U5', np.float, np.float, np.float, 'U10', 'U10')},
                                          unpack=True, skiprows=2)
 
     # Adding new bands (Swift, SDSS, HST)
     wphot = obs["phot_wave"]
 
-    obs['filters'].append(sedpy.observate.Filter('uvot_V', directory=pkg_resources.resource_filename("TDEpy", 'filters')))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('uvot_V', directory=pkg_resources.resource_filename("TDEpy", 'filters')))
     wphot = np.append(wphot, 5468)
     band = np.append(band, 'V')
     catalogs = np.append(catalogs, 'Swift/UVOT')
 
-    obs['filters'].append(sedpy.observate.Filter('uvot_B', directory=pkg_resources.resource_filename("TDEpy", 'filters')))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('uvot_B', directory=pkg_resources.resource_filename("TDEpy", 'filters')))
     wphot = np.append(wphot, 4392)
     band = np.append(band, 'B')
     catalogs = np.append(catalogs, 'Swift/UVOT')
 
-    obs['filters'].append(sedpy.observate.Filter('uvot_U', directory=pkg_resources.resource_filename("TDEpy", 'filters')))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('uvot_U', directory=pkg_resources.resource_filename("TDEpy", 'filters')))
     wphot = np.append(wphot, 3465)
     band = np.append(band, 'U')
     catalogs = np.append(catalogs, 'Swift/UVOT')
 
-    obs['filters'].append(sedpy.observate.Filter('uvot_w1'))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('uvot_w1'))
     wphot = np.append(wphot, 2600)
     band = np.append(band, 'UVW1')
     catalogs = np.append(catalogs, 'Swift/UVOT')
 
-    obs['filters'].append(sedpy.observate.Filter('uvot_m2'))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('uvot_m2'))
     wphot = np.append(wphot, 2246)
     band = np.append(band, 'UVM2')
     catalogs = np.append(catalogs, 'Swift/UVOT')
 
-    obs['filters'].append(sedpy.observate.Filter('uvot_w2'))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('uvot_w2'))
     wphot = np.append(wphot, 1928)
     band = np.append(band, 'UVW2')
     catalogs = np.append(catalogs, 'Swift/UVOT')
 
-    obs['filters'].append(sedpy.observate.Filter('sdss_u0'))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('sdss_u0'))
     wphot = np.append(wphot, 3551)
     band = np.append(band, 'u')
     catalogs = np.append(catalogs, 'SDSS')
 
-    obs['filters'].append(sedpy.observate.Filter('sdss_g0'))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('sdss_g0'))
     wphot = np.append(wphot, 4686)
     band = np.append(band, 'g')
     catalogs = np.append(catalogs, 'SDSS')
 
-    obs['filters'].append(sedpy.observate.Filter('sdss_r0'))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('sdss_r0'))
     wphot = np.append(wphot, 6166)
     band = np.append(band, 'r')
     catalogs = np.append(catalogs, 'SDSS')
 
-    obs['filters'].append(sedpy.observate.Filter('sdss_i0'))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('sdss_i0'))
     wphot = np.append(wphot, 7480)
     band = np.append(band, 'i')
     catalogs = np.append(catalogs, 'SDSS')
 
-    obs['filters'].append(sedpy.observate.Filter('sdss_z0'))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('sdss_z0'))
     wphot = np.append(wphot, 8932)
     band = np.append(band, 'z')
     catalogs = np.append(catalogs, 'SDSS')
 
-    obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f275w'))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('wfc3_uvis_f275w'))
     wphot = np.append(wphot, 2750)
     band = np.append(band, 'F275W')
     catalogs = np.append(catalogs, 'HST/WFC3')
 
-    obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f336w'))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('wfc3_uvis_f336w'))
     wphot = np.append(wphot, 3375)
     band = np.append(band, 'F336W')
     catalogs = np.append(catalogs, 'HST/WFC3')
 
-    obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f475w'))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('wfc3_uvis_f475w'))
     wphot = np.append(wphot, 4550)
     band = np.append(band, 'F475W')
     catalogs = np.append(catalogs, 'HST/WFC3')
 
-    obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f555w'))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('wfc3_uvis_f555w'))
     wphot = np.append(wphot, 5410)
     band = np.append(band, 'F555W')
     catalogs = np.append(catalogs, 'HST/WFC3')
 
-    obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f606w'))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('wfc3_uvis_f606w'))
     wphot = np.append(wphot, 5956)
     band = np.append(band, 'F606W')
     catalogs = np.append(catalogs, 'HST/WFC3')
 
-    obs['filters'].append(sedpy.observate.Filter('wfc3_uvis_f814w'))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('wfc3_uvis_f814w'))
     wphot = np.append(wphot, 8353)
     band = np.append(band, 'F814W')
     catalogs = np.append(catalogs, 'HST/WFC3')
@@ -409,7 +410,7 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, 
     nwalkers, niter = n_walkers, n_inter - n_burn[-1]
     err_phot = []
     err_spec = []
-    for i in range(int(1e4)):
+    for i in range(int(10000)):
         theta = result['chain'][randint(nwalkers), n_burn[-1] + randint(niter)]
         mspec, mphot, mextra = model.mean_model(theta, obs, sps=sps)
         err_phot.append(mphot)
@@ -509,6 +510,12 @@ def host_sub_lc(tde_name, path):
             sig_host[~is_pos_flux] = -99
 
             write_path = os.path.join(tde_dir, 'photometry', 'host_sub', str(band) + '.txt')
+            try:
+                os.mkdir(os.path.join(tde_dir, 'photometry', 'host_sub'))
+            except:
+                pass
+
+
             g = open(write_path, 'w')
             g.write('#Values corrected for Galactic extinction and free from host contribution\n')
             g.write('obsid' + '\t' + 'mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux' + '\t' + 'flux_err' + '\t' + 'TDE/host' + '\n')
@@ -537,7 +544,7 @@ def configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn):
     return obs, sps, model, run_params
 
 
-def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None, n_walkers=None, n_inter=None, n_burn=None):
+def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None, n_walkers=None, n_inter=None, n_burn=None, read_only=False):
     os.chdir(os.path.join(path, tde_name, 'host'))
 
     if init_theta is None:
@@ -553,53 +560,53 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None, n_walke
         n_burn = [500]
 
     obs, sps, model, run_params = configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn)
-    print(model)
-    print("Initial guess: {}".format(model.initial_theta))
+    #print(1 + model.params.get('zred', 0))
+
     model_params = TemplateLibrary["parametric_sfh"]
 
+    if not read_only:
+        print("Initial guess: {}".format(model.initial_theta))
+        if withmpi & ('logzsol' in model.free_params):
+            dummy_obs = dict(filters=None, wavelength=None)
 
+            logzsol_prior = model.config_dict["logzsol"]['prior']
+            lo, hi = logzsol_prior.range
+            logzsol_grid = np.around(np.arange(lo, hi, step=0.1), decimals=2)
+            sps.update(**model.params)  # make sure we are caching the correct IMF / SFH / etc
+            for logzsol in logzsol_grid:
+                model.params["logzsol"] = np.array([logzsol])
+                _ = model.predict(model.theta, obs=dummy_obs, sps=sps)
 
-    if withmpi & ('logzsol' in model.free_params):
-        dummy_obs = dict(filters=None, wavelength=None)
+        from functools import partial
+        lnprobfn_fixed = partial(lnprobfn, sps=sps)
 
-        logzsol_prior = model.config_dict["logzsol"]['prior']
-        lo, hi = logzsol_prior.range
-        logzsol_grid = np.around(np.arange(lo, hi, step=0.1), decimals=2)
-        sps.update(**model.params)  # make sure we are caching the correct IMF / SFH / etc
-        for logzsol in logzsol_grid:
-            model.params["logzsol"] = np.array([logzsol])
-            _ = model.predict(model.theta, obs=dummy_obs, sps=sps)
+        if withmpi:
+            from multiprocessing import Pool
+            from multiprocessing import cpu_count
 
-    from functools import partial
-    lnprobfn_fixed = partial(lnprobfn, sps=sps)
+            with Pool() as pool:
+                nprocs = n_cores
+                output = fit_model(obs, model, sps, pool=pool, queue_size=nprocs, lnprobfn=lnprobfn_fixed,
+                                   **run_params)
+        else:
+            output = fit_model(obs, model, sps, lnprobfn=lnprobfn_fixed, **run_params)
 
-    if withmpi:
-        from multiprocessing import Pool
-        from multiprocessing import cpu_count
+        # output = fit_model(obs, model, sps, lnprobfn=lnprobfn, **run_params)
+        print('done emcee in {0}s'.format(output["sampling"][1]))
 
-        with Pool() as pool:
-            nprocs = n_cores
-            output = fit_model(obs, model, sps, pool=pool, queue_size=nprocs, lnprobfn=lnprobfn_fixed,
-                               **run_params)
-    else:
-        output = fit_model(obs, model, sps, lnprobfn=lnprobfn_fixed, **run_params)
+        if os.path.exists("prospector_result.h5"):
+            os.system('rm prospector_result.h5')
 
-    # output = fit_model(obs, model, sps, lnprobfn=lnprobfn, **run_params)
-    print('done emcee in {0}s'.format(output["sampling"][1]))
+        hfile = "prospector_result.h5"
+        writer.write_hdf5(hfile, run_params, model, obs,
+                          output["sampling"][0], output["optimization"][0],
+                          tsample=output["sampling"][1],
+                          toptimize=output["optimization"][1])
 
-    if os.path.exists("prospector_result.h5"):
-        os.system('rm prospector_result.h5')
-
-    hfile = "prospector_result.h5"
-    writer.write_hdf5(hfile, run_params, model, obs,
-                      output["sampling"][0], output["optimization"][0],
-                      tsample=output["sampling"][1],
-                      toptimize=output["optimization"][1])
-
-    print('Finished')
+        print('Finished')
 
     # Loading results file
-    result, obs, _ = reader.results_from("prospector_result.h5", dangerous=False)
+    result, _, _ = reader.results_from("prospector_result.h5", dangerous=False)
 
     # Finding the Maximum A Posteriori (MAP) model
     imax = np.argmax(result['lnprobability'])

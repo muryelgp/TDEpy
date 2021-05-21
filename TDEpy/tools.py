@@ -45,17 +45,17 @@ def vega_to_ab(mag, band):
         return None
 
 
-def format_host_photo(band, lambda_0, ab_mag, ab_mag_err, catalog):
+def format_host_photo(band, lambda_0, ab_mag, ab_mag_err, catalog, aperture):
     if not np.isfinite(ab_mag):
         formatted_string = str(band) + '\t' + str(lambda_0) + '\t' + 'nan' + '\t' + 'nan' + '\t' + str(
-            catalog) + '\n'
+            catalog) + '\t' + str(aperture) + '\n'
         return formatted_string
 
     if not np.isfinite(ab_mag_err):
         formatted_string = str(band) + '\t' + str(lambda_0) + '\t' + '{:.6f}'.format(
-            ab_mag) + '\t' + 'nan' + '\t' + str(catalog) + '\n'
+            ab_mag) + '\t' + 'nan' + '\t' + str(catalog) + '\t' + str(aperture) + '\n'
         return formatted_string
     else:
         formatted_string = str(band) + '\t' + str(lambda_0) + '\t' + '{:.6f}'.format(
-            ab_mag) + '\t' + '{:.6f}'.format(ab_mag_err) + '\t' + str(catalog) + '\n'
+            ab_mag) + '\t' + '{:.6f}'.format(ab_mag_err) + '\t' + str(catalog) + '\t' + str(aperture) + '\n'
         return formatted_string
