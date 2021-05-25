@@ -408,16 +408,19 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, 
     # Measuring errors on the modelled spectra and photometry
     randint = np.random.randint
     nwalkers, niter = n_walkers, n_inter - n_burn[-1]
-    err_phot = []
-    err_spec = []
+    err_phot = np.zeros((10000, len(mphot_map)))
+    err_spec = np.zeros((10000, len(mspec_map)))
     for i in range(int(10000)):
+        # selecting a randon walker at a any step
         theta = result['chain'][randint(nwalkers), n_burn[-1] + randint(niter)]
+        # getting phot and spec ate this position
         mspec, mphot, mextra = model.mean_model(theta, obs, sps=sps)
-        err_phot.append(mphot)
-        err_spec.append(mspec)
+        err_phot[i, :] = mphot
+        err_spec[i, :] = mspec
+        print(i)
 
     # Saving modelled photometry
-    err_phot = np.std(err_phot, axis=0)
+    err_phot = np.sqrt(np.sum(err_phot - mphot_map, axis=0)**2) / 1e4
     err_phot_mag = abs(np.log10(abs(mphot_map - err_phot)) / -0.4 - np.log10(mphot_map) / -0.4)
     small_err = np.round(err_phot_mag, 2) < 0.01
     err_phot_mag[small_err] = 0.01
@@ -560,7 +563,6 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None, n_walke
         n_burn = [500]
 
     obs, sps, model, run_params = configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn)
-    #print(1 + model.params.get('zred', 0))
 
     model_params = TemplateLibrary["parametric_sfh"]
 
@@ -584,7 +586,7 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None, n_walke
             from multiprocessing import Pool
             from multiprocessing import cpu_count
 
-            with Pool() as pool:
+            with Pool(int(n_cores)) as pool:
                 nprocs = n_cores
                 output = fit_model(obs, model, sps, pool=pool, queue_size=nprocs, lnprobfn=lnprobfn_fixed,
                                    **run_params)

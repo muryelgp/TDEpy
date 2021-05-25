@@ -12,6 +12,18 @@ def flux_to_mag(flux, wl):
     return mag
 
 
+def df_to_dmag(f, df, wl):
+    A = 2.5
+    B = wl**2 / 2.99792458e+18
+    dmag = abs(A * df / (f * np.log(10)))
+    return dmag
+
+
+def dmag_to_df(dmag, f):
+    df = f * 0.4*np.log(10)*dmag
+    return df
+
+
 def vega_to_ab(mag, band):
     if band == "W1":
         return mag + 2.699

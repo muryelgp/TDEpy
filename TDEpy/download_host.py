@@ -150,95 +150,119 @@ def download_opt(aperture, coords_host, host_file_path):
     dec_host = coords_host.dec.deg
 
     if aperture == 'Kron/Petro':
+        print('Searching SDSS data...')
+        v = Vizier(
+            columns=['RAJ2000', 'DEJ2000', 'gmag', 'e_gmag','rmag', 'e_rmag','imag', 'e_imag','zmag', 'e_zmag', "+_r"])
+        result_sdss = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['V/147/sdss12'])
 
-        if dec_host > -30:
-            print('Searching PAN-STARRS data...')
-            v = Vizier(
-                columns=['RAJ2000', 'DEJ2000', 'objID', 'yKmag', 'zKmag', 'iKmag', 'rKmag', 'gKmag', 'e_yKmag',
-                         'e_zKmag',
-                         'e_iKmag', 'e_rKmag', 'e_gKmag', "+_r"])
-            result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/349/ps1'])
-            try:
-                obj = result[0]
+        try:
+            obj = result_sdss[0]
 
-                y, z, i, r, g = obj['yKmag'][0], obj['zKmag'][0], obj['iKmag'][0], obj['rKmag'][0], obj['gKmag'][0]
-                e_y, e_z, e_i, e_r, e_g = obj['e_yKmag'][0], obj['e_zKmag'][0], obj['e_iKmag'][0], obj['e_rKmag'][0], \
-                                          obj['e_gKmag'][0]
+            z, i, r, g = obj['zmag'][0], obj['imag'][0], obj['rmag'][0], obj['gmag'][0]
+            e_z, e_i, e_r, e_g = obj['e_zmag'][0], obj['e_imag'][0], obj['e_rmag'][0], \
+                                      obj['e_gmag'][0]
 
-                if np.isfinite(y):
-                    host_file.write(tools.format_host_photo('y', 9633, y, e_y, 'PAN-STARRS', 'Kron'))
-                if np.isfinite(z):
-                    host_file.write(tools.format_host_photo('z', 8679, z, e_z, 'PAN-STARRS', 'Kron'))
-                if np.isfinite(i):
-                    host_file.write(tools.format_host_photo('i', 7545, i, e_i, 'PAN-STARRS', 'Kron'))
-                if np.isfinite(r):
-                    host_file.write(tools.format_host_photo('r', 6215, r, e_r, 'PAN-STARRS', 'Kron'))
-                if np.isfinite(g):
-                    host_file.write(tools.format_host_photo('g', 4866, g, e_g, 'PAN-STARRS', 'Kron'))
+            if np.isfinite(z):
+                host_file.write(tools.format_host_photo('z', 8931, z, e_z, 'SDSS', 'Model'))
+            if np.isfinite(i):
+                host_file.write(tools.format_host_photo('i', 7481, i, e_i, 'SDSS', 'Model'))
+            if np.isfinite(r):
+                host_file.write(tools.format_host_photo('r', 6165, r, e_r, 'SDSS', 'Model'))
+            if np.isfinite(g):
+                host_file.write(tools.format_host_photo('g', 4686, g, e_g, 'SDSS', 'Model'))
 
-            except:
-                print('No PAN-STARRS Data found')
-                pass
+        except:
+            print('No SDSS Data found')
+            pass
 
-        if dec_host <= -30:
-            print('Searching DES data...')
-            v = Vizier(
-                columns=['RAJ2000', 'DEJ2000', 'Ymag', 'zmag', 'imag', 'rmag', 'gmag', 'e_Ymag', 'e_zmag', 'e_imag',
-                         'e_rmag', 'e_gmag', "+_r"])
-            result = v.query_region(coords_host,
-                                    radius=0.0014 * units.deg,
-                                    catalog=['II/357/des_dr1'])
-            try:
-                obj = result[0]
-                Y, z, i, r, g = obj['Ymag'][0], obj['zmag'][0], obj['imag'][0], obj['rmag'][0], obj['gmag'][0]
-                e_Y, e_z, e_i, e_r, e_g = obj['e_Ymag'][0], obj['e_zmag'][0], obj['e_imag'][0], obj['e_rmag'][0], \
-                                          obj['e_gmag'][0]
-                if np.isfinite(Y):
-                    host_file.write(tools.format_host_photo('Y', 10305, Y, e_Y, 'DES', 'Kron'))
-                if np.isfinite(z):
-                    host_file.write(tools.format_host_photo('z', 8660, z, e_z, 'DES', 'Kron'))
-                if np.isfinite(i):
-                    host_file.write(tools.format_host_photo('i', 7520, i, e_i, 'DES', 'Kron'))
-                if np.isfinite(r):
-                    host_file.write(tools.format_host_photo('r', 6170, r, e_r, 'DES', 'Kron'))
-                if np.isfinite(g):
-                    host_file.write(tools.format_host_photo('g', 4810, g, e_g, 'DES', 'Kron'))
-            except:
-                print('No DES Data found')
-                pass
-
-            if len(result) == 0:
-                print('Searching SkyMapper data...')
+        if len(result_sdss) == 0:
+            if dec_host > -30:
+                print('Searching PAN-STARRS data...')
                 v = Vizier(
-                    columns=['RAJ2000', 'DEJ2000', 'uPetro', 'e_uPetro', 'vPetro', 'gPetro', 'rPetro', 'iPetro',
-                             'zPetro',
-                             'e_vPetro',
-                             'e_gPetro', 'e_rPetro', 'e_iPetro', 'e_zPetro', "+_r"])
-                result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/358/smss'])
+                    columns=['RAJ2000', 'DEJ2000', 'objID', 'yKmag', 'zKmag', 'iKmag', 'rKmag', 'gKmag', 'e_yKmag',
+                             'e_zKmag',
+                             'e_iKmag', 'e_rKmag', 'e_gKmag', "+_r"])
+                result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/349/ps1'])
                 try:
                     obj = result[0]
-                    u, z, i, r, g, v = obj['uPetro'][0], obj['zPetro'][0], obj['iPetro'][0], obj['rPetro'][0], \
-                                       obj['gPetro'][0], obj['vPetro'][0]
-                    e_u, e_z, e_i, e_r, e_g, e_v = obj['e_uPetro'][0], obj['e_zPetro'][0], obj['e_iPetro'][0], \
-                                                   obj['e_rPetro'][0], obj['e_gPetro'][0], obj['e_vPetro'][0]
 
+                    y, z, i, r, g = obj['yKmag'][0], obj['zKmag'][0], obj['iKmag'][0], obj['rKmag'][0], obj['gKmag'][0]
+                    e_y, e_z, e_i, e_r, e_g = obj['e_yKmag'][0], obj['e_zKmag'][0], obj['e_iKmag'][0], obj['e_rKmag'][0], \
+                                              obj['e_gKmag'][0]
+
+                    if np.isfinite(y):
+                        host_file.write(tools.format_host_photo('y', 9633, y, e_y, 'PAN-STARRS', 'Kron'))
                     if np.isfinite(z):
-                        host_file.write(tools.format_host_photo('z', 8660, z, e_z, 'SkyMapper', 'Petrosian'))
+                        host_file.write(tools.format_host_photo('z', 8679, z, e_z, 'PAN-STARRS', 'Kron'))
                     if np.isfinite(i):
-                        host_file.write(tools.format_host_photo('i', 7520, i, e_i, 'SkyMapper', 'Petrosian'))
+                        host_file.write(tools.format_host_photo('i', 7545, i, e_i, 'PAN-STARRS', 'Kron'))
                     if np.isfinite(r):
-                        host_file.write(tools.format_host_photo('r', 6170, r, e_r, 'SkyMapper', 'Petrosian'))
+                        host_file.write(tools.format_host_photo('r', 6215, r, e_r, 'PAN-STARRS', 'Kron'))
                     if np.isfinite(g):
-                        host_file.write(tools.format_host_photo('g', 4810, g, e_g, 'SkyMapper', 'Petrosian'))
-                    if np.isfinite(v):
-                        host_file.write(tools.format_host_photo('v', 4110, v, e_v, 'SkyMapper', 'Petrosian'))
-                    print(u)
+                        host_file.write(tools.format_host_photo('g', 4866, g, e_g, 'PAN-STARRS', 'Kron'))
+
                 except:
-                    print('No SkyMapper Data found')
+                    print('No PAN-STARRS Data found')
                     pass
 
+            if dec_host <= -30:
+                print('Searching DES data...')
+                v = Vizier(
+                    columns=['RAJ2000', 'DEJ2000', 'Ymag', 'zmag', 'imag', 'rmag', 'gmag', 'e_Ymag', 'e_zmag', 'e_imag',
+                             'e_rmag', 'e_gmag', "+_r"])
+                result = v.query_region(coords_host,
+                                        radius=0.0014 * units.deg,
+                                        catalog=['II/357/des_dr1'])
+                try:
+                    obj = result[0]
+                    Y, z, i, r, g = obj['Ymag'][0], obj['zmag'][0], obj['imag'][0], obj['rmag'][0], obj['gmag'][0]
+                    e_Y, e_z, e_i, e_r, e_g = obj['e_Ymag'][0], obj['e_zmag'][0], obj['e_imag'][0], obj['e_rmag'][0], \
+                                              obj['e_gmag'][0]
+                    if np.isfinite(Y):
+                        host_file.write(tools.format_host_photo('Y', 10305, Y, e_Y, 'DES', 'Kron'))
+                    if np.isfinite(z):
+                        host_file.write(tools.format_host_photo('z', 8660, z, e_z, 'DES', 'Kron'))
+                    if np.isfinite(i):
+                        host_file.write(tools.format_host_photo('i', 7520, i, e_i, 'DES', 'Kron'))
+                    if np.isfinite(r):
+                        host_file.write(tools.format_host_photo('r', 6170, r, e_r, 'DES', 'Kron'))
+                    if np.isfinite(g):
+                        host_file.write(tools.format_host_photo('g', 4810, g, e_g, 'DES', 'Kron'))
+                except:
+                    print('No DES Data found')
+                    pass
+
+                if len(result) == 0:
+                    print('Searching SkyMapper data...')
+                    v = Vizier(
+                        columns=['RAJ2000', 'DEJ2000', 'uPetro', 'e_uPetro', 'vPetro', 'gPetro', 'rPetro', 'iPetro',
+                                 'zPetro',
+                                 'e_vPetro',
+                                 'e_gPetro', 'e_rPetro', 'e_iPetro', 'e_zPetro', "+_r"])
+                    result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/358/smss'])
+                    try:
+                        obj = result[0]
+                        u, z, i, r, g, v = obj['uPetro'][0], obj['zPetro'][0], obj['iPetro'][0], obj['rPetro'][0], \
+                                           obj['gPetro'][0], obj['vPetro'][0]
+                        e_u, e_z, e_i, e_r, e_g, e_v = obj['e_uPetro'][0], obj['e_zPetro'][0], obj['e_iPetro'][0], \
+                                                       obj['e_rPetro'][0], obj['e_gPetro'][0], obj['e_vPetro'][0]
+
+                        if np.isfinite(z):
+                            host_file.write(tools.format_host_photo('z', 8660, z, e_z, 'SkyMapper', 'Petrosian'))
+                        if np.isfinite(i):
+                            host_file.write(tools.format_host_photo('i', 7520, i, e_i, 'SkyMapper', 'Petrosian'))
+                        if np.isfinite(r):
+                            host_file.write(tools.format_host_photo('r', 6170, r, e_r, 'SkyMapper', 'Petrosian'))
+                        if np.isfinite(g):
+                            host_file.write(tools.format_host_photo('g', 4810, g, e_g, 'SkyMapper', 'Petrosian'))
+                        if np.isfinite(v):
+                            host_file.write(tools.format_host_photo('v', 4110, v, e_v, 'SkyMapper', 'Petrosian'))
+                        print(u)
+                    except:
+                        print('No SkyMapper Data found')
+                        pass
+
         # Searching SDSS u band photometry
-        print('Searching SDSS data...')
         v = Vizier(
             columns=['RAJ2000', 'DEJ2000', 'umag', 'e_umag', "+_r"])
         result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['V/147/sdss12'])
@@ -260,94 +284,120 @@ def download_opt(aperture, coords_host, host_file_path):
 
 
     elif aperture == 'PSF':
-        if dec_host > -30:
-            print('Searching PAN-STARRS data...')
-            v = Vizier(
-                columns=['RAJ2000', 'DEJ2000', 'objID', 'ymag', 'zmag', 'imag', 'rmag', 'gmag', 'e_ymag',
-                         'e_zmag',
-                         'e_imag', 'e_rmag', 'e_gmag', "+_r"])
-            result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/349/ps1'])
-            try:
-                obj = result[0]
+        print('Searching SDSS data...')
+        v = Vizier(
+            columns=['RAJ2000', 'DEJ2000', 'gpmag', 'e_gpmag', 'rpmag', 'e_rpmag', 'ipmag', 'e_ipmag', 'zpmag', 'e_zpmag',
+                     "+_r"])
+        result_sdss = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['V/147/sdss12'])
 
-                y, z, i, r, g = obj['ymag'][0], obj['zmag'][0], obj['imag'][0], obj['rmag'][0], obj['gmag'][0]
-                e_y, e_z, e_i, e_r, e_g = obj['e_ymag'][0], obj['e_zmag'][0], obj['e_imag'][0], obj['e_rmag'][0], \
-                                          obj['e_gmag'][0]
+        try:
+            obj = result_sdss[0]
 
-                if np.isfinite(y):
-                    host_file.write(tools.format_host_photo('y', 9633, y, e_y, 'PAN-STARRS', 'PSF'))
-                if np.isfinite(z):
-                    host_file.write(tools.format_host_photo('z', 8679, z, e_z, 'PAN-STARRS', 'PSF'))
-                if np.isfinite(i):
-                    host_file.write(tools.format_host_photo('i', 7545, i, e_i, 'PAN-STARRS', 'PSF'))
-                if np.isfinite(r):
-                    host_file.write(tools.format_host_photo('r', 6215, r, e_r, 'PAN-STARRS', 'PSF'))
-                if np.isfinite(g):
-                    host_file.write(tools.format_host_photo('g', 4866, g, e_g, 'PAN-STARRS', 'PSF'))
+            z, i, r, g = obj['zpmag'][0], obj['ipmag'][0], obj['rpmag'][0], obj['gpmag'][0]
+            e_z, e_i, e_r, e_g = obj['e_zpmag'][0], obj['e_ipmag'][0], obj['e_rpmag'][0], \
+                                 obj['e_gpmag'][0]
 
-            except:
-                print('No PAN-STARRS Data found')
-                pass
+            if np.isfinite(z):
+                host_file.write(tools.format_host_photo('z', 8931, z, e_z, 'SDSS', 'Model'))
+            if np.isfinite(i):
+                host_file.write(tools.format_host_photo('i', 7481, i, e_i, 'SDSS', 'Model'))
+            if np.isfinite(r):
+                host_file.write(tools.format_host_photo('r', 6165, r, e_r, 'SDSS', 'Model'))
+            if np.isfinite(g):
+                host_file.write(tools.format_host_photo('g', 4686, g, e_g, 'SDSS', 'Model'))
 
-        if dec_host <= -30:
-            print('Searching DES data...')
-            v = Vizier(
-                columns=['RAJ2000', 'DEJ2000', 'YmagPSF', 'zmagPSF', 'imagPSF', 'rmagPSF', 'gmagPSF', 'e_YmagPSF',
-                         'e_zmagPSF', 'e_imagPSF', 'e_rmagPSF', 'e_gmagPSF', "+_r"])
-            result = v.query_region(coords_host,
-                                    radius=0.0014 * units.deg,
-                                    catalog=['II/357/des_dr1'])
-            try:
-                obj = result[0]
-                Y, z, i, r, g = obj['YmagPSF'][0], obj['zmagPSF'][0], obj['imagPSF'][0], obj['rmagPSF'][0], \
-                                obj['gmagPSF'][0]
-                e_Y, e_z, e_i, e_r, e_g = obj['e_YmagPSF'][0], obj['e_zmagPSF'][0], obj['e_imagPSF'][0], \
-                                          obj['e_rmagPSF'][0], \
-                                          obj['e_gmagPSF'][0]
-                if np.isfinite(Y):
-                    host_file.write(tools.format_host_photo('Y', 10305, Y, e_Y, 'DES', 'PSF'))
-                if np.isfinite(z):
-                    host_file.write(tools.format_host_photo('z', 8660, z, e_z, 'DES', 'PSF'))
-                if np.isfinite(i):
-                    host_file.write(tools.format_host_photo('i', 7520, i, e_i, 'DES', 'PSF'))
-                if np.isfinite(r):
-                    host_file.write(tools.format_host_photo('r', 6170, r, e_r, 'DES', 'PSF'))
-                if np.isfinite(g):
-                    host_file.write(tools.format_host_photo('g', 4810, g, e_g, 'DES', 'PSF'))
-            except:
-                print('No DES Data found')
-                pass
+        except:
+            print('No SDSS Data found')
+            pass
 
-            if len(result) == 0:
-                print('Searching SkyMapper data...')
+        if len(result_sdss) == 0:
+            if dec_host > -30:
+                    print('Searching PAN-STARRS data...')
+                    v = Vizier(
+                        columns=['RAJ2000', 'DEJ2000', 'objID', 'ymag', 'zmag', 'imag', 'rmag', 'gmag', 'e_ymag',
+                                 'e_zmag',
+                                 'e_imag', 'e_rmag', 'e_gmag', "+_r"])
+                    result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/349/ps1'])
+                    try:
+                        obj = result[0]
+
+                        y, z, i, r, g = obj['ymag'][0], obj['zmag'][0], obj['imag'][0], obj['rmag'][0], obj['gmag'][0]
+                        e_y, e_z, e_i, e_r, e_g = obj['e_ymag'][0], obj['e_zmag'][0], obj['e_imag'][0], obj['e_rmag'][0], \
+                                                  obj['e_gmag'][0]
+
+                        if np.isfinite(y):
+                            host_file.write(tools.format_host_photo('y', 9633, y, e_y, 'PAN-STARRS', 'PSF'))
+                        if np.isfinite(z):
+                            host_file.write(tools.format_host_photo('z', 8679, z, e_z, 'PAN-STARRS', 'PSF'))
+                        if np.isfinite(i):
+                            host_file.write(tools.format_host_photo('i', 7545, i, e_i, 'PAN-STARRS', 'PSF'))
+                        if np.isfinite(r):
+                            host_file.write(tools.format_host_photo('r', 6215, r, e_r, 'PAN-STARRS', 'PSF'))
+                        if np.isfinite(g):
+                            host_file.write(tools.format_host_photo('g', 4866, g, e_g, 'PAN-STARRS', 'PSF'))
+
+                    except:
+                        print('No PAN-STARRS Data found')
+                        pass
+
+            if dec_host <= -30:
+                print('Searching DES data...')
                 v = Vizier(
-                    columns=['RAJ2000', 'DEJ2000', 'uPSF', 'e_uPSF', 'vPSF', 'gPSF', 'rPSF', 'iPSF',
-                             'zPSF', 'e_vPSF', 'e_gPSF', 'e_rPSF', 'e_iPSF', 'e_zPSF', "+_r"])
-                result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/358/smss'])
+                    columns=['RAJ2000', 'DEJ2000', 'YmagPSF', 'zmagPSF', 'imagPSF', 'rmagPSF', 'gmagPSF', 'e_YmagPSF',
+                             'e_zmagPSF', 'e_imagPSF', 'e_rmagPSF', 'e_gmagPSF', "+_r"])
+                result = v.query_region(coords_host,
+                                        radius=0.0014 * units.deg,
+                                        catalog=['II/357/des_dr1'])
                 try:
                     obj = result[0]
-                    u, z, i, r, g, v = obj['uPSF'][0], obj['zPSF'][0], obj['iPSF'][0], obj['rPSF'][0], \
-                                       obj['gPSF'][0], obj['vPSF'][0]
-                    e_u, e_z, e_i, e_r, e_g, e_v = obj['e_uPSF'][0], obj['e_zPSF'][0], obj['e_iPSF'][0], \
-                                                   obj['e_rPSF'][0], obj['e_gPSF'][0], obj['e_vPSF'][0]
-
+                    Y, z, i, r, g = obj['YmagPSF'][0], obj['zmagPSF'][0], obj['imagPSF'][0], obj['rmagPSF'][0], \
+                                    obj['gmagPSF'][0]
+                    e_Y, e_z, e_i, e_r, e_g = obj['e_YmagPSF'][0], obj['e_zmagPSF'][0], obj['e_imagPSF'][0], \
+                                              obj['e_rmagPSF'][0], \
+                                              obj['e_gmagPSF'][0]
+                    if np.isfinite(Y):
+                        host_file.write(tools.format_host_photo('Y', 10305, Y, e_Y, 'DES', 'PSF'))
                     if np.isfinite(z):
-                        host_file.write(tools.format_host_photo('z', 8660, z, e_z, 'SkyMapper', 'PSF'))
+                        host_file.write(tools.format_host_photo('z', 8660, z, e_z, 'DES', 'PSF'))
                     if np.isfinite(i):
-                        host_file.write(tools.format_host_photo('i', 7520, i, e_i, 'SkyMapper', 'PSF'))
+                        host_file.write(tools.format_host_photo('i', 7520, i, e_i, 'DES', 'PSF'))
                     if np.isfinite(r):
-                        host_file.write(tools.format_host_photo('r', 6170, r, e_r, 'SkyMapper', 'PSF'))
+                        host_file.write(tools.format_host_photo('r', 6170, r, e_r, 'DES', 'PSF'))
                     if np.isfinite(g):
-                        host_file.write(tools.format_host_photo('g', 4810, g, e_g, 'SkyMapper', 'PSF'))
-                    if np.isfinite(v):
-                        host_file.write(tools.format_host_photo('v', 4110, v, e_v, 'SkyMapper', 'PSF'))
-                    print(u)
+                        host_file.write(tools.format_host_photo('g', 4810, g, e_g, 'DES', 'PSF'))
                 except:
-                    print('No SkyMapper Data found')
+                    print('No DES Data found')
                     pass
 
+                if len(result) == 0:
+                    print('Searching SkyMapper data...')
+                    v = Vizier(
+                        columns=['RAJ2000', 'DEJ2000', 'uPSF', 'e_uPSF', 'vPSF', 'gPSF', 'rPSF', 'iPSF',
+                                 'zPSF', 'e_vPSF', 'e_gPSF', 'e_rPSF', 'e_iPSF', 'e_zPSF', "+_r"])
+                    result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/358/smss'])
+                    try:
+                        obj = result[0]
+                        u, z, i, r, g, v = obj['uPSF'][0], obj['zPSF'][0], obj['iPSF'][0], obj['rPSF'][0], \
+                                           obj['gPSF'][0], obj['vPSF'][0]
+                        e_u, e_z, e_i, e_r, e_g, e_v = obj['e_uPSF'][0], obj['e_zPSF'][0], obj['e_iPSF'][0], \
+                                                       obj['e_rPSF'][0], obj['e_gPSF'][0], obj['e_vPSF'][0]
+
+                        if np.isfinite(z):
+                            host_file.write(tools.format_host_photo('z', 8660, z, e_z, 'SkyMapper', 'PSF'))
+                        if np.isfinite(i):
+                            host_file.write(tools.format_host_photo('i', 7520, i, e_i, 'SkyMapper', 'PSF'))
+                        if np.isfinite(r):
+                            host_file.write(tools.format_host_photo('r', 6170, r, e_r, 'SkyMapper', 'PSF'))
+                        if np.isfinite(g):
+                            host_file.write(tools.format_host_photo('g', 4810, g, e_g, 'SkyMapper', 'PSF'))
+                        if np.isfinite(v):
+                            host_file.write(tools.format_host_photo('v', 4110, v, e_v, 'SkyMapper', 'PSF'))
+                        print(u)
+                    except:
+                        print('No SkyMapper Data found')
+                        pass
+
         # Searching SDSS u band photometry
-        print('Searching SDSS data...')
         v = Vizier(
             columns=['RAJ2000', 'DEJ2000', 'umag', 'e_umag', "+_r"])
         result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['V/147/sdss12'])

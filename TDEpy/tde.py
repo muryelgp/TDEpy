@@ -641,6 +641,6 @@ if __name__ == "__main__":
     #tde.z =0.0705
     #tde.download_data()
     #tde.sw_photometry()
-    tde.host_name = None
-    tde.download_host_data()
+    #tde.host_name = None
+    #tde.download_host_data()
     #tde.fit_host_sed(n_cores=2, read_only=True)
