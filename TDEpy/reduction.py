@@ -126,10 +126,10 @@ def write_files(tde_dir, sw_dir, ebv):
         g = open(os.path.join(obs_dir, 'sw_' + band + '.txt'), 'w')
         g.write('#Values already corrected for Galactic extinction for an E(B-V) = ' + str(ebv) + '\n')
         g.write('obsid' + '\t' + 'mjd' + '\t' + 'ab_mag' + '\t' +
-                'ab_mag_err' + '\t' + 'flux' + '\t' + 'flux_err' + '\n')
+                'ab_mag_err' + '\t' + 'flux_dens' + '\t' + 'flux__denserr' + '\n')
         for yy in range(len(mjd)):
-            g.write(str(obsid[yy]) + '\t' + str(mjd[yy]) + '\t' + '{:.2f}'.format(ab_mag[yy]) + '\t' + '{:.2f}'.format(
-                ab_mag_err[yy]) + '\t' + str(flux[yy]) + '\t' + str(flux_err[yy]) + '\n')
+            g.write(str(obsid[yy]) + '\t' + '{:.2f}'.format(mjd[yy]) + '\t' + '{:.2f}'.format(ab_mag[yy]) + '\t' + '{:.2f}'.format(
+                ab_mag_err[yy]) + '\t' + '{:.2e}'.format(flux[yy]) + '\t' + '{:.2e}'.format(flux_err[yy]) + '\n')
         g.close()
 
 
@@ -287,17 +287,17 @@ def load_ztfdata(ztf_name, ebv):
 
     ztf_g = open(os.path.join(cwd_tde, 'photometry', 'host_sub', 'ztf_g.txt'), 'w')
     ztf_g.write('#Values corrected for Galactic extinction and free from host contribution\n')
-    ztf_g.write('mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux' + '\t' + 'flux_err' + '\n')
+    ztf_g.write('mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux_dens' + '\t' + 'flux_flux_denserr' + '\n')
     for yy in range(len(mjd_g)):
-        ztf_g.write('{:.6f}'.format(mjd_g[yy]) + '\t' + '{:.2f}'.format(mag_g[yy]) + '\t' + '{:.2f}'.format(
-            mage_g[yy]) + '\t' + str(flux_g[yy]) + '\t' + str(fluxe_g[yy]) + '\n')
+        ztf_g.write('{:.2f}'.format(mjd_g[yy]) + '\t' + '{:.2f}'.format(mag_g[yy]) + '\t' + '{:.2f}'.format(
+            mage_g[yy]) + '\t' + '{:.2e}'.format(flux_g[yy]) + '\t' + '{:.2e}'.format(fluxe_g[yy]) + '\n')
     ztf_g.close()
 
     ztf_r = open(os.path.join(cwd_tde, 'photometry', 'host_sub', 'ztf_r.txt'), 'w')
     ztf_r.write('#Values corrected for Galactic extinction and free from host contribution\n')
     ztf_r.write('mjd ab_mag ab_mag_err \n')
     for yy in range(len(mjd_r)):
-        ztf_r.write('{:.6f}'.format(mjd_r[yy]) + '\t' + '{:.2f}'.format(mag_r[yy]) + '\t' + '{:.2f}'.format(
+        ztf_r.write('{:.2f}'.format(mjd_r[yy]) + '\t' + '{:.2f}'.format(mag_r[yy]) + '\t' + '{:.2f}'.format(
             mage_r[yy]) + '\t' + str(flux_r[yy]) + '\t' + str(fluxe_r[yy]) + '\n')
     ztf_r.close()
 

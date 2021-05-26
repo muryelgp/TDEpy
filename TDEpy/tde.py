@@ -279,7 +279,7 @@ class TDE:
                 np.loadtxt(os.path.join(self.host_dir, 'host_model_phot.txt'),
                            dtype={'names': (
                                'band', 'wl_0', 'ab_mag', 'ab_mag_err',
-                               'flux', 'flux_err', 'catalog'),
+                               'flux_dens', 'flux_dens_err', 'catalog'),
                                'formats': (
                                    'U5', np.float, np.float, np.float,
                                    np.float, np.float, 'U10')},
@@ -451,7 +451,7 @@ class TDE:
         except:
             os.chdir(self.host_dir)
 
-        host_file_path = os.path.join(self.host_dir, 'host_phot.txt')
+        host_file_path = os.path.join(self.host_dir, 'host_phot_obs.txt')
         host_file = open(host_file_path, 'w')
         host_file.write("# if ab_mag_err = nan it means the measurement is a upper limit\n")
         host_file.write('band' + '\t' + 'wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'catalog' + '\t' + 'aperture' + '\n')
@@ -505,7 +505,7 @@ class TDE:
         You should run download_host_data() first.
         """
         try:
-            band, wl_c, ab_mag, ab_mag_err, catalogs, apertures = np.loadtxt(os.path.join(self.host_dir, 'host_phot.txt'),
+            band, wl_c, ab_mag, ab_mag_err, catalogs, apertures = np.loadtxt(os.path.join(self.host_dir, 'host_phot_obs.txt'),
                                                                   dtype={'names': (
                                                                       'band', 'wl_0', 'ab_mag', 'ab_mag_err',
                                                                       'catalog', 'aperture'),
@@ -638,9 +638,3 @@ if __name__ == "__main__":
     path = '/home/muryel/Dropbox/data/TDEs/'
 
     tde = TDE(tde_name, path)
-    #tde.z =0.0705
-    #tde.download_data()
-    #tde.sw_photometry()
-    #tde.host_name = None
-    #tde.download_host_data()
-    #tde.fit_host_sed(n_cores=2, read_only=True)

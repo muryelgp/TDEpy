@@ -419,7 +419,7 @@ def download_opt(aperture, coords_host, host_file_path):
 
 
 def download_uv(aperture, coords_host, host_dir):
-    host_file_path = os.path.join(host_dir, 'host_phot.txt')
+    host_file_path = os.path.join(host_dir, 'host_phot_obs.txt')
     host_file = open(host_file_path, 'a')
     dec_host = coords_host.dec.deg
     ra_host = coords_host.ra.deg
