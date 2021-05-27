@@ -83,10 +83,7 @@ def build_obs(path, tde):
             noise = tools.dmag_to_df(mags_err, signal)
             snr = signal/noise
             obs["maggies"][i] = 10 ** (-0.4 * mags)
-            if wl_c[i] > 1e4:
-                obs["maggies_unc"][i] = obs["maggies"][i] * (1 / snr) * 3
-            else:
-                obs["maggies_unc"][i] = obs["maggies"][i] * (1/snr)
+            obs["maggies_unc"][i] = obs["maggies"][i] * (1 / snr)
             obs["phot_wave"][i] = np.array(wl_c[i])
         else:
             obs["maggies"][i] = 0
