@@ -10,8 +10,7 @@ from prospect.sources import CSPSpecBasis
 from prospect.models.templates import TemplateLibrary, describe
 import pkg_resources
 import tools as tools
-from functools import partial
-import time
+
 
 # re-defining plotting defaults
 
@@ -51,7 +50,8 @@ def build_obs(path, tde):
                   'DES_Y': 'decam_Y', 'DES_z': 'decam_z', 'DES_i': 'decam_i', 'DES_r': 'decam_r', 'DES_g': 'decam_g',
                   'SkyMapper_u': 'SkyMapper_u', 'SkyMapper_z': 'SkyMapper_z', 'SkyMapper_i': 'SkyMapper_i', 'SkyMapper_r': 'SkyMapper_r',
                   'SkyMapper_g': 'SkyMapper_g', 'SkyMapper_v': 'SkyMapper_v',
-                  'SDSS_u': 'sdss_u0', 'GALEX_NUV': 'galex_NUV', 'GALEX_FUV': 'galex_FUV',
+                  'SDSS_u': 'sdss_u0', 'SDSS_z': 'sdss_z0', 'SDSS_g': 'sdss_g0', 'SDSS_r': 'sdss_r0', 'SDSS_i': 'sdss_i0',
+                  'GALEX_NUV': 'galex_NUV', 'GALEX_FUV': 'galex_FUV',
                   'Swift/UVOT_UVW1': 'uvot_w1', 'Swift/UVOT_UVW2': 'uvot_w2', 'Swift/UVOT_UVM2': 'uvot_m2',
                   'Swift/UVOT_V': 'uvot_V', 'Swift/UVOT_B': 'uvot_B', 'Swift/UVOT_U': 'uvot_U'}
 
@@ -73,16 +73,20 @@ def build_obs(path, tde):
     obs["maggies_unc"] = np.zeros(flag.shape)
     obs["phot_mask"] = np.ones(np.shape(flag), dtype=bool)
 
+
     # Measurments
     for i in range(len(flag)):
         if flag[i]:
             mags = np.array(ab_mag[i])
             mags_err = np.array(ab_mag_err[i])
             signal = tools.mag_to_flux(mags, wl_c[i])
-            noise = tools.dmag_to_df(mags_err, wl_c[i])
+            noise = tools.dmag_to_df(mags_err, signal)
             snr = signal/noise
             obs["maggies"][i] = 10 ** (-0.4 * mags)
-            obs["maggies_unc"][i] = obs["maggies"][i] * (1/snr)
+            if wl_c[i] > 1e4:
+                obs["maggies_unc"][i] = obs["maggies"][i] * (1 / snr) * 3
+            else:
+                obs["maggies_unc"][i] = obs["maggies"][i] * (1/snr)
             obs["phot_wave"][i] = np.array(wl_c[i])
         else:
             obs["maggies"][i] = 0
@@ -341,17 +345,17 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, 
     catalogs = np.append(catalogs, 'Swift/UVOT')
 
     obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('uvot_w1'))
-    wphot = np.append(wphot, 2600)
+    wphot = np.append(wphot, 2684)
     band = np.append(band, 'UVW1')
     catalogs = np.append(catalogs, 'Swift/UVOT')
 
     obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('uvot_m2'))
-    wphot = np.append(wphot, 2246)
+    wphot = np.append(wphot, 2245)
     band = np.append(band, 'UVM2')
     catalogs = np.append(catalogs, 'Swift/UVOT')
 
     obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('uvot_w2'))
-    wphot = np.append(wphot, 1928)
+    wphot = np.append(wphot, 2085)
     band = np.append(band, 'UVW2')
     catalogs = np.append(catalogs, 'Swift/UVOT')
 
@@ -485,10 +489,8 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, 
 
 
     # Dealing with posterior percentis
-    err_spec_mag = -2.5 * np.log10(err_spec)
-    err_spec_flux = tools.mag_to_flux(err_spec_mag, wspec)
-    flux_p16 = np.percentile(err_spec_flux, 16, axis=0)
-    flux_p84 = np.percentile(err_spec_flux, 84, axis=0)
+    flux_p16 = tools.mag_to_flux(-2.5 * np.log10(np.percentile(err_spec, 16, axis=0)), wspec)
+    flux_p84 = tools.mag_to_flux(-2.5 * np.log10(np.percentile(err_spec, 84, axis=0)), wspec)
     mag_p16 = tools.flux_to_mag(flux_p16, wspec)
     mag_p84 = tools.flux_to_mag(flux_p84, wspec)
 
@@ -551,9 +553,9 @@ def host_sub_lc(tde_name, path):
             host_sub_abmage[~is_pos_flux] = -99
             host_sub_flu[~is_pos_flux] = 0
 
-            mjd[~is_pos_flux] = -1
+
             sig_host[is_pos_flux] = host_sub_flu[is_pos_flux] / host_flux
-            sig_host[~is_pos_flux] = 0
+            sig_host[~is_pos_flux] = 0.00
 
             write_path = os.path.join(tde_dir, 'photometry', 'host_sub', str(band) + '.txt')
             try:

@@ -58,13 +58,13 @@ def download_nir(aperture, coords_host, host_file_path):
             e_Y, e_J, e_H, e_K = obj['e_pYmag'][0], obj['e_pJmag'][0], obj['e_pHmag'][0], obj['e_pKmag'][0]
 
             if np.isfinite(K):
-                host_file.write(tools.format_host_photo('K', 22010, K, e_K, 'UKIDSS', 'Petrosian'))
+                host_file.write(tools.format_host_photo('K', 21874, K, e_K, 'UKIDSS', 'Petrosian'))
             if np.isfinite(H):
-                host_file.write(tools.format_host_photo('H', 16313, H, e_H, 'UKIDSS', 'Petrosian'))
+                host_file.write(tools.format_host_photo('H', 16206, H, e_H, 'UKIDSS', 'Petrosian'))
             if np.isfinite(J):
-                host_file.write(tools.format_host_photo('J', 12483, J, e_J, 'UKIDSS', 'Petrosian'))
+                host_file.write(tools.format_host_photo('J', 12418, J, e_J, 'UKIDSS', 'Petrosian'))
             if np.isfinite(Y):
-                host_file.write(tools.format_host_photo('Y', 10305, Y, e_Y, 'UKIDSS', 'Petrosian'))
+                host_file.write(tools.format_host_photo('Y', 10170, Y, e_Y, 'UKIDSS', 'Petrosian'))
 
         except:
             print('No UKIDSS data found')
@@ -85,9 +85,9 @@ def download_nir(aperture, coords_host, host_file_path):
                 if np.isfinite(Ks):
                     host_file.write(tools.format_host_photo('Ks', 21590, Ks, e_Ks, '2MASS', 'default'))
                 if np.isfinite(H):
-                    host_file.write(tools.format_host_photo('H', 16313, H, e_H, '2MASS', 'default'))
+                    host_file.write(tools.format_host_photo('H', 16620, H, e_H, '2MASS', 'default'))
                 if np.isfinite(J):
-                    host_file.write(tools.format_host_photo('J', 12483, J, e_J, '2MASS', 'default'))
+                    host_file.write(tools.format_host_photo('J', 12350, J, e_J, '2MASS', 'default'))
             except:
                 print('No 2MASS Data found')
                 pass
@@ -108,13 +108,13 @@ def download_nir(aperture, coords_host, host_file_path):
             e_Y, e_J, e_H, e_K = obj['e_pYmag'][0], obj['e_pJmag'][0], obj['e_pHmag'][0], obj['e_pKmag'][0]
 
             if np.isfinite(K):
-                host_file.write(tools.format_host_photo('K', 22010, K, e_K, 'UKIDSS', 'PSF'))
+                host_file.write(tools.format_host_photo('K', 21874, K, e_K, 'UKIDSS', 'PSF'))
             if np.isfinite(H):
-                host_file.write(tools.format_host_photo('H', 16313, H, e_H, 'UKIDSS', 'PSF'))
+                host_file.write(tools.format_host_photo('H', 16206, H, e_H, 'UKIDSS', 'PSF'))
             if np.isfinite(J):
-                host_file.write(tools.format_host_photo('J', 12483, J, e_J, 'UKIDSS', 'PSF'))
+                host_file.write(tools.format_host_photo('J', 12418, J, e_J, 'UKIDSS', 'PSF'))
             if np.isfinite(Y):
-                host_file.write(tools.format_host_photo('Y', 10305, Y, e_Y, 'UKIDSS', 'PSF'))
+                host_file.write(tools.format_host_photo('Y', 10170, Y, e_Y, 'UKIDSS', 'PSF'))
 
         except:
             print('No UKIDSS data found')
@@ -136,9 +136,9 @@ def download_nir(aperture, coords_host, host_file_path):
                 if np.isfinite(Ks):
                     host_file.write(tools.format_host_photo('Ks', 21590, Ks, e_Ks, '2MASS', 'standard'))
                 if np.isfinite(H):
-                    host_file.write(tools.format_host_photo('H', 16313, H, e_H, '2MASS', 'standard'))
+                    host_file.write(tools.format_host_photo('H', 16620, H, e_H, '2MASS', 'standard'))
                 if np.isfinite(J):
-                    host_file.write(tools.format_host_photo('J', 12483, J, e_J, '2MASS', 'standard'))
+                    host_file.write(tools.format_host_photo('J', 12350, J, e_J, '2MASS', 'standard'))
             except:
                 print('No 2MASS Data found')
                 pass
@@ -152,24 +152,23 @@ def download_opt(aperture, coords_host, host_file_path):
     if aperture == 'Kron/Petro':
         print('Searching SDSS data...')
         v = Vizier(
-            columns=['RAJ2000', 'DEJ2000', 'gmag', 'e_gmag','rmag', 'e_rmag','imag', 'e_imag','zmag', 'e_zmag', "+_r"])
+            columns=['RAJ2000', 'DEJ2000', 'petroMag_g', 'petroMagErr_g', 'petroMag_r', 'petroMagErr_r', 'petroMag_i', 'petroMagErr_i', 'petroMag_z', 'petroMagErr_z', "+_r"])
         result_sdss = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['V/147/sdss12'])
-
         try:
             obj = result_sdss[0]
 
-            z, i, r, g = obj['zmag'][0], obj['imag'][0], obj['rmag'][0], obj['gmag'][0]
-            e_z, e_i, e_r, e_g = obj['e_zmag'][0], obj['e_imag'][0], obj['e_rmag'][0], \
-                                      obj['e_gmag'][0]
+            z, i, r, g = obj['zPmag'][0], obj['iPmag'][0], obj['rPmag'][0], obj['gPmag'][0]
+            e_z, e_i, e_r, e_g = obj['e_zPmag'][0], obj['e_iPmag'][0], obj['e_rPmag'][0], \
+                                      obj['e_gPmag'][0]
 
             if np.isfinite(z):
-                host_file.write(tools.format_host_photo('z', 8931, z, e_z, 'SDSS', 'Model'))
+                host_file.write(tools.format_host_photo('z', 8932, z, e_z, 'SDSS', 'Petrosian'))
             if np.isfinite(i):
-                host_file.write(tools.format_host_photo('i', 7481, i, e_i, 'SDSS', 'Model'))
+                host_file.write(tools.format_host_photo('i', 7480, i, e_i, 'SDSS', 'Petrosian'))
             if np.isfinite(r):
-                host_file.write(tools.format_host_photo('r', 6165, r, e_r, 'SDSS', 'Model'))
+                host_file.write(tools.format_host_photo('r', 6166, r, e_r, 'SDSS', 'Petrosian'))
             if np.isfinite(g):
-                host_file.write(tools.format_host_photo('g', 4686, g, e_g, 'SDSS', 'Model'))
+                host_file.write(tools.format_host_photo('g', 4686, g, e_g, 'SDSS', 'Petrosian'))
 
         except:
             print('No SDSS Data found')
@@ -248,29 +247,28 @@ def download_opt(aperture, coords_host, host_file_path):
                                                        obj['e_rPetro'][0], obj['e_gPetro'][0], obj['e_vPetro'][0]
 
                         if np.isfinite(z):
-                            host_file.write(tools.format_host_photo('z', 8660, z, e_z, 'SkyMapper', 'Petrosian'))
+                            host_file.write(tools.format_host_photo('z', 9091, z, e_z, 'SkyMapper', 'Petrosian'))
                         if np.isfinite(i):
-                            host_file.write(tools.format_host_photo('i', 7520, i, e_i, 'SkyMapper', 'Petrosian'))
+                            host_file.write(tools.format_host_photo('i', 7712, i, e_i, 'SkyMapper', 'Petrosian'))
                         if np.isfinite(r):
-                            host_file.write(tools.format_host_photo('r', 6170, r, e_r, 'SkyMapper', 'Petrosian'))
+                            host_file.write(tools.format_host_photo('r', 6040, r, e_r, 'SkyMapper', 'Petrosian'))
                         if np.isfinite(g):
-                            host_file.write(tools.format_host_photo('g', 4810, g, e_g, 'SkyMapper', 'Petrosian'))
+                            host_file.write(tools.format_host_photo('g', 4968, g, e_g, 'SkyMapper', 'Petrosian'))
                         if np.isfinite(v):
-                            host_file.write(tools.format_host_photo('v', 4110, v, e_v, 'SkyMapper', 'Petrosian'))
-                        print(u)
+                            host_file.write(tools.format_host_photo('v', 3870, v, e_v, 'SkyMapper', 'Petrosian'))
                     except:
                         print('No SkyMapper Data found')
                         pass
 
         # Searching SDSS u band photometry
         v = Vizier(
-            columns=['RAJ2000', 'DEJ2000', 'umag', 'e_umag', "+_r"])
+            columns=['RAJ2000', 'DEJ2000', 'petroMag_u', 'petroMagErr_u', "+_r"])
         result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['V/147/sdss12'])
         try:
             obj = result[0]
-            u, e_u = obj['umag'][0] - 0.04, obj['e_umag'][0]
+            u, e_u = obj['uPmag'][0], obj['e_uPmag'][0]
             if np.isfinite(u):
-                host_file.write(tools.format_host_photo('u', 3500, u, e_u, 'SDSS', 'Model'))
+                host_file.write(tools.format_host_photo('u', 3551, u, e_u, 'SDSS', 'Petrosian'))
             else:
                 print('No SDSS Data found')
                 try:
@@ -298,11 +296,11 @@ def download_opt(aperture, coords_host, host_file_path):
                                  obj['e_gpmag'][0]
 
             if np.isfinite(z):
-                host_file.write(tools.format_host_photo('z', 8931, z, e_z, 'SDSS', 'Model'))
+                host_file.write(tools.format_host_photo('z', 8932, z, e_z, 'SDSS', 'Model'))
             if np.isfinite(i):
-                host_file.write(tools.format_host_photo('i', 7481, i, e_i, 'SDSS', 'Model'))
+                host_file.write(tools.format_host_photo('i', 7480, i, e_i, 'SDSS', 'Model'))
             if np.isfinite(r):
-                host_file.write(tools.format_host_photo('r', 6165, r, e_r, 'SDSS', 'Model'))
+                host_file.write(tools.format_host_photo('r', 6166, r, e_r, 'SDSS', 'Model'))
             if np.isfinite(g):
                 host_file.write(tools.format_host_photo('g', 4686, g, e_g, 'SDSS', 'Model'))
 
@@ -383,16 +381,15 @@ def download_opt(aperture, coords_host, host_file_path):
                                                        obj['e_rPSF'][0], obj['e_gPSF'][0], obj['e_vPSF'][0]
 
                         if np.isfinite(z):
-                            host_file.write(tools.format_host_photo('z', 8660, z, e_z, 'SkyMapper', 'PSF'))
+                            host_file.write(tools.format_host_photo('z', 9091, z, e_z, 'SkyMapper', 'PSF'))
                         if np.isfinite(i):
-                            host_file.write(tools.format_host_photo('i', 7520, i, e_i, 'SkyMapper', 'PSF'))
+                            host_file.write(tools.format_host_photo('i', 7712, i, e_i, 'SkyMapper', 'PSF'))
                         if np.isfinite(r):
-                            host_file.write(tools.format_host_photo('r', 6170, r, e_r, 'SkyMapper', 'PSF'))
+                            host_file.write(tools.format_host_photo('r', 6040, r, e_r, 'SkyMapper', 'PSF'))
                         if np.isfinite(g):
-                            host_file.write(tools.format_host_photo('g', 4810, g, e_g, 'SkyMapper', 'PSF'))
+                            host_file.write(tools.format_host_photo('g', 4968, g, e_g, 'SkyMapper', 'PSF'))
                         if np.isfinite(v):
-                            host_file.write(tools.format_host_photo('v', 4110, v, e_v, 'SkyMapper', 'PSF'))
-                        print(u)
+                            host_file.write(tools.format_host_photo('v', 3870, v, e_v, 'SkyMapper', 'PSF'))
                     except:
                         print('No SkyMapper Data found')
                         pass
@@ -403,14 +400,14 @@ def download_opt(aperture, coords_host, host_file_path):
         result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['V/147/sdss12'])
         try:
             obj = result[0]
-            u, e_u = obj['upmag'][0] - 0.04, obj['e_upmag'][0]
+            u, e_u = obj['upmag'][0], obj['e_upmag'][0]
             if np.isfinite(u):
-                host_file.write(tools.format_host_photo('u', 3500, u, e_u, 'SDSS', 'PSF'))
+                host_file.write(tools.format_host_photo('u', 3551, u, e_u, 'SDSS', 'PSF'))
             else:
                 print('No SDSS Data found')
                 try:
                     if np.isfinite(u):
-                        host_file.write(tools.format_host_photo('u', 3551, u, e_u, 'SkyMapper', 'PSF'))
+                        host_file.write(tools.format_host_photo('u', 3498, u, e_u, 'SkyMapper', 'PSF'))
                 except:
                     pass
         except:
@@ -462,9 +459,9 @@ def download_uv(aperture, coords_host, host_dir):
         e_fuv = np.nan
 
     if np.isfinite(nuv):
-        host_file.write(tools.format_host_photo('NUV', 2271, nuv, e_nuv, 'GALEX', str(int(aper_radius)) + "''"))
+        host_file.write(tools.format_host_photo('NUV', 2304, nuv, e_nuv, 'GALEX', str(int(aper_radius)) + "''"))
     if np.isfinite(fuv):
-        host_file.write(tools.format_host_photo('FUV', 1528, fuv, e_fuv, 'GALEX', str(int(aper_radius)) + "''"))
+        host_file.write(tools.format_host_photo('FUV', 1549, fuv, e_fuv, 'GALEX', str(int(aper_radius)) + "''"))
 
     if (~np.isfinite(nuv)) & (~np.isfinite(fuv)):
         sw_host_dit = os.path.join(host_dir, 'swift_host')
@@ -495,11 +492,11 @@ def download_uv(aperture, coords_host, host_dir):
                     if f[1].data['AB_MAG'][0] == 99:
                         w1 = -2.5*np.log10(10**(-0.4*f[1].data['AB_MAG_LIM'][0])/3)
                         e_w1 = np.nan
-                        host_file.write(tools.format_host_photo('UVW1', 2600, w1, e_w1, 'Swift/UVOT',  str(int(aper_radius)) + "''"))
+                        host_file.write(tools.format_host_photo('UVW1', 2684, w1, e_w1, 'Swift/UVOT',  str(int(aper_radius)) + "''"))
                     else:
                         w1 = f[1].data['AB_MAG'][0]
                         e_w1 = f[1].data['AB_MAG_ERR'][0]
-                        host_file.write(tools.format_host_photo('UVW1', 2600, w1, e_w1, 'Swift/UVOT',  str(int(aper_radius)) + "''"))
+                        host_file.write(tools.format_host_photo('UVW1', 2684, w1, e_w1, 'Swift/UVOT',  str(int(aper_radius)) + "''"))
                     f.close()
                     break
                 else:
@@ -519,11 +516,11 @@ def download_uv(aperture, coords_host, host_dir):
                     if f[1].data['AB_MAG'][0] == 99:
                         m2 = -2.5*np.log10(10**(-0.4*f[1].data['AB_MAG_LIM'][0])/3)
                         e_m2 = np.nan
-                        host_file.write(tools.format_host_photo('UVM2', 2246, m2, e_m2, 'Swift/UVOT',  str(int(aper_radius)) + "''"))
+                        host_file.write(tools.format_host_photo('UVM2', 2245, m2, e_m2, 'Swift/UVOT',  str(int(aper_radius)) + "''"))
                     else:
                         m2 = f[1].data['AB_MAG'][0]
                         e_m2 = f[1].data['AB_MAG_ERR'][0]
-                        host_file.write(tools.format_host_photo('UVM2', 2246, m2, e_m2, 'Swift/UVOT',  str(int(aper_radius)) + "''"))
+                        host_file.write(tools.format_host_photo('UVM2', 2245, m2, e_m2, 'Swift/UVOT',  str(int(aper_radius)) + "''"))
                     f.close()
                     break
                 else:
@@ -543,11 +540,11 @@ def download_uv(aperture, coords_host, host_dir):
                     if f[1].data['AB_MAG'][0] == 99:
                         w2 = -2.5*np.log10(10**(-0.4*f[1].data['AB_MAG_LIM'][0])/3)
                         e_w2 = np.nan
-                        host_file.write(tools.format_host_photo('UVW2', 1928, w2, e_w2, 'Swift/UVOT',  str(int(aper_radius)) + "''"))
+                        host_file.write(tools.format_host_photo('UVW2', 2085, w2, e_w2, 'Swift/UVOT',  str(int(aper_radius)) + "''"))
                     else:
                         w2 = f[1].data['AB_MAG'][0]
                         e_w2 = f[1].data['AB_MAG_ERR'][0]
-                        host_file.write(tools.format_host_photo('UVW2', 1928, w2, e_w2, 'Swift/UVOT',  str(int(aper_radius)) + "''"))
+                        host_file.write(tools.format_host_photo('UVW2', 2085, w2, e_w2, 'Swift/UVOT',  str(int(aper_radius)) + "''"))
                     f.close()
                     break
                 else:

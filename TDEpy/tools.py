@@ -64,10 +64,10 @@ def format_host_photo(band, lambda_0, ab_mag, ab_mag_err, catalog, aperture):
         return formatted_string
 
     if not np.isfinite(ab_mag_err):
-        formatted_string = str(band) + '\t' + str(lambda_0) + '\t' + '{:.2f}'.format(
+        formatted_string = str(band) + '\t' + str(lambda_0) + '\t' + '{:.3f}'.format(
             ab_mag) + '\t' + 'nan' + '\t' + str(catalog) + '\t' + str(aperture) + '\n'
         return formatted_string
     else:
-        formatted_string = str(band) + '\t' + str(lambda_0) + '\t' + '{:.2f}'.format(
-            ab_mag) + '\t' + '{:.2f}'.format(ab_mag_err) + '\t' + str(catalog) + '\t' + str(aperture) + '\n'
+        formatted_string = str(band) + '\t' + str(lambda_0) + '\t' + '{:.3f}'.format(
+            ab_mag) + '\t' + '{:.3f}'.format(ab_mag_err) + '\t' + str(catalog) + '\t' + str(aperture) + '\n'
         return formatted_string

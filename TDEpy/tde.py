@@ -239,7 +239,7 @@ class TDE:
         os.chdir(self.work_dir)
 
     def plot_light_curve(self, host_sub=False, bands=None, write_plot=True, show_plot=True, figure_ext='png',
-                         plot_host=None):
+                         plot_host_mag=False):
         """
         This function plots the TDEs light curves.
 
@@ -276,7 +276,7 @@ class TDE:
         bands_plotted = []
         if host_sub:
             host_bands, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
-                np.loadtxt(os.path.join(self.host_dir, 'host_model_phot.txt'),
+                np.loadtxt(os.path.join(self.host_dir, 'host_phot_model.txt'),
                            dtype={'names': (
                                'band', 'wl_0', 'ab_mag', 'ab_mag_err',
                                'flux_dens', 'flux_dens_err', 'catalog'),
@@ -293,10 +293,10 @@ class TDE:
                 bands = ['sw_uu', 'sw_bb', 'sw_vv', 'sw_w1', 'sw_m2', 'sw_w2', 'ztf_r', 'ztf_g']
 
         mjd_max = 0
+        mjd_min = 1e10
         fig, ax = plt.subplots(figsize=(12, 8))
         for band in bands:
             # Loading and plotting Swift data
-            print(band)
             if band[0] == 's':
                 if host_sub:
                     try:
@@ -324,6 +324,9 @@ class TDE:
                     bands_plotted.append(band)
                     if np.max(mjd[flag]) > mjd_max:
                         mjd_max = np.max(mjd[flag])
+                    if np.min(mjd[flag]) < mjd_min:
+                        mjd_min = np.min(mjd[flag])
+
 
             # Loading and plotting ZTF data, only if it is present and host_sub=True
             elif band[0] == 'z':
@@ -339,26 +342,28 @@ class TDE:
                     bands_plotted.append(band)
                     if np.max(mjd) > mjd_max:
                         mjd_max = np.max(mjd)
+                    if np.min(mjd) < mjd_min:
+                        mjd_min = np.min(mjd)
                 else:
                     pass
             else:
                 break
 
-        if plot_host is not None:
+        if plot_host_mag:
             # Plotting host mag
             for band in bands_plotted:
                 # Loading and plotting Swift data
-
+                delt_mjd = (mjd_max - mjd_min) * 0.1
                 if host_sub:
                     if band[0] == 's':
                         band_host_flag = host_bands == band_dic[band]
-                        ax.errorbar(mjd_max + plot_host, model_ab_mag[band_host_flag][0],
+                        ax.errorbar(mjd_max + delt_mjd, model_ab_mag[band_host_flag][0],
                                     yerr=model_ab_mag_err[band_host_flag][0],
                                     marker="*", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
                                     markeredgecolor='black', markersize=15, elinewidth=0.7, capsize=0)
                     elif band[0] == 'z':
                         band_host_flag = host_bands == band_dic[band]
-                        ax.errorbar(mjd_max + plot_host, model_ab_mag[band_host_flag][0],
+                        ax.errorbar(mjd_max + delt_mjd, model_ab_mag[band_host_flag][0],
                                     yerr=model_ab_mag_err[band_host_flag][0],
                                     marker="*", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
                                     markeredgecolor='black', markersize=15, elinewidth=0.7, capsize=0)
@@ -578,15 +583,17 @@ class TDE:
         theta_max = result['chain'][i, j, :].copy()
         print('MAP value: {}'.format(theta_max))
         fit_plot = fit_host.plot_resulting_fit(self.name, self.work_dir)
-        fit_plot.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_host_fit.png'), bbox_inches='tight',
+        fit_plot.savefig(os.path.join(self.work_dir, self.name, 'plots', self.name + '_host_fit.png'), bbox_inches='tight',
                          dpi=300)
         plt.show()
 
         if corner_plot:
             c_plt = fit_host.corner_plot(result)
-            c_plt.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_cornerplot.png'), bbox_inches='tight',
+            c_plt.savefig(os.path.join(self.work_dir, self.name, 'plots', self.name + '_cornerplot.png'), bbox_inches='tight',
                           dpi=300)
             plt.show()
+
+        self.plot_light_curve(host_sub=True, show_plot=False, plot_host_mag=True)
         os.chdir(self.work_dir)
 
     def save_info(self):
@@ -632,9 +639,3 @@ class TDE:
         ebv = table['ext SandF mean'][0]
         return ebv
 
-
-if __name__ == "__main__":
-    tde_name = 'AT2016fnl'
-    path = '/home/muryel/Dropbox/data/TDEs/'
-
-    tde = TDE(tde_name, path)
