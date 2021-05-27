@@ -467,7 +467,7 @@ def download_uv(aperture, coords_host, host_dir):
         sw_host_dit = os.path.join(host_dir, 'swift_host')
         if os.path.exists(sw_host_dit):
             os.chdir(sw_host_dit)
-            reduction.create_reg(ra_host, dec_host, [aper_radius, 50], sw_host_dit)
+            reduction.create_reg(ra_host, dec_host, [aper_radius, 50], sw_host_dit, show_regions=False)
 
             os.system('ls -d 0* >> datadirs.txt')
             dirs = [line.rstrip('\n').rstrip('/') for line in open('datadirs.txt')]

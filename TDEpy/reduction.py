@@ -56,6 +56,7 @@ def do_sw_photo(sw_dir, aper_cor):
                 pass
 
         os.chdir(sw_dir)
+    plt.close('all')
 
 
 def write_files(tde_dir, sw_dir, ebv):
@@ -217,7 +218,6 @@ def create_reg(ra, dec, radius, dir, show_regions):
         text_file.write('fk5;circle(%.6f, %.6f, %.1f") # color=green' % (
             bkg_coords.ra.deg, bkg_coords.dec.deg, np.round(radius[1], 1)))
     fig, ax = plt.figure(), plt.subplot(projection=w)
-    plt.ioff()
     plot = ax.imshow(img, vmin=0, vmax=8 * (median_bkg + std_bkg), origin='lower')
     plt.colorbar(plot, ax=ax)
     c_b = plt.Circle((x_0, y_0), radius[1], color='red', fill=False)
@@ -227,7 +227,7 @@ def create_reg(ra, dec, radius, dir, show_regions):
     plt.savefig(dir + '/regions.png', bbox_inches='tight')
     if show_regions:
         plt.show()
-
+    plt.close('all')
 
 def download_ztfdata_lasair(ztf_name):
     # This is the url that contains the data
