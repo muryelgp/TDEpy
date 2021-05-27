@@ -16,7 +16,7 @@ def download_mir(coords_host, host_file_path):
     v = Vizier(
         columns=['RAJ2000', 'DEJ2000', 'W1mag', 'e_W1mag', 'W2mag', 'e_W2mag', 'W3mag', 'e_W3mag', 'W4mag',
                  'e_W4mag', "+_r"])
-    result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/328'])
+    result = v.query_region(coords_host, radius=0.0012 * units.deg, catalog=['II/328/allwise'])
     try:
         obj = result[0]
         W1, W2, W3, W4 = tools.vega_to_ab(obj['W1mag'][0], 'W1'), tools.vega_to_ab(obj['W2mag'][0], 'W2'), \

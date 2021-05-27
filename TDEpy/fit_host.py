@@ -63,7 +63,7 @@ def build_obs(path, tde):
     # and put the resultinf list of Filter objects in the "filters" key of the `obs` dictionary
     obs["filters"] = np.ndarray((0))
     for i in range(len(filternames)):
-        print(filternames[i])
+        # print(filternames[i])
         obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter(filternames[i], directory=pkg_resources.resource_filename("TDEpy", 'filters')))
 
 
@@ -613,6 +613,7 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None, n_walke
 
     if not read_only:
         print("Initial guess: {}".format(model.initial_theta))
+        print('Sampling the the SPS grid..')
         if withmpi & ('logzsol' in model.free_params):
             dummy_obs = dict(filters=None, wavelength=None)
 
@@ -623,10 +624,10 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None, n_walke
             for logzsol in logzsol_grid:
                 model.params["logzsol"] = np.array([logzsol])
                 _ = model.predict(model.theta, obs=dummy_obs, sps=sps)
-
+        print('Done')
         from functools import partial
         lnprobfn_fixed = partial(lnprobfn, sps=sps)
-
+        print('Starting posterior emcee sampling..')
         if withmpi:
             from multiprocessing import Pool
             from multiprocessing import cpu_count
