@@ -134,7 +134,7 @@ def write_files(tde_dir, sw_dir, ebv):
         g.close()
 
 
-def create_reg(ra, dec, radius, dir):
+def create_reg(ra, dec, radius, dir, show_regions):
     os.system('ls -d 0* >> datadirs.txt')
     dirs = [line.rstrip('\n').rstrip('/') for line in open('datadirs.txt')]
     os.system('rm datadirs.txt')
@@ -225,7 +225,8 @@ def create_reg(ra, dec, radius, dir):
     ax.add_patch(c_s)
     ax.add_patch(c_b)
     plt.savefig(dir + '/regions.png', bbox_inches='tight')
-    plt.show()
+    if show_regions:
+        plt.show()
 
 
 def download_ztfdata_lasair(ztf_name):

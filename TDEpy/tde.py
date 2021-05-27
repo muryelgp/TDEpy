@@ -154,7 +154,7 @@ class TDE:
 
         os.chdir(self.work_dir)
 
-    def sw_photometry(self, radius=None, coords=None, write_to_file=True, show_light_curve=True, aper_cor=False):
+    def sw_photometry(self, radius=None, coords=None, write_to_file=True, show_light_curve=True, aper_cor=False, show_regions=True):
         """
         This function does the photometry on the Swift observations:
 
@@ -213,7 +213,7 @@ class TDE:
 
 
             # Creating and plotting the .reg (science and background) files using the Ra and Dec
-            reduction.create_reg(self.ra, self.dec, radius, self.sw_dir)
+            reduction.create_reg(self.ra, self.dec, radius, self.sw_dir, show_regions)
 
             # Doing photometry in the Swift data
 
