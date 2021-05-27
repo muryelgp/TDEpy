@@ -2,26 +2,21 @@ import os
 import warnings
 import matplotlib.pyplot as plt
 import numpy as np
-
 from astropy.utils.exceptions import AstropyWarning
-
 warnings.simplefilter('ignore', category=AstropyWarning)
-
 from astropy.coordinates import FK5, SkyCoord
 from astropy.utils.exceptions import AstropyWarning
 from astropy.time import Time
 from astroquery.irsa_dust import IrsaDust
 from astropy.io import fits
 import pandas as pd
-from astroquery.vizier import Vizier
 from astroquery.simbad import Simbad
 import astropy.units as units
-import gPhoton.gAperture
 
-import fit_host as fit_host
-import reduction as reduction
-import tools as tools
-import download_host as download_host
+
+from . import fit_host as fit_host
+from . import reduction as reduction
+from . import download_host as download_host
 
 warnings.simplefilter('ignore', category=AstropyWarning)
 

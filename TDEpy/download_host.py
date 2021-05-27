@@ -6,7 +6,7 @@ from astropy.io import fits
 import numpy as np
 import gPhoton.gAperture
 import os
-import reduction as reduction
+from . import reduction as reduction
 
 
 def download_mir(coords_host, host_file_path):

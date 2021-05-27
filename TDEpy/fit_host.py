@@ -9,7 +9,7 @@ import prospect.io.read_results as reader
 from prospect.sources import CSPSpecBasis
 from prospect.models.templates import TemplateLibrary, describe
 import pkg_resources
-import tools as tools
+from . import tools as tools
 
 
 # re-defining plotting defaults

@@ -19,7 +19,7 @@ warnings.simplefilter('ignore', category=AstropyWarning)
 from astropy.coordinates import FK5, SkyCoord
 from astropy.io import fits
 from astropy.time import Time
-import tools as tools
+from . import tools as tools
 
 
 def do_sw_photo(sw_dir, aper_cor):
