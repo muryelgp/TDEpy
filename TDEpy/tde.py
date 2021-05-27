@@ -452,7 +452,7 @@ class TDE:
 
         host_file_path = os.path.join(self.host_dir, 'host_phot_obs.txt')
         host_file = open(host_file_path, 'w')
-        host_file.write("# if ab_mag_err = nan it means the measurement is a upper limit\n")
+        host_file.write("# if ab_mag_err = nan, the measurement is an upper limit\n")
         host_file.write('band' + '\t' + 'wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'catalog' + '\t' + 'aperture' + '\n')
         host_file.close()
 
