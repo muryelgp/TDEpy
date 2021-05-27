@@ -138,8 +138,8 @@ def build_model(object_redshift=None, init_theta=None, add_duste=True):
     # Setting the priors forms and limits
     model_params["mass"]["prior"] = priors.LogUniform(mini=1e6, maxi=1e12)
     model_params["logzsol"]["prior"] = priors.Uniform(mini=-1.8, maxi=-0.1)
-    #model_params["dust2"]["prior"] = priors.ClippedNormal(mean=0.0, sigma=0.01, mini=0.0, maxi=0.5)
-    model_params["dust2"]["prior"] = priors.Uniform(mini=0.0, maxi=0.5)
+    model_params["dust2"]["prior"] = priors.ClippedNormal(mean=0.05, sigma=0.1, mini=0.0, maxi=0.5)
+    #model_params["dust2"]["prior"] = priors.Uniform(mini=0.0, maxi=0.5)
     model_params["tage"]["prior"] = priors.Uniform(mini=2, maxi=14)
     model_params["tau"]["prior"] = priors.Uniform(mini=0.001, maxi=30)
 
