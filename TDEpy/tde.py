@@ -687,5 +687,8 @@ class TDE:
             if os.path.exists(self.name + '/host'):
                 tar_handle.add(self.name + '/host')
 
+            if os.path.exists(self.name + '/' + self.name + '_info.fits'):
+                tar_handle.add(self.name + '/' + self.name + '_info.fits')
+
         tar_handle.close()
         os.chdir(pwd)

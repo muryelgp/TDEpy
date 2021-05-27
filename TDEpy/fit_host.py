@@ -63,6 +63,7 @@ def build_obs(path, tde):
     # and put the resultinf list of Filter objects in the "filters" key of the `obs` dictionary
     obs["filters"] = np.ndarray((0))
     for i in range(len(filternames)):
+        print(filternames[i])
         obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter(filternames[i], directory=pkg_resources.resource_filename("TDEpy", 'filters')))
 
 
