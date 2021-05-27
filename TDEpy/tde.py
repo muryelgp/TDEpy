@@ -49,7 +49,7 @@ class TDE:
         try:
             os.mkdir(self.tde_dir)
             os.chdir(self.tde_dir)
-        except:
+        except FileExistsError:
             os.chdir(self.tde_dir)
 
         # Checking if info file has already been created
