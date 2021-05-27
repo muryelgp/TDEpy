@@ -387,6 +387,8 @@ def get_target_id(name, ra, dec):
 
     print('Target ID, Number of observations:')
     for i in range(len(t_id_list)):
+        while len(t_id_list[i]) != 8:
+            t_id_list[i] = '0' + t_id_list[i]
         print(t_id_list[i], ',', n_obs_list[i])
 
 
