@@ -1,4 +1,3 @@
-import tools as tools
 from astroquery.vizier import Vizier
 from astroquery.simbad import Simbad
 import astropy.units as units
@@ -6,8 +5,9 @@ from astropy.io import fits
 import numpy as np
 import gPhoton.gAperture
 import os
-from . import reduction as reduction
 
+from . import reduction as reduction
+from . import tools as tools
 
 def download_mir(coords_host, host_file_path):
     host_file = open(host_file_path, 'a')
