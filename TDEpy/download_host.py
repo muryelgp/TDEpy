@@ -415,7 +415,7 @@ def download_opt(aperture, coords_host, host_file_path):
     host_file.close()
 
 
-def download_uv(aperture, coords_host, host_dir):
+def download_uv(aperture, coords_host, host_dir, sw_dir):
     host_file_path = os.path.join(host_dir, 'host_phot_obs.txt')
     host_file = open(host_file_path, 'a')
     dec_host = coords_host.dec.deg
@@ -464,7 +464,7 @@ def download_uv(aperture, coords_host, host_dir):
         host_file.write(tools.format_host_photo('FUV', 1549, fuv, e_fuv, 'GALEX', str(int(aper_radius)) + "''"))
 
     if (~np.isfinite(nuv)) & (~np.isfinite(fuv)):
-        sw_host_dit = os.path.join(host_dir, 'swift_host')
+        sw_host_dit = os.path.join(sw_dir, 'swift_host')
         if os.path.exists(sw_host_dit):
             os.chdir(sw_host_dit)
             reduction.create_reg(ra_host, dec_host, [aper_radius, 50], sw_host_dit, show_regions=False)

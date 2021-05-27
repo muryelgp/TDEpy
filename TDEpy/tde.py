@@ -108,10 +108,10 @@ class TDE:
                 start_time = Time(dfs['Start time (UT)'][1], format='isot', scale='utc').mjd
                 if start_time < self.discovery_date - 180.0:
                     try:
-                        os.mkdir(self.host_dir)
-                        os.chdir(self.host_dir)
+                        os.mkdir(self.sw_dir)
+                        os.chdir(self.sw_dir)
                     except:
-                        os.chdir(self.host_dir)
+                        os.chdir(self.sw_dir)
                     try:
                         os.mkdir('swift_host')
                         os.chdir('swift_host')
@@ -503,7 +503,7 @@ class TDE:
 
         # Downloading UV (GALEX or UVOT) data
         if np.float(uv) > 1:
-            download_host.download_uv(uv, coords_host, self.host_dir)
+            download_host.download_uv(uv, coords_host, self.host_dir, self.sw_dir)
         elif uv is None:
             pass
         else:
