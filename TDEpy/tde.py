@@ -13,7 +13,6 @@ import pandas as pd
 from astroquery.simbad import Simbad
 import astropy.units as units
 
-
 from . import fit_host as fit_host
 from . import reduction as reduction
 from . import download_host as download_host

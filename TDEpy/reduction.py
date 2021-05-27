@@ -1,4 +1,3 @@
-
 import json
 import os
 import random
@@ -14,11 +13,11 @@ import requests
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs import WCS
 from photutils import centroid_sources, centroid_com
-
 warnings.simplefilter('ignore', category=AstropyWarning)
 from astropy.coordinates import FK5, SkyCoord
 from astropy.io import fits
 from astropy.time import Time
+
 from . import tools as tools
 
 
