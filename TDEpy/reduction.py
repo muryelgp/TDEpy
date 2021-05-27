@@ -401,7 +401,7 @@ def download_swift(target_id, n_obs, init, end=None):
         end = n_obs
     for i in range(init, (end + 1)):
         print('[' + str(i) + '/' + str(n_obs) + ']')
-        os.system('wget -nv -nc -w 2 -nH --cut-dirs=2 -r --no-parent --reject "index.html*" '
+        os.system('wget -q -nv -nc -w 2 -nH --cut-dirs=2 -r --no-parent --reject "index.html*" '
                   'http://www.swift.ac.uk/archive/reproc/' + str(target_id) + str(int(i)).rjust(3,
                                                                                                 '0') + '/uvot'
                                                                                                        '/image/')
