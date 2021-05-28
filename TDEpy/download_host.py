@@ -175,15 +175,16 @@ def download_opt(aperture, coords_host, host_file_path):
             pass
 
         if len(result_sdss) == 0:
+            result_pan = []
             if dec_host > -30:
                 print('Searching PAN-STARRS data...')
                 v = Vizier(
                     columns=['RAJ2000', 'DEJ2000', 'objID', 'yKmag', 'zKmag', 'iKmag', 'rKmag', 'gKmag', 'e_yKmag',
                              'e_zKmag',
                              'e_iKmag', 'e_rKmag', 'e_gKmag', "+_r"])
-                result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/349/ps1'])
+                result_pan = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/349/ps1'])
                 try:
-                    obj = result[0]
+                    obj = result_pan[0]
 
                     y, z, i, r, g = obj['yKmag'][0], obj['zKmag'][0], obj['iKmag'][0], obj['rKmag'][0], obj['gKmag'][0]
                     e_y, e_z, e_i, e_r, e_g = obj['e_yKmag'][0], obj['e_zKmag'][0], obj['e_iKmag'][0], obj['e_rKmag'][0], \
@@ -204,16 +205,16 @@ def download_opt(aperture, coords_host, host_file_path):
                     print('No PAN-STARRS Data found')
                     pass
 
-            if dec_host <= -30:
+            if dec_host <= -30 | (len(result_pan) == 0 and dec_host <= 0):
                 print('Searching DES data...')
                 v = Vizier(
                     columns=['RAJ2000', 'DEJ2000', 'Ymag', 'zmag', 'imag', 'rmag', 'gmag', 'e_Ymag', 'e_zmag', 'e_imag',
                              'e_rmag', 'e_gmag', "+_r"])
-                result = v.query_region(coords_host,
+                result_des = v.query_region(coords_host,
                                         radius=0.0014 * units.deg,
                                         catalog=['II/357/des_dr1'])
                 try:
-                    obj = result[0]
+                    obj = result_des[0]
                     Y, z, i, r, g = obj['Ymag'][0], obj['zmag'][0], obj['imag'][0], obj['rmag'][0], obj['gmag'][0]
                     e_Y, e_z, e_i, e_r, e_g = obj['e_Ymag'][0], obj['e_zmag'][0], obj['e_imag'][0], obj['e_rmag'][0], \
                                               obj['e_gmag'][0]
@@ -231,19 +232,19 @@ def download_opt(aperture, coords_host, host_file_path):
                     print('No DES Data found')
                     pass
 
-                if len(result) == 0:
+                if len(result_des) == 0:
                     print('Searching SkyMapper data...')
                     v = Vizier(
-                        columns=['RAJ2000', 'DEJ2000', 'uPetro', 'e_uPetro', 'vPetro', 'gPetro', 'rPetro', 'iPetro',
+                        columns=['RAJ2000', 'DEJ2000', 'vPetro', 'gPetro', 'rPetro', 'iPetro',
                                  'zPetro',
                                  'e_vPetro',
                                  'e_gPetro', 'e_rPetro', 'e_iPetro', 'e_zPetro', "+_r"])
                     result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/358/smss'])
                     try:
                         obj = result[0]
-                        u, z, i, r, g, v = obj['uPetro'][0], obj['zPetro'][0], obj['iPetro'][0], obj['rPetro'][0], \
+                        z, i, r, g, v = obj['zPetro'][0], obj['iPetro'][0], obj['rPetro'][0], \
                                            obj['gPetro'][0], obj['vPetro'][0]
-                        e_u, e_z, e_i, e_r, e_g, e_v = obj['e_uPetro'][0], obj['e_zPetro'][0], obj['e_iPetro'][0], \
+                        e_z, e_i, e_r, e_g, e_v = obj['e_zPetro'][0], obj['e_iPetro'][0], \
                                                        obj['e_rPetro'][0], obj['e_gPetro'][0], obj['e_vPetro'][0]
 
                         if np.isfinite(z):
@@ -270,8 +271,14 @@ def download_opt(aperture, coords_host, host_file_path):
             if np.isfinite(u):
                 host_file.write(tools.format_host_photo('u', 3551, u, e_u, 'SDSS', 'Petrosian'))
             else:
-                print('No SDSS Data found')
+                print('No SDSS u band mag found')
                 try:
+                    #print('Searching SkyMapper u band data...')
+                    v = Vizier(
+                        columns=['RAJ2000', 'DEJ2000', 'uPetro', 'e_uPetro', "+_r"])
+                    result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/358/smss'])
+                    obj = result[0]
+                    u, e_u = obj['uPetro'][0], obj['e_uPetro'][0]
                     if np.isfinite(u):
                         host_file.write(tools.format_host_photo('u', 3551, u, e_u, 'SkyMapper', 'Petrosian'))
                 except:
@@ -309,45 +316,46 @@ def download_opt(aperture, coords_host, host_file_path):
             pass
 
         if len(result_sdss) == 0:
+            result_pan = []
             if dec_host > -30:
-                    print('Searching PAN-STARRS data...')
-                    v = Vizier(
-                        columns=['RAJ2000', 'DEJ2000', 'objID', 'ymag', 'zmag', 'imag', 'rmag', 'gmag', 'e_ymag',
-                                 'e_zmag',
-                                 'e_imag', 'e_rmag', 'e_gmag', "+_r"])
-                    result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/349/ps1'])
-                    try:
-                        obj = result[0]
+                print('Searching PAN-STARRS data...')
+                v = Vizier(
+                    columns=['RAJ2000', 'DEJ2000', 'objID', 'ymag', 'zmag', 'imag', 'rmag', 'gmag', 'e_ymag',
+                             'e_zmag',
+                             'e_imag', 'e_rmag', 'e_gmag', "+_r"])
+                result_pan = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/349/ps1'])
+                try:
+                    obj = result_pan[0]
 
-                        y, z, i, r, g = obj['ymag'][0], obj['zmag'][0], obj['imag'][0], obj['rmag'][0], obj['gmag'][0]
-                        e_y, e_z, e_i, e_r, e_g = obj['e_ymag'][0], obj['e_zmag'][0], obj['e_imag'][0], obj['e_rmag'][0], \
-                                                  obj['e_gmag'][0]
+                    y, z, i, r, g = obj['ymag'][0], obj['zmag'][0], obj['imag'][0], obj['rmag'][0], obj['gmag'][0]
+                    e_y, e_z, e_i, e_r, e_g = obj['e_ymag'][0], obj['e_zmag'][0], obj['e_imag'][0], obj['e_rmag'][0], \
+                                              obj['e_gmag'][0]
 
-                        if np.isfinite(y):
-                            host_file.write(tools.format_host_photo('y', 9633, y, e_y, 'PAN-STARRS', 'PSF'))
-                        if np.isfinite(z):
-                            host_file.write(tools.format_host_photo('z', 8679, z, e_z, 'PAN-STARRS', 'PSF'))
-                        if np.isfinite(i):
-                            host_file.write(tools.format_host_photo('i', 7545, i, e_i, 'PAN-STARRS', 'PSF'))
-                        if np.isfinite(r):
-                            host_file.write(tools.format_host_photo('r', 6215, r, e_r, 'PAN-STARRS', 'PSF'))
-                        if np.isfinite(g):
-                            host_file.write(tools.format_host_photo('g', 4866, g, e_g, 'PAN-STARRS', 'PSF'))
+                    if np.isfinite(y):
+                        host_file.write(tools.format_host_photo('y', 9633, y, e_y, 'PAN-STARRS', 'PSF'))
+                    if np.isfinite(z):
+                        host_file.write(tools.format_host_photo('z', 8679, z, e_z, 'PAN-STARRS', 'PSF'))
+                    if np.isfinite(i):
+                        host_file.write(tools.format_host_photo('i', 7545, i, e_i, 'PAN-STARRS', 'PSF'))
+                    if np.isfinite(r):
+                        host_file.write(tools.format_host_photo('r', 6215, r, e_r, 'PAN-STARRS', 'PSF'))
+                    if np.isfinite(g):
+                        host_file.write(tools.format_host_photo('g', 4866, g, e_g, 'PAN-STARRS', 'PSF'))
 
-                    except:
-                        print('No PAN-STARRS Data found')
-                        pass
+                except:
+                    print('No PAN-STARRS Data found')
+                    pass
 
-            if dec_host <= -30:
+            if dec_host <= -30 | (len(result_pan) == 0 and dec_host <= 0):
                 print('Searching DES data...')
                 v = Vizier(
                     columns=['RAJ2000', 'DEJ2000', 'YmagPSF', 'zmagPSF', 'imagPSF', 'rmagPSF', 'gmagPSF', 'e_YmagPSF',
                              'e_zmagPSF', 'e_imagPSF', 'e_rmagPSF', 'e_gmagPSF', "+_r"])
-                result = v.query_region(coords_host,
+                result_des = v.query_region(coords_host,
                                         radius=0.0014 * units.deg,
                                         catalog=['II/357/des_dr1'])
                 try:
-                    obj = result[0]
+                    obj = result_des[0]
                     Y, z, i, r, g = obj['YmagPSF'][0], obj['zmagPSF'][0], obj['imagPSF'][0], obj['rmagPSF'][0], \
                                     obj['gmagPSF'][0]
                     e_Y, e_z, e_i, e_r, e_g = obj['e_YmagPSF'][0], obj['e_zmagPSF'][0], obj['e_imagPSF'][0], \
@@ -367,17 +375,17 @@ def download_opt(aperture, coords_host, host_file_path):
                     print('No DES Data found')
                     pass
 
-                if len(result) == 0:
+                if len(result_des) == 0:
                     print('Searching SkyMapper data...')
                     v = Vizier(
-                        columns=['RAJ2000', 'DEJ2000', 'uPSF', 'e_uPSF', 'vPSF', 'gPSF', 'rPSF', 'iPSF',
+                        columns=['RAJ2000', 'DEJ2000', 'vPSF', 'gPSF', 'rPSF', 'iPSF',
                                  'zPSF', 'e_vPSF', 'e_gPSF', 'e_rPSF', 'e_iPSF', 'e_zPSF', "+_r"])
                     result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/358/smss'])
                     try:
                         obj = result[0]
-                        u, z, i, r, g, v = obj['uPSF'][0], obj['zPSF'][0], obj['iPSF'][0], obj['rPSF'][0], \
+                        z, i, r, g, v =obj['zPSF'][0], obj['iPSF'][0], obj['rPSF'][0], \
                                            obj['gPSF'][0], obj['vPSF'][0]
-                        e_u, e_z, e_i, e_r, e_g, e_v = obj['e_uPSF'][0], obj['e_zPSF'][0], obj['e_iPSF'][0], \
+                        e_z, e_i, e_r, e_g, e_v = obj['e_zPSF'][0], obj['e_iPSF'][0], \
                                                        obj['e_rPSF'][0], obj['e_gPSF'][0], obj['e_vPSF'][0]
 
                         if np.isfinite(z):
@@ -406,6 +414,11 @@ def download_opt(aperture, coords_host, host_file_path):
             else:
                 print('No SDSS Data found')
                 try:
+                    v = Vizier(
+                        columns=['RAJ2000', 'DEJ2000', 'uPetro', 'e_uPetro', "+_r"])
+                    result = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/358/smss'])
+                    obj = result[0]
+                    u, e_u = obj['uPSF'][0], obj['e_uPSF'][0]
                     if np.isfinite(u):
                         host_file.write(tools.format_host_photo('u', 3498, u, e_u, 'SkyMapper', 'PSF'))
                 except:
@@ -428,7 +441,7 @@ def download_uv(aperture, coords_host, host_dir, sw_dir):
     try:
         r = (aper_radius / 5) * 0.0014
         nuv_data = gPhoton.gAperture("NUV", [ra_host, dec_host], radius=r,
-                                     annulus=[r + 0.0001, 0.0050],
+                                     annulus=[r + 0.0006, r + 0.0026],
                                      coadd=True, overwrite=True)
         try:
             nuv = nuv_data['mag'][0]
@@ -444,7 +457,7 @@ def download_uv(aperture, coords_host, host_dir, sw_dir):
 
     try:
         r = (aper_radius / 5) * 0.0014
-        fuv_data = gPhoton.gAperture('FUV', [ra_host, dec_host], radius=r, annulus=[r + 0.0001, 0.0050],
+        fuv_data = gPhoton.gAperture('FUV', [ra_host, dec_host], radius=r, annulus=[r + 0.0006, r + 0.0026],
                                      coadd=True, overwrite=True)
         try:
             fuv = fuv_data['mag'][0]
