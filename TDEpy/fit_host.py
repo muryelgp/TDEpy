@@ -590,7 +590,7 @@ def configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn):
     return obs, sps, model, run_params
 
 
-def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None, n_walkers=None, n_inter=None, n_burn=None, read_only=False):
+def run_prospector(tde_name, path, z, withmpi, n_cores, show_figs=True, init_theta=None, n_walkers=None, n_inter=None, n_burn=None, read_only=False):
     os.chdir(os.path.join(path, tde_name, 'host'))
 
     if init_theta is None:
@@ -676,9 +676,11 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, init_theta=None, n_walke
         pass
 
     fit_plot.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_host_fit.png'), bbox_inches='tight', dpi=300)
-    plt.show()
+    if show_figs:
+        plt.show()
     corner_fig = corner_plot(result)
     corner_fig.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_cornerplot.png'), bbox_inches='tight',
                        dpi=300)
-    plt.show()
+    if show_figs:
+        plt.show()
     os.chdir(path)
