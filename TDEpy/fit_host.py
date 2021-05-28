@@ -565,7 +565,7 @@ def host_sub_lc(tde_name, path):
             g.write('#Values corrected for Galactic extinction and free from host contribution\n')
             g.write('obsid' + '\t' + 'mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux_dens' + '\t' + 'flux_dens_err' + '\t' + 'TDE/host' + '\n')
             for yy in range(len(mjd)):
-                if mjd[yy] > 0 and host_sub_abmage[yy] < 2:
+                if mjd[yy] > 0 and host_sub_abmage[yy] < 1:
                     obsid_yy = str('000' + str(int(obsid[yy])))
                     g.write(obsid_yy + '\t' + '{:.2f}'.format(mjd[yy]) + '\t' + '{:.2f}'.format(host_sub_abmag[yy]) + '\t' +
                             '{:.2f}'.format(host_sub_abmage[yy]) + '\t' + '{:.2e}'.format(host_sub_flu[yy]) + '\t' +
