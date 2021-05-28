@@ -570,7 +570,7 @@ class TDE:
             plt.show()
         os.chdir(self.work_dir)
 
-    def fit_host_sed(self, n_cores, multi_processing=True, init_theta=None, n_walkers=None, n_inter=None, n_burn=None,
+    def fit_host_sed(self, n_cores, show_figs=True, multi_processing=True, init_theta=None, n_walkers=None, n_inter=None, n_burn=None,
                      read_only=False):
         if self.z is None:
             self.z = np.nan
@@ -580,7 +580,7 @@ class TDE:
                 'THIS PROCESS WILL TAKE A LOT OF TIME!! try to increase the numbers of processing cores (n_cores), if possible..')
             self.save_info()
             fit_host.run_prospector(self.name, self.work_dir, np.float(self.z), withmpi=multi_processing,
-                                    n_cores=n_cores,
+                                    n_cores=n_cores,  show_figs=show_figs,
                                     init_theta=init_theta, n_walkers=n_walkers, n_inter=n_inter, n_burn=n_burn,
                                     read_only=read_only)
         else:
