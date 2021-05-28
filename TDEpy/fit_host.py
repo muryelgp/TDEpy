@@ -140,7 +140,7 @@ def build_model(object_redshift=None, init_theta=None, add_duste=True):
     model_params["logzsol"]["prior"] = priors.Uniform(mini=-1.8, maxi=0.3)
     model_params["dust2"]["prior"] = priors.ClippedNormal(mean=0.05, sigma=0.1, mini=0.0, maxi=0.5)
     #model_params["dust2"]["prior"] = priors.Uniform(mini=0.0, maxi=0.5)
-    model_params["tage"]["prior"] = priors.Uniform(mini=2, maxi=15)
+    model_params["tage"]["prior"] = priors.Uniform(mini=2, maxi=13.8)
     model_params["tau"]["prior"] = priors.Uniform(mini=0.001, maxi=30)
 
     # Setting the spread of the walkers for the mcmc sampling
