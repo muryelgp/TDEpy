@@ -580,7 +580,7 @@ class TDE:
                 'THIS PROCESS WILL TAKE A LOT OF TIME!! try to increase the numbers of processing cores (n_cores), if possible..')
             self.save_info()
             fit_host.run_prospector(self.name, self.work_dir, np.float(self.z), withmpi=multi_processing,
-                                    n_cores=n_cores,  show_figs=show_figs,
+                                    n_cores=n_cores,  gal_ebv=self.ebv, show_figs=show_figs,
                                     init_theta=init_theta, n_walkers=n_walkers, n_inter=n_inter, n_burn=n_burn,
                                     read_only=read_only)
         else:

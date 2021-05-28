@@ -103,14 +103,14 @@ def build_obs(path, tde):
     return obs
 
 
-def build_model(object_redshift=None, init_theta=None, add_duste=True):
+def build_model(gal_ebv, object_redshift=None, init_theta=None):
     """Build a prospect.models.SedModel object
 
     :param object_redshift: (optional, default: None)
         If given, produce spectra and observed frame photometry appropriate
         for this redshift. Otherwise, the redshift will be zero.
 
-    :param  init_theta: (optional, default: [1e10, 0, 0.05, 1, 1])
+    :param  init_theta: (optional, default: [1e10, -1, 10, 1])
         The initial guess on the parameters for mcmc.
 
     :returns model:
@@ -124,35 +124,34 @@ def build_model(object_redshift=None, init_theta=None, add_duste=True):
     model_params = TemplateLibrary["parametric_sfh"]
 
     model_params["sfh"]["init"] = 4
+    Av_init = gal_ebv * 3.1
     #print(init_theta)
     # Changing the initial values appropriate for our objects and data
     model_params["mass"]["init"] = init_theta[0]
     model_params["logzsol"]["init"] = init_theta[1]
-    model_params["dust2"]["init"] = init_theta[2]
-    model_params["tage"]["init"] = init_theta[3]
+    model_params["dust2"]["init"] = Av_init
+    model_params["tage"]["init"] = init_theta[2]
     model_params["tau"]["init"] = init_theta[4]
-
-
 
 
     # Setting the priors forms and limits
     model_params["mass"]["prior"] = priors.LogUniform(mini=1e6, maxi=1e12)
     model_params["logzsol"]["prior"] = priors.Uniform(mini=-1.8, maxi=0.3)
-    model_params["dust2"]["prior"] = priors.ClippedNormal(mean=0.05, sigma=0.1, mini=0.0, maxi=0.5)
+    model_params["dust2"]["prior"] = priors.ClippedNormal(mean=Av_init, sigma=0.05, mini=Av_init-0.1, maxi=Av_init+0.1)
     #model_params["dust2"]["prior"] = priors.Uniform(mini=0.0, maxi=0.5)
-    model_params["tage"]["prior"] = priors.Uniform(mini=2, maxi=13.8)
+    model_params["tage"]["prior"] = priors.Uniform(mini=0.1, maxi=13.8)
     model_params["tau"]["prior"] = priors.Uniform(mini=0.001, maxi=30)
 
     # Setting the spread of the walkers for the mcmc sampling
     model_params["mass"]["disp_floor"] = 1e8
     model_params["logzsol"]['disp_floor'] = 0.5
-    model_params["dust2"]["disp_floor"] = 0.1
+    model_params["dust2"]["disp_floor"] = 0.01
     model_params["tage"]["disp_floor"] = 5.0
     model_params["tau"]["disp_floor"] = 3.0
 
     model_params["mass"]["init_disp"] = 1e8
     model_params["logzsol"]['init_disp'] = 0.5
-    model_params["dust2"]["init_disp"] = 0.1
+    model_params["dust2"]["init_disp"] = 0.01
     model_params["tage"]["init_disp"] = 5.0
     model_params["tau"]["init_disp"] = 3.0
 
@@ -574,7 +573,7 @@ def host_sub_lc(tde_name, path):
             g.close()
 
 
-def configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn):
+def configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn, gal_ebv):
     # Setting same paraters for the mcmc sampling
     run_params = {"object_redshift": z, "fixed_metallicity": False, "add_duste": True, "verbose": True,
                   "optimize": True, "emcee": True, "dynesty": False, "nwalkers": n_walkers, "niter": n_inter, "nburn": n_burn,
@@ -585,16 +584,16 @@ def configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn):
     sps = build_sps()
 
     # Instantiating model object
-    model = build_model(object_redshift=z, init_theta=init_theta)
+    model = build_model(gal_ebv, object_redshift=z, init_theta=init_theta)
 
     return obs, sps, model, run_params
 
 
-def run_prospector(tde_name, path, z, withmpi, n_cores, show_figs=True, init_theta=None, n_walkers=None, n_inter=None, n_burn=None, read_only=False):
+def run_prospector(tde_name, path, z, withmpi, n_cores, gal_ebv, show_figs=True, init_theta=None, n_walkers=None, n_inter=None, n_burn=None, read_only=False):
     os.chdir(os.path.join(path, tde_name, 'host'))
 
     if init_theta is None:
-        init_theta = [1e10, -1.0, 0.01, 10, 1]
+        init_theta = [1e10, -1.0, 10, 1]
 
     if n_walkers is None:
         n_walkers = 100
@@ -605,9 +604,9 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, show_figs=True, init_the
     if n_burn is None:
         n_burn = [500]
 
-    obs, sps, model, run_params = configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn)
+    obs, sps, model, run_params = configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn, gal_ebv)
 
-    model_params = TemplateLibrary["parametric_sfh"]
+
     if not withmpi:
         n_cores = 1
 
