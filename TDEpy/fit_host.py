@@ -131,7 +131,7 @@ def build_model(gal_ebv, object_redshift=None, init_theta=None):
     model_params["logzsol"]["init"] = init_theta[1]
     model_params["dust2"]["init"] = Av_init
     model_params["tage"]["init"] = init_theta[2]
-    model_params["tau"]["init"] = init_theta[4]
+    model_params["tau"]["init"] = init_theta[3]
 
 
     # Setting the priors forms and limits
@@ -549,10 +549,10 @@ def host_sub_lc(tde_name, path):
             host_sub_abmage[is_pos_flux] = tools.df_to_dmag(host_sub_flu[is_pos_flux], host_sub_flue[is_pos_flux], band_wl)
             host_sub_abmage[~is_pos_flux] = -99
             host_sub_flu[~is_pos_flux] = 0
-
-
             sig_host[is_pos_flux] = host_sub_flu[is_pos_flux] / host_flux
             sig_host[~is_pos_flux] = 0.00
+
+
 
             write_path = os.path.join(tde_dir, 'photometry', 'host_sub', str(band) + '.txt')
             try:
@@ -565,7 +565,7 @@ def host_sub_lc(tde_name, path):
             g.write('#Values corrected for Galactic extinction and free from host contribution\n')
             g.write('obsid' + '\t' + 'mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux_dens' + '\t' + 'flux_dens_err' + '\t' + 'TDE/host' + '\n')
             for yy in range(len(mjd)):
-                if mjd[yy] > 0:
+                if mjd[yy] > 0 & host_sub_abmage[yy] < 2:
                     obsid_yy = str('000' + str(int(obsid[yy])))
                     g.write(obsid_yy + '\t' + '{:.2f}'.format(mjd[yy]) + '\t' + '{:.2f}'.format(host_sub_abmag[yy]) + '\t' +
                             '{:.2f}'.format(host_sub_abmage[yy]) + '\t' + '{:.2e}'.format(host_sub_flu[yy]) + '\t' +
