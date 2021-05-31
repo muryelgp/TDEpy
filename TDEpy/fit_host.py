@@ -593,7 +593,7 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, gal_ebv, show_figs=True,
     os.chdir(os.path.join(path, tde_name, 'host'))
 
     if init_theta is None:
-        init_theta = [1e10, -1.0, 10, 1]
+        init_theta = [1e10, -1.0, 8, 1]
 
     if n_walkers is None:
         n_walkers = 100
