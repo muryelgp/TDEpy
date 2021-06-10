@@ -11,12 +11,9 @@ from prospect.models.templates import TemplateLibrary, describe
 import pkg_resources
 from . import tools as tools
 
-
 # re-defining plotting defaults
 
 plt.rcParams.update({'font.size': 16})
-
-
 
 
 def build_obs(path, tde):
@@ -33,12 +30,13 @@ def build_obs(path, tde):
 
     tde_dir = os.path.join(path, tde)
     try:
-        band, wl_c, ab_mag, ab_mag_err, catalogs, apertures = np.loadtxt(os.path.join(tde_dir, 'host', 'host_phot_obs.txt'),
-                                                              dtype={'names': (
-                                                                  'band', 'wl_0', 'ab_mag', 'ab_mag_err', 'catalog', 'apertures'),
-                                                                  'formats': (
-                                                                      'U5', np.float, np.float, np.float, 'U10', 'U10')},
-                                                              unpack=True, skiprows=2)
+        band, wl_c, ab_mag, ab_mag_err, catalogs, apertures = np.loadtxt(
+            os.path.join(tde_dir, 'host', 'host_phot_obs.txt'),
+            dtype={'names': (
+                'band', 'wl_0', 'ab_mag', 'ab_mag_err', 'catalog', 'apertures'),
+                'formats': (
+                    'U5', np.float, np.float, np.float, 'U10', 'U10')},
+            unpack=True, skiprows=2)
     except:
         raise Exception('We should run download_host_data() before trying to fit it.')
 
@@ -48,9 +46,11 @@ def build_obs(path, tde):
                   'PAN-STARRS_y': 'PAN-STARRS_y', 'PAN-STARRS_z': 'PAN-STARRS_z', 'PAN-STARRS_i': 'PAN-STARRS_i',
                   'PAN-STARRS_r': 'PAN-STARRS_r', 'PAN-STARRS_g': 'PAN-STARRS_g',
                   'DES_Y': 'decam_Y', 'DES_z': 'decam_z', 'DES_i': 'decam_i', 'DES_r': 'decam_r', 'DES_g': 'decam_g',
-                  'SkyMapper_u': 'SkyMapper_u', 'SkyMapper_z': 'SkyMapper_z', 'SkyMapper_i': 'SkyMapper_i', 'SkyMapper_r': 'SkyMapper_r',
+                  'SkyMapper_u': 'SkyMapper_u', 'SkyMapper_z': 'SkyMapper_z', 'SkyMapper_i': 'SkyMapper_i',
+                  'SkyMapper_r': 'SkyMapper_r',
                   'SkyMapper_g': 'SkyMapper_g', 'SkyMapper_v': 'SkyMapper_v',
-                  'SDSS_u': 'sdss_u0', 'SDSS_z': 'sdss_z0', 'SDSS_g': 'sdss_g0', 'SDSS_r': 'sdss_r0', 'SDSS_i': 'sdss_i0',
+                  'SDSS_u': 'sdss_u0', 'SDSS_z': 'sdss_z0', 'SDSS_g': 'sdss_g0', 'SDSS_r': 'sdss_r0',
+                  'SDSS_i': 'sdss_i0',
                   'GALEX_NUV': 'galex_NUV', 'GALEX_FUV': 'galex_FUV',
                   'Swift/UVOT_UVW1': 'uvot_w1', 'Swift/UVOT_UVW2': 'uvot_w2', 'Swift/UVOT_UVM2': 'uvot_m2',
                   'Swift/UVOT_V': 'uvot_V', 'Swift/UVOT_B': 'uvot_B', 'Swift/UVOT_U': 'uvot_U'}
@@ -64,16 +64,15 @@ def build_obs(path, tde):
     obs["filters"] = np.ndarray((0))
     for i in range(len(filternames)):
         # print(filternames[i])
-        obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter(filternames[i], directory=pkg_resources.resource_filename("TDEpy", 'filters')))
-
-
+        obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter(filternames[i],
+                                                                          directory=pkg_resources.resource_filename(
+                                                                              "TDEpy", 'filters')))
 
     obs["phot_wave"] = np.zeros(flag.shape)
     obs["phot_mask"] = np.zeros(flag.shape)
     obs["maggies"] = np.zeros(flag.shape)
     obs["maggies_unc"] = np.zeros(flag.shape)
     obs["phot_mask"] = np.ones(np.shape(flag), dtype=bool)
-
 
     # Measurments
     for i in range(len(flag)):
@@ -82,7 +81,7 @@ def build_obs(path, tde):
             mags_err = np.array(ab_mag_err[i])
             signal = tools.mag_to_flux(mags, wl_c[i])
             noise = tools.dmag_to_df(mags_err, signal)
-            snr = signal/noise
+            snr = signal / noise
             obs["maggies"][i] = 10 ** (-0.4 * mags)
             obs["maggies_unc"][i] = obs["maggies"][i] * (1 / snr)
             obs["phot_wave"][i] = np.array(wl_c[i])
@@ -125,7 +124,7 @@ def build_model(gal_ebv, object_redshift=None, init_theta=None):
 
     model_params["sfh"]["init"] = 4
     Av_init = gal_ebv * 3.1
-    #print(init_theta)
+    # print(init_theta)
     # Changing the initial values appropriate for our objects and data
     model_params["mass"]["init"] = init_theta[0]
     model_params["logzsol"]["init"] = init_theta[1]
@@ -133,12 +132,12 @@ def build_model(gal_ebv, object_redshift=None, init_theta=None):
     model_params["tage"]["init"] = init_theta[2]
     model_params["tau"]["init"] = init_theta[3]
 
-
     # Setting the priors forms and limits
     model_params["mass"]["prior"] = priors.LogUniform(mini=1e6, maxi=1e12)
     model_params["logzsol"]["prior"] = priors.Uniform(mini=-1.8, maxi=0.3)
-    model_params["dust2"]["prior"] = priors.ClippedNormal(mean=Av_init, sigma=0.05, mini=Av_init-0.1, maxi=Av_init+0.1)
-    #model_params["dust2"]["prior"] = priors.Uniform(mini=0.0, maxi=0.5)
+    model_params["dust2"]["prior"] = priors.ClippedNormal(mean=Av_init, sigma=0.05, mini=Av_init - 0.1,
+                                                          maxi=Av_init + 0.1)
+    # model_params["dust2"]["prior"] = priors.Uniform(mini=0.0, maxi=0.5)
     model_params["tage"]["prior"] = priors.Uniform(mini=0.1, maxi=13.8)
     model_params["tau"]["prior"] = priors.Uniform(mini=0.001, maxi=30)
 
@@ -155,13 +154,12 @@ def build_model(gal_ebv, object_redshift=None, init_theta=None):
     model_params["tage"]["init_disp"] = 5.0
     model_params["tau"]["init_disp"] = 3.0
 
-
     # Fixing and defining the object redshift
     model_params["zred"]['isfree'] = False
     model_params["zred"]['init'] = object_redshift
 
-    #ldist = cosmo.luminosity_distance(object_redshift).value
-    #model_params["lumdist"] = {"N": 1, "isfree": False, "init": ldist, "units": "Mpc"}
+    # ldist = cosmo.luminosity_distance(object_redshift).value
+    # model_params["lumdist"] = {"N": 1, "isfree": False, "init": ldist, "units": "Mpc"}
 
     # Now instantiate the model object using this dictionary of parameter specifications
     model = SedModel(model_params)
@@ -190,7 +188,6 @@ def plot_resulting_fit(tde_name, path):
                            'U10', 'U10')},
                    unpack=True, skiprows=2)
 
-
     band, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
         np.loadtxt(os.path.join(host_dir, 'host_phot_model.txt'),
                    dtype={'names': (
@@ -204,16 +201,15 @@ def plot_resulting_fit(tde_name, path):
     n_bands = int(np.where(band == 'V')[0])
     band_flag = [i < n_bands for i in range(len(model_wl_c))]
 
-    spec_wl_0, spec_ab_mag, spec_ab_mag_p16, spec_ab_mag_p84,  spec_flux, spec_flux_p16, spec_flux_p84 = np.loadtxt(
+    spec_wl_0, spec_ab_mag, spec_ab_mag_p16, spec_ab_mag_p84, spec_flux, spec_flux_p16, spec_flux_p84 = np.loadtxt(
         os.path.join(host_dir, 'host_spec_model.txt'),
         dtype={'names': (
             'wl_0', 'ab_mag', 'spec_ab_mag_p16', 'spec_ab_mag_p16'
-            'flux_dens', 'spec_flux_p16', 'spec_ab_mag_p84', 'tde/host'),
+                                                 'flux_dens', 'spec_flux_p16', 'spec_ab_mag_p84', 'tde/host'),
             'formats': (
                 np.float, np.float, np.float,
                 np.float, np.float, np.float, np.float, np.float)},
         unpack=True, skiprows=1)
-
 
     ax.plot(spec_wl_0, spec_ab_mag, label='Model spectrum (MAP)',
             lw=0.7, color='green', alpha=0.8)
@@ -231,11 +227,11 @@ def plot_resulting_fit(tde_name, path):
                 markerfacecolor='none', markeredgecolor='red',
                 markeredgewidth=3)
     ax.invert_yaxis()
-    ax.errorbar(obs_wl_c[is_up_lim], obs_ab_mag[is_up_lim], yerr=0.5, lolims=np.ones(np.shape(obs_ab_mag_err[is_up_lim]), dtype=bool),
-               marker='o', fmt='o',  ecolor='red', alpha=0.85, lw=3, markeredgecolor='red',
-               markerfacecolor='none', markersize=8, elinewidth=2, capsize=6, capthick=3,
-               markeredgewidth=3)
-
+    ax.errorbar(obs_wl_c[is_up_lim], obs_ab_mag[is_up_lim], yerr=0.5,
+                lolims=np.ones(np.shape(obs_ab_mag_err[is_up_lim]), dtype=bool),
+                marker='o', fmt='o', ecolor='red', alpha=0.85, lw=3, markeredgecolor='red',
+                markerfacecolor='none', markersize=8, elinewidth=2, capsize=6, capthick=3,
+                markeredgewidth=3)
 
     temp = np.interp(np.linspace(700, 300000, 10000), spec_wl_0, spec_ab_mag)
     ymin, ymax = temp.min() * 0.85, temp.max() * 1.1
@@ -298,7 +294,6 @@ def corner_plot(result):
         else:
             bounds.append((theta_max[i] - 4 * mean_dist, theta_max[i] + 4 * mean_dist))
 
-
     cornerfig = reader.subcorner(result, thin=5,
                                  fig=plt.subplots(5, 5, figsize=(27, 27))[0], logify=["mass", "tau"], range=bounds)
 
@@ -317,26 +312,32 @@ def gen_post_filters(result, model, obs, sps, nwalkers, n_burn, niter, i):
 def save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, n_inter, n_burn, n_cores):
     tde_dir = os.path.join(path, tde_name)
     band, _, _, _, catalogs, _ = np.loadtxt(os.path.join(tde_dir, 'host', 'host_phot_obs.txt'),
-                                         dtype={'names': (
-                                             'band', 'wl_0', 'ab_mag', 'ab_mag_err', 'catalog', 'apertures'),
-                                             'formats': (
-                                                 'U5', np.float, np.float, np.float, 'U10', 'U10')},
-                                         unpack=True, skiprows=2)
+                                            dtype={'names': (
+                                                'band', 'wl_0', 'ab_mag', 'ab_mag_err', 'catalog', 'apertures'),
+                                                'formats': (
+                                                    'U5', np.float, np.float, np.float, 'U10', 'U10')},
+                                            unpack=True, skiprows=2)
 
     # Adding new bands (Swift, SDSS, HST)
     wphot = obs["phot_wave"]
 
-    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('uvot_V', directory=pkg_resources.resource_filename("TDEpy", 'filters')))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('uvot_V',
+                                                                      directory=pkg_resources.resource_filename("TDEpy",
+                                                                                                                'filters')))
     wphot = np.append(wphot, 5468)
     band = np.append(band, 'V')
     catalogs = np.append(catalogs, 'Swift/UVOT')
 
-    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('uvot_B', directory=pkg_resources.resource_filename("TDEpy", 'filters')))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('uvot_B',
+                                                                      directory=pkg_resources.resource_filename("TDEpy",
+                                                                                                                'filters')))
     wphot = np.append(wphot, 4392)
     band = np.append(band, 'B')
     catalogs = np.append(catalogs, 'Swift/UVOT')
 
-    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('uvot_U', directory=pkg_resources.resource_filename("TDEpy", 'filters')))
+    obs["filters"] = np.append(obs["filters"], sedpy.observate.Filter('uvot_U',
+                                                                      directory=pkg_resources.resource_filename("TDEpy",
+                                                                                                                'filters')))
     wphot = np.append(wphot, 3465)
     band = np.append(band, 'U')
     catalogs = np.append(catalogs, 'Swift/UVOT')
@@ -422,10 +423,9 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, 
     # Measuring errors on the modelled spectra and photometry
     randint = np.random.randint
     nwalkers, niter = n_walkers, n_inter - n_burn[-1]
-    n_visits = int(0.2 * (n_inter - n_burn[-1])*n_walkers)
+    n_visits = int(0.2 * (n_inter - n_burn[-1]) * n_walkers)
     err_phot = np.zeros((n_visits, len(mphot_map)))
     err_spec = np.zeros((n_visits, len(mspec_map)))
-
 
     for i in range(n_visits):
         # selecting a randon walker at a any step
@@ -471,7 +471,8 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, 
         'band' + '\t' + 'wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux_dens' + '\t' + 'flux_dens_err' + '\t' + 'catalog/instrument' + '\n')
     for yy in range(len(wphot)):
         host_file.write(
-            str(band[yy]) + '\t' + str(int(wphot[yy])) + '\t' + '{:.2f}'.format(mphot_map_mag[yy]) + '\t' + '{:.2f}'.format(
+            str(band[yy]) + '\t' + str(int(wphot[yy])) + '\t' + '{:.2f}'.format(
+                mphot_map_mag[yy]) + '\t' + '{:.2f}'.format(
                 err_phot_mag_std[yy]) + '\t' + '{:.2e}'.format(mphot_map_flux[yy]) + '\t' + '{:.2e}'.format(
                 err_phot_flux_std[yy]) + '\t' + str(catalogs[yy]) + '\n')
     host_file.close()
@@ -483,34 +484,34 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, 
     spec_mag = -2.5 * np.log10(mspec_map)
     spec_flux = tools.mag_to_flux(spec_mag, wspec)
 
-
-
     # Dealing with posterior percentis
-    flux_p16 = tools.mag_to_flux(-2.5 * np.log10(np.percentile(err_spec, 16, axis=0)), wspec)
-    flux_p84 = tools.mag_to_flux(-2.5 * np.log10(np.percentile(err_spec, 84, axis=0)), wspec)
-    mag_p16 = tools.flux_to_mag(flux_p16, wspec)
-    mag_p84 = tools.flux_to_mag(flux_p84, wspec)
-
+    flux_p10 = tools.mag_to_flux(-2.5 * np.log10(np.percentile(err_spec, 10, axis=0)), wspec)
+    flux_p90 = tools.mag_to_flux(-2.5 * np.log10(np.percentile(err_spec, 90, axis=0)), wspec)
+    mag_p10 = tools.flux_to_mag(flux_p10, wspec)
+    mag_p90 = tools.flux_to_mag(flux_p90, wspec)
 
     host_file = open(os.path.join(host_dir, 'host_spec_model.txt'), 'w')
-    host_file.write('wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_p16' + '\t' + 'ab_mag_p84' + '\t' + 'flux_dens' + '\t' + 'flux_dens_p16' + '\t' + 'flux_dens_p84' + '\n')
+    host_file.write(
+        'wl_0' + '\t' + 'ab_mag' + '\t' + 'ab_mag_p10' + '\t' + 'ab_mag_p90' + '\t' + 'flux_dens' + '\t' + 'flux_dens_p10' + '\t' + 'flux_dens_p90' + '\n')
     for yy in range(len(wspec)):
         host_file.write('{:.2f}'.format(wspec[yy]) + '\t' + '{:.2f}'.format(spec_mag[yy]) + '\t' +
-                        '{:.2f}'.format(mag_p16[yy]) + '\t' + '{:.2f}'.format(mag_p84[yy]) + '\t' + '{:.2e}'.format(spec_flux[yy]) +
-                        '\t' + '{:.2e}'.format(flux_p16[yy]) + '\t' + '{:.2e}'.format(flux_p84[yy]) + '\n')
+                        '{:.2f}'.format(mag_p10[yy]) + '\t' + '{:.2f}'.format(mag_p90[yy]) + '\t' + '{:.2e}'.format(
+            spec_flux[yy]) +
+                        '\t' + '{:.2e}'.format(flux_p10[yy]) + '\t' + '{:.2e}'.format(flux_p90[yy]) + '\n')
     host_file.close()
 
 
-def host_sub_lc(tde_name, path):
+def host_sub_lc(tde_name, path, ebv):
     tde_dir = os.path.join(path, tde_name)
     host_dir = os.path.join(tde_dir, 'host')
     band_dic = dict(sw_uu='U', sw_bb='B', sw_vv='V', sw_w1='UVW1', sw_m2='UVM2',
                     sw_w2='UVW2')
     band_wl_dic = dict(sw_uu=3465, sw_bb=4392, sw_vv=5468, sw_w1=2600, sw_m2=2246,
-                    sw_w2=1928)
+                       sw_w2=1928)
+    extcorr = dict(sw_uu=5.00, sw_bb=4.16, sw_vv=3.16, sw_w1=6.74, sw_m2=8.53,
+                   sw_w2=8.14)
 
     bands = ['sw_uu', 'sw_bb', 'sw_vv', 'sw_w1', 'sw_m2', 'sw_w2']
-
 
     host_bands, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
         np.loadtxt(os.path.join(host_dir, 'host_phot_model.txt'),
@@ -531,14 +532,14 @@ def host_sub_lc(tde_name, path):
             # selecting model fluxes at the respective band
             host_band = host_bands == band_dic[band]
             band_wl = model_wl_c[host_band][0]
-            host_flux = model_flux[host_band][0]
+            host_flux = model_flux[host_band][0] / (10. ** (-0.4 * extcorr[band] * ebv))
             host_flux_err = model_flux_err[host_band][0]
-
+            host_abmage = model_ab_mag_err[host_band][0]
             # Subtracting host contribution from the light curve
             host_sub_flu = flu - host_flux
-            host_sub_flue = np.sqrt(flue**2 + host_flux_err**2)
+            host_sub_flue = host_sub_flu*np.sqrt((flue/flu) ** 2 + (host_flux_err/host_flux) ** 2)
 
-            #dealing with negative fluxes
+            # dealing with negative fluxes
             host_sub_abmag = np.zeros(np.shape(host_sub_flu))
             host_sub_abmage = np.zeros(np.shape(host_sub_flu))
             sig_host = np.zeros(np.shape(host_sub_flu))
@@ -546,13 +547,12 @@ def host_sub_lc(tde_name, path):
             is_pos_flux = host_sub_flu > 0
             host_sub_abmag[is_pos_flux] = tools.flux_to_mag(host_sub_flu[is_pos_flux], band_wl)
             host_sub_abmag[~is_pos_flux] = -99
-            host_sub_abmage[is_pos_flux] = tools.df_to_dmag(host_sub_flu[is_pos_flux], host_sub_flue[is_pos_flux], band_wl)
+            host_sub_abmage[is_pos_flux] = np.sqrt(abmage[is_pos_flux]**2 + host_abmage**2)
             host_sub_abmage[~is_pos_flux] = -99
             host_sub_flu[~is_pos_flux] = 0
+            host_sub_flue[~is_pos_flux] = abs(host_sub_flu[~is_pos_flux]*np.sqrt((flue[~is_pos_flux]/flu[~is_pos_flux]) ** 2 + (host_flux_err/host_flux) ** 2))
             sig_host[is_pos_flux] = host_sub_flu[is_pos_flux] / host_flux
             sig_host[~is_pos_flux] = 0.00
-
-
 
             write_path = os.path.join(tde_dir, 'photometry', 'host_sub', str(band) + '.txt')
             try:
@@ -560,23 +560,24 @@ def host_sub_lc(tde_name, path):
             except:
                 pass
 
-
             g = open(write_path, 'w')
             g.write('#Values corrected for Galactic extinction and free from host contribution\n')
-            g.write('obsid' + '\t' + 'mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux_dens' + '\t' + 'flux_dens_err' + '\t' + 'TDE/host' + '\n')
+            g.write(
+                'obsid' + '\t' + 'mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux_dens' + '\t' + 'flux_dens_err' + '\t' + 'TDE/host' + '\n')
             for yy in range(len(mjd)):
-                if mjd[yy] > 0 and host_sub_abmage[yy] < 1:
                     obsid_yy = str('000' + str(int(obsid[yy])))
-                    g.write(obsid_yy + '\t' + '{:.2f}'.format(mjd[yy]) + '\t' + '{:.2f}'.format(host_sub_abmag[yy]) + '\t' +
-                            '{:.2f}'.format(host_sub_abmage[yy]) + '\t' + '{:.2e}'.format(host_sub_flu[yy]) + '\t' +
-                            '{:.2e}'.format(host_sub_flue[yy]) + '\t' + '{:.2f}'.format(sig_host[yy]) + '\n')
+                    g.write(
+                        obsid_yy + '\t' + '{:.2f}'.format(mjd[yy]) + '\t' + '{:.2f}'.format(host_sub_abmag[yy]) + '\t' +
+                        '{:.2f}'.format(host_sub_abmage[yy]) + '\t' + '{:.2e}'.format(host_sub_flu[yy]) + '\t' +
+                        '{:.2e}'.format(host_sub_flue[yy]) + '\t' + '{:.2f}'.format(sig_host[yy]) + '\n')
             g.close()
 
 
 def configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn, gal_ebv):
     # Setting same paraters for the mcmc sampling
     run_params = {"object_redshift": z, "fixed_metallicity": False, "add_duste": True, "verbose": True,
-                  "optimize": True, "emcee": True, "dynesty": False, "nwalkers": n_walkers, "niter": n_inter, "nburn": n_burn,
+                  "optimize": True, "emcee": True, "dynesty": False, "nwalkers": n_walkers, "niter": n_inter,
+                  "nburn": n_burn,
                   "min_method": "lm", "nmin": 2}
 
     # Instantiating observation object and sps
@@ -589,11 +590,12 @@ def configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn, gal_ebv
     return obs, sps, model, run_params
 
 
-def run_prospector(tde_name, path, z, withmpi, n_cores, gal_ebv, show_figs=True, init_theta=None, n_walkers=None, n_inter=None, n_burn=None, read_only=False):
+def run_prospector(tde_name, path, z, withmpi, n_cores, gal_ebv, show_figs=True, init_theta=None, n_walkers=None,
+                   n_inter=None, n_burn=None, read_only=False):
     os.chdir(os.path.join(path, tde_name, 'host'))
 
     if init_theta is None:
-        init_theta = [1e10, -1.0, 8, 1]
+        init_theta = [1e10, -1.0, 6, 0.5]
 
     if n_walkers is None:
         n_walkers = 100
@@ -605,7 +607,6 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, gal_ebv, show_figs=True,
         n_burn = [500]
 
     obs, sps, model, run_params = configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn, gal_ebv)
-
 
     if not withmpi:
         n_cores = 1
@@ -664,7 +665,7 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, gal_ebv, show_figs=True,
     save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, n_inter, n_burn, n_cores)
 
     # Writing host subtracted light curves
-    host_sub_lc(tde_name, path)
+    #host_sub_lc(tde_name, path)
 
     print('MAP value: {}'.format(theta_max))
     fit_plot = plot_resulting_fit(tde_name, path)

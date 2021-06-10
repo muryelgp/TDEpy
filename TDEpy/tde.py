@@ -131,8 +131,10 @@ class TDE:
             print('All Swift data for Target ID ' + str(target_id) + ' downloaded!')
 
         # Getting foreground Milky Way extinction along the line of sight, from dust map astroquery.irsa_dust
-        self.ebv = self.get_ebv()  # E(B-V) from Schlafly & Finkbeiner 2011
-
+        try:
+            self.ebv = self.get_ebv()  # E(B-V) from Schlafly & Finkbeiner 2011
+        except:
+            pass
         # Saving info into a fits file
         self.save_info()
 
@@ -140,7 +142,7 @@ class TDE:
 
         # Looking to ZTF data
         print('Looking for ZTF data')
-        if self.other_name[0:3] == 'ZTF':
+        if str(self.other_name)[0:3] == 'ZTF' and self.is_tns:
             ztf_name = self.other_name
             try:
                 os.mkdir('ztf')
@@ -199,6 +201,9 @@ class TDE:
         os.chdir(self.work_dir)
 
         if not self.is_tns:
+            if coords is None:
+                raise Exception('For sources not presented in Transient Name Server (AT* names) you need to input the '
+                                'coordinates (ra, dec, z), using the coords = [ra, dec, z] parameter!')
             self.ra, self.dec, self.z = coords
             self.other_name, self.target_id, self.n_sw_obs, self.host_name = 'None', 'None', 'None', 'None'
             self.ebv = self.get_ebv()
@@ -268,7 +273,7 @@ class TDE:
         figure_ext: string
             The format of the figure file to be saved. Default is 'png' but it can also be 'pdf'.
 
-        plot_host:
+        plot_host_mag:
             In construction!
         """
 
@@ -321,7 +326,7 @@ class TDE:
                     except:
                         continue
 
-                flag = abmag > 0
+                flag = (abmag > 0) & (abmage < 1)
                 if np.sum(flag) > 0:
                     ax.errorbar(mjd[flag], abmag[flag], yerr=abmage[flag], marker="o", linestyle='',
                                 color=color_dic[band],
@@ -416,7 +421,7 @@ class TDE:
         ra_host = dec_host = None
 
         print('Searching for ' + self.name + ' host galaxy data:')
-        if self.host_name != 'None':
+        if self.host_name is not None:
             print('The host galaxy name is ' + str(self.host_name))
             result = Simbad.query_object(self.host_name)
             if result is not None:
@@ -426,9 +431,9 @@ class TDE:
                 ra_host = coords_host.ra.deg
                 dec_host = coords_host.dec.deg
             else:
-                self.host_name = 'None'
+                self.host_name = None
 
-        if (self.host_name == 'None') | (self.host_name[0:4] == 'NAME'):
+        if (self.host_name is None) | (str(self.host_name)[0:4] == 'NAME'):
 
             result = Simbad.query_region(SkyCoord(ra=self.ra, dec=self.dec, unit=(units.deg, units.deg)),
                                          radius=0.0014 * units.deg)
@@ -436,16 +441,16 @@ class TDE:
             if result is not None:
                 if result is not None:
                     if len(result['MAIN_ID']) > 1:
-                        name_flag = [(result['MAIN_ID'][i][0:4].decode('utf-8') != 'NAME') &
-                                     (result['MAIN_ID'][i][0:2].decode('utf-8') != str(self.name[0:2])) for i in
+                        name_flag = [(result['MAIN_ID'][i][0:4] != 'NAME') &
+                                     (result['MAIN_ID'][i][0:2] != str(self.name[0:2])) for i in
                                      range(len(result['MAIN_ID']))]
                         ra_host = result['RA'][name_flag][0]
                         dec_host = result['DEC'][name_flag][0]
-                        self.host_name = (result['MAIN_ID'][name_flag][0]).decode('utf-8')
+                        self.host_name = (result['MAIN_ID'][name_flag][0])
                     else:
                         ra_host = result['RA'][0]
                         dec_host = result['DEC'][0]
-                        self.host_name = (result['MAIN_ID'][0]).decode('utf-8')
+                        self.host_name = result['MAIN_ID'][0]
                 coords_host = SkyCoord(ra=ra_host, dec=dec_host, unit=(units.hourangle, units.deg), frame=FK5)
                 ra_host = coords_host.ra.deg
                 dec_host = coords_host.dec.deg
@@ -570,7 +575,8 @@ class TDE:
             plt.show()
         os.chdir(self.work_dir)
 
-    def fit_host_sed(self, n_cores, show_figs=True, multi_processing=True, init_theta=None, n_walkers=None, n_inter=None, n_burn=None,
+    def fit_host_sed(self, n_cores, show_figs=True, multi_processing=True, init_theta=None, n_walkers=None,
+                     n_inter=None, n_burn=None,
                      read_only=False):
         if self.z is None:
             self.z = np.nan
@@ -580,9 +586,12 @@ class TDE:
                 'THIS PROCESS WILL TAKE A LOT OF TIME!! try to increase the numbers of processing cores (n_cores), if possible..')
             self.save_info()
             fit_host.run_prospector(self.name, self.work_dir, np.float(self.z), withmpi=multi_processing,
-                                    n_cores=n_cores,  gal_ebv=self.ebv, show_figs=show_figs,
+                                    n_cores=n_cores, gal_ebv=self.ebv, show_figs=show_figs,
                                     init_theta=init_theta, n_walkers=n_walkers, n_inter=n_inter, n_burn=n_burn,
                                     read_only=read_only)
+            print('Creating host subtracted light curves!...')
+            self.subtract_host(show_plot=show_figs)
+
         else:
             raise Exception('You need to define a redshift (z) for the source before fitting the host SED')
 
@@ -608,15 +617,21 @@ class TDE:
                           dpi=300)
             plt.show()
 
-        self.plot_light_curve(host_sub=True, show_plot=False, plot_host_mag=True)
         os.chdir(self.work_dir)
+
+    def subtract_host(self, show_plot=True):
+        if os.path.exists(os.path.join(self.host_dir, 'host_phot_model.txt')):
+            fit_host.host_sub_lc(self.name, self.work_dir, self.ebv)
+            self.plot_light_curve(host_sub=True, show_plot=show_plot)
+        else:
+            raise FileExistsError("'host_phot_model.txt' not found in host folder, please run the prospector host SED fitting first, fit_host_sed()")
 
     def save_info(self):
         from astropy.table import Table
         t = Table({'TDE_name': np.array([str(self.name)]),
                    'other_name': np.array([str(self.other_name)]),
-                   'ra': np.array([float(self.ra)]),
-                   'dec': np.array([float(self.dec)]),
+                   'ra': np.array([str(self.ra)]),
+                   'dec': np.array([str(self.dec)]),
                    'E(B-V)': np.array([str(self.ebv)]),
                    'z': np.array([str(self.z)]),
                    'host_name': np.array([str(self.host_name)]),
@@ -625,9 +640,21 @@ class TDE:
 
     def _load_info(self):
         info = fits.open(os.path.join(self.work_dir, self.name, str(self.name) + '_info.fits'))
-        ra = info[1].data['ra'][0]
-        dec = info[1].data['dec'][0]
-        ebv = float(info[1].data['E(B-V)'][0])
+
+        try:
+            ra = float(info[1].data['ra'][0])
+        except:
+            ra = None
+
+        try:
+            dec = (info[1].data['dec'][0])
+        except:
+            dec = None
+
+        try:
+            ebv = float(info[1].data['E(B-V)'][0])
+        except:
+            ebv = None
 
         try:
             other_name = info[1].data['other_name'][0]

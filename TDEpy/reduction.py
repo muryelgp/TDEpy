@@ -181,12 +181,12 @@ def create_reg(ra, dec, radius, dir, show_regions):
 
     # Creating source region
 
-    x_source, y_source = w.world_to_pixel(SkyCoord(ra=float(ra), dec=float(dec), unit=u.deg, frame=FK5))
+    x_source, y_source = w.world_to_pixel(SkyCoord(ra=float(ra), dec=float(dec), unit="deg", frame=FK5))
     new_x_source, new_y_source = centroid_sources(img, x_source, y_source, box_size=21,
                                                   centroid_func=centroid_com)
 
     with open(dir + '/' + 'source.reg', "w") as text_file:
-        text_file.write('fk5;circle(%.6f, %.6f, %.1f") # color=green' % (ra, dec, np.round(radius[0], 1)))
+        text_file.write('fk5;circle(%.6f, %.6f, %.1f") # color=green' % (float(ra), float(dec), np.round(radius[0], 1)))
 
     # Creating background region
     rho = random.randrange(0, 300, 1)
