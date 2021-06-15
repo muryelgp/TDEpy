@@ -18,6 +18,8 @@ import tarfile
 from . import fit_host as fit_host
 from . import reduction as reduction
 from . import download_host as download_host
+from . import fit_light_curve as fit_light_curve
+
 
 warnings.simplefilter('ignore', category=AstropyWarning)
 
@@ -46,6 +48,7 @@ class TDE:
         self.host_dir = os.path.join(self.tde_dir, 'host')
         self.other_name, self.ra, self.dec, self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name, self.discovery_date = \
             None, None, None, None, None, None, None, None, None
+        self.host_mass, self.host_color = None, None
 
         # Checking if object/folder was already created
         try:
@@ -56,8 +59,7 @@ class TDE:
 
         # Checking if info file has already been created
         if os.path.exists(os.path.join(self.tde_dir, self.name + '_info.fits')):
-            self.other_name, self.ra, self.dec, self.ebv, self.z, self.host_name, self.discovery_date = \
-                self._load_info()
+            self._load_info()
 
     def download_data(self, target_id=None, n_obs=None):
         """
@@ -69,7 +71,9 @@ class TDE:
         -finds Galactic extinction in the LoS, E(B-V)
         -Save all infos into tde_name_info.fits file in the 'path'
 
-        obs: This function only works for TNS objects, i.e. those with names beginning with 'AT', e.g. AT2018dyb.
+        obs: This function only works automatically for TNS objects, i.e. those with names beginning with 'AT',
+        e.g. AT2018dyb, for other sources the Swift target ID and the number of observations needs to be insert
+        manually using the 'target_id' and 'n_obs' parameters.
         """
 
         if (not self.is_tns) & (target_id is None):
@@ -86,6 +90,14 @@ class TDE:
                     str(self.name)[2:])
             except:
                 raise Exception('Not able to retrieve data on ' + self.name)
+
+        # Getting foreground Milky Way extinction along the line of sight, from dust map astroquery.irsa_dust
+        try:
+            self.ebv = self.get_ebv()  # E(B-V) from Schlafly & Finkbeiner 2011
+        except:
+            pass
+        # Saving info into a fits file
+        self.save_info()
 
         # Getting Swift Target ID and number of observations
         print('Searching for Swift observations.....')
@@ -130,13 +142,7 @@ class TDE:
             reduction.download_swift(target_id, n_obs, init=1)
             print('All Swift data for Target ID ' + str(target_id) + ' downloaded!')
 
-        # Getting foreground Milky Way extinction along the line of sight, from dust map astroquery.irsa_dust
-        try:
-            self.ebv = self.get_ebv()  # E(B-V) from Schlafly & Finkbeiner 2011
-        except:
-            pass
-        # Saving info into a fits file
-        self.save_info()
+
 
         os.chdir(self.tde_dir)
 
@@ -191,6 +197,12 @@ class TDE:
 
         show_light_curve : Boolean
             Whether to show the light curve plot or not. Default is True.
+
+        aper_cor: Boolean
+            Whether to apply aperture correction or not. See 'uvotsource' documentation for details. Default is False.
+
+        show_regions:
+            Whether to show or not the .reg file figures. Deafault is True.
         """
 
         if radius is None:
@@ -209,8 +221,7 @@ class TDE:
             self.ebv = self.get_ebv()
             self.save_info()
         if self.is_tns:
-            self.other_name, self.ra, self.dec, self.ebv, self.z, self.host_name, self.discovery_date = \
-                self._load_info()
+            self._load_info()
 
         os.chdir(self.tde_dir)
         try:
@@ -406,17 +417,23 @@ class TDE:
 
     def download_host_data(self, mir='Model', nir='default/Petro', opt='Kron/Petro', uv='5'):
         """
-        This function downloads and saves the host galaxy SED, from MID-IR to UV. It uses the following photometric
-        catalogs:
+        This function downloads and saves the host galaxy SED, from MID-IR to UV.  Results are written in 'host'
+        directory inside the TDE directory. For each band distinct aperture are available:
 
-        Mid-IR: AllWISE (W1, W2, W3, W4);
-        Near-IR: UKIDS (Y, J, H, K) if available, otherwise uses 2MASS (J, H, Ks);
-        Optical: For Dec > -30 uses PAN-STARRS (y, z, i, r, g), for Dec < -30 uses, if avaliable, DES (Y, z, i, r, g),
-        otherwise uses Southern SkyMapper (u, z, i, r, g, v). Also uses SDSS u band if available.
-        UV: Uses gPhoton package to measure GALEX (NUV, FUV) photometry, if there is no detection in the coordinates,
-        it does aperture photometry in the image.
+        mir: 'Model' or None
+            Mid infrared data are from WISE, the only option is the 'Model' photometry. None excludes the MIR photometry.
 
-        Results are written in 'host' directory inside the TDE directory.
+        nir: 'default/Petro', 'standard/PSF' or None
+            Near Infrared is from 2MASS or UKIDISS, for 2MASS the options are 'default' or 'standard', for UKIDSS
+            the options are 'Petro' (Petrosian) or 'PSF' (Point Spread Function), see the catalogs documentation for
+            descriptions. None excludes the NIR photometry.
+
+        opt: 'Kron/Petro', 'PSF' or None
+            Optical data are from SDSS, PAN-STARSS, DES or SkyMapper. The options are 'Kron/Petro' or 'PSF'.
+            None excludes the optical photometry.
+
+        uv: string
+            UV are taken from GALEX data, the uv variable defines the radius of the aperture in arcseconds. default is '5'.
         """
         ra_host = dec_host = None
 
@@ -576,8 +593,32 @@ class TDE:
         os.chdir(self.work_dir)
 
     def fit_host_sed(self, n_cores, show_figs=True, multi_processing=True, init_theta=None, n_walkers=None,
-                     n_inter=None, n_burn=None,
-                     read_only=False):
+                     n_inter=None, n_burn=None, read_only=False):
+        """
+        This function fit the host SED using Prospector software (https://github.com/bd-j/prospector/),
+         saves modelled host data, and the host subtracted light curves:
+
+        n_cores: integer
+            The number of CPU cores the run in parallel.
+
+        show_figs: Boolean
+            Whether to show or not the plots while running. Default is True.
+
+        multi_processing: Boolean
+            Whether multiprocessing will be used. True is the default and the advise, otherwise it will take several hours to run.
+
+        init_theta: list
+            The initial values for the fit. The format is: [mass, log_z, age, tau]. The defualt is [1e10, -1.0, 6, 0.5].
+
+        n_walkers: integer
+            Number os walkers for emcee posterior sampling. Default is 100.
+
+        n_inter: integer
+            Number of interactions for emcee sampling. Default is 1000.
+
+        n_burn: list
+            In which interactions the emcee burns will be done. Default is [500].
+        """
         if self.z is None:
             self.z = np.nan
         if np.isfinite(float(self.z)):
@@ -585,17 +626,31 @@ class TDE:
             print(
                 'THIS PROCESS WILL TAKE A LOT OF TIME!! try to increase the numbers of processing cores (n_cores), if possible..')
             self.save_info()
+
             fit_host.run_prospector(self.name, self.work_dir, np.float(self.z), withmpi=multi_processing,
                                     n_cores=n_cores, gal_ebv=self.ebv, show_figs=show_figs,
                                     init_theta=init_theta, n_walkers=n_walkers, n_inter=n_inter, n_burn=n_burn,
                                     read_only=read_only)
+
             print('Creating host subtracted light curves!...')
             self.subtract_host(show_plot=show_figs)
+            os.chdir(self.host_dir)
+
+            result, obs, _ = fit_host.reader.results_from("prospector_result.h5", dangerous=False)
+            self.host_mass, self.host_color = fit_host.get_host_properties(result, self.host_dir, self.ebv)
+            self.save_info()
 
         else:
             raise Exception('You need to define a redshift (z) for the source before fitting the host SED')
 
     def plot_host_sed_fit(self, corner_plot=False):
+        """
+        This function plots the host galaxy SED model.
+        You should run fit_host_sed() before calling it.
+
+        corner_plot: Boolean
+            Whether to show posterior sampling corner plot too. Default is False.
+        """
         os.chdir(self.host_dir)
 
         result, obs, _ = fit_host.reader.results_from("prospector_result.h5", dangerous=False)
@@ -620,13 +675,26 @@ class TDE:
         os.chdir(self.work_dir)
 
     def subtract_host(self, show_plot=True):
+        '''
+        This function creates adn plot the host subtracted light curves.
+        You should run fit_host_sed() before calling it.
+
+        show_plot: Boolean
+            Whether to show the host subtract light curves.
+        '''
+
         if os.path.exists(os.path.join(self.host_dir, 'host_phot_model.txt')):
             fit_host.host_sub_lc(self.name, self.work_dir, self.ebv)
             self.plot_light_curve(host_sub=True, show_plot=show_plot)
         else:
-            raise FileExistsError("'host_phot_model.txt' not found in host folder, please run the prospector host SED fitting first, fit_host_sed()")
+            raise FileExistsError(
+                "'host_phot_model.txt' not found in host folder, please run the prospector host SED fitting first, i.e. fit_host_sed()")
 
     def save_info(self):
+        '''
+        This function updates (save) the info.fits file of the TDE. It should be called after some properties of the
+        source are modified.
+        '''
         from astropy.table import Table
         t = Table({'TDE_name': np.array([str(self.name)]),
                    'other_name': np.array([str(self.other_name)]),
@@ -636,54 +704,73 @@ class TDE:
                    'z': np.array([str(self.z)]),
                    'host_name': np.array([str(self.host_name)]),
                    'discovery_date(MJD)': np.array([str(self.discovery_date)])})
+
+        from astropy.table import Column
+        if self.host_mass is not None:
+            c = Column(f'{self.host_mass[0]:.2f}_{{-{self.host_mass[1]:.2f}}}^{{+{self.host_mass[2]:.2f}}}', name='log_host_mass')
+            t.add_column(c, index=-1)
+
+        if self.host_color is not None:
+            c = Column( r"%.2f\pm%.2f" % (self.host_color[0], self.host_color[1]), name='host_color(u-r)')
+            t.add_column(c, index=-1)
         t.write(self.tde_dir + '/' + str(self.name) + '_info.fits', format='fits', overwrite=True)
 
     def _load_info(self):
         info = fits.open(os.path.join(self.work_dir, self.name, str(self.name) + '_info.fits'))
 
         try:
-            ra = float(info[1].data['ra'][0])
+            self.ra = float(info[1].data['ra'][0])
         except:
-            ra = None
+            self.ra = None
 
         try:
-            dec = (info[1].data['dec'][0])
+            self.dec = (info[1].data['dec'][0])
         except:
-            dec = None
+            self.dec = None
 
         try:
-            ebv = float(info[1].data['E(B-V)'][0])
+            self.ebv = float(info[1].data['E(B-V)'][0])
         except:
-            ebv = None
+            self.ebv = None
 
         try:
-            other_name = info[1].data['other_name'][0]
+            self.other_name = info[1].data['other_name'][0]
         except:
-            other_name = None
+            self.other_name = None
 
         try:
-            z = info[1].data['z'][0]
-            if z == 'None':
-                z = None
+            self.z = info[1].data['z'][0]
+            if self.z == 'None':
+                self.z = None
         except:
-            z = None
+            self.z = None
 
         try:
-            host_name = info[1].data['host_name'][0]
-            if host_name == 'None':
-                host_name = None
+            self.host_name = info[1].data['host_name'][0]
+            if self.host_name == 'None':
+                self.host_name = None
         except:
-            host_name = None
+            self.host_name = None
 
         try:
-            discovery_date = info[1].data['discovery_date(MJD)'][0]
-            if discovery_date == 'None':
-                discovery_date = None
+            self.discovery_date = info[1].data['discovery_date(MJD)'][0]
+            if self.discovery_date == 'None':
+                self.discovery_date = None
         except:
-            discovery_date = None
+            self.discovery_date = None
 
+        try:
+            string_mass = info[1].data['log_host_mass']
+            self.host_mass = [float(string_mass[0][0:4]), float(string_mass[0][7:11]), float(string_mass[0][15:19])]
+        except:
+            self.host_mass = None
+
+        try:
+            string_color = info[1].data['host_color(u-r)']
+            self.host_color = [float(string_color[0][0:4]), float(string_color[0][8:])]
+        except:
+            self.host_color = None
         info.close()
-        return other_name, ra, dec, ebv, z, host_name, discovery_date
 
     def get_ebv(self):
         """
@@ -701,6 +788,9 @@ class TDE:
         return ebv
 
     def gen_tar_result(self):
+        '''
+        This functions saves the resulting files of the TDE in a tar.gz file inside the source folder.
+        '''
         pwd = os.getcwd()
         os.chdir(self.work_dir)
 
@@ -719,3 +809,6 @@ class TDE:
 
         tar_handle.close()
         os.chdir(pwd)
+
+    def fit_light_curve(self):
+        fit_light_curve.run_fit(self.tde_dir, self.z)

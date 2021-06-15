@@ -11,6 +11,7 @@ from prospect.models.templates import TemplateLibrary, describe
 import pkg_resources
 from . import tools as tools
 
+
 # re-defining plotting defaults
 
 plt.rcParams.update({'font.size': 16})
@@ -246,6 +247,89 @@ def plot_resulting_fit(tde_name, path):
     ax.set_title('Host Galaxy SED Fit (' + tde_name + ')')
     plt.legend(loc=4)
     return fig
+
+
+def get_host_properties(result, host_dir, ebv):
+    try:
+        parnames = np.array(result['theta_labels'], dtype='U20')
+
+    except KeyError:
+        parnames = np.array(result['model'].theta_labels())
+
+    ind_show = slice(None)
+    thin = 5
+    chains = slice(None)
+    start = 0
+    # Get the arrays we need (trace, wghts)
+    trace = result['chain'][..., ind_show]
+    if trace.ndim == 2:
+        trace = trace[None, :]
+    trace = trace[chains, start::thin, :]
+    wghts = result.get('weights', None)
+    if wghts is not None:
+        wghts = wghts[start::thin]
+    samples = trace.reshape(trace.shape[0] * trace.shape[1], trace.shape[2])
+    logify = ["mass", "tau"]
+    # logify some parameters
+    xx = samples.copy()
+    for p in logify:
+        if p in parnames:
+            idx = parnames.tolist().index(p)
+            xx[:, idx] = np.log10(xx[:, idx])
+            parnames[idx] = "log({})".format(parnames[idx])
+    bounds = []
+    data = np.zeros(np.shape(xx))
+    for i, x in enumerate(xx):
+        a, b, c, d, e = x
+        data[i, :] = a, b, c, d, e
+
+    mass_dist = [data[i][0] for i in range(len(data))]
+    mass_median = np.median(mass_dist)
+    mass_p84 = np.percentile(mass_dist, 84) - mass_median
+    mass_p16 = mass_median - np.percentile(mass_dist, 16)
+
+    host_bands, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
+        np.loadtxt(os.path.join(host_dir, 'host_phot_model.txt'),
+                   dtype={'names': (
+                       'band', 'wl_0', 'ab_mag', 'ab_mag_err',
+                       'flux_dens', 'flux_dens_err', 'catalog'),
+                       'formats': (
+                           'U5', np.float, np.float, np.float,
+                           np.float, np.float, 'U10')},
+                   unpack=True, skiprows=1)
+
+    ext_cor = [4.8960, 2.7271]
+    catalog_bands = [catalogs[i] + '_' + host_bands[i] for i in range(len(catalogs))]
+    flag_u = [i=='SDSS_u' for i in catalog_bands]
+    u_mag, u_mag_err = model_ab_mag[flag_u], model_ab_mag_err[flag_u]
+    if len(u_mag) > 1:
+        u_mag = u_mag[0]
+    if len(u_mag_err) > 1:
+        u_mag_err = u_mag_err[0]
+    u_mag_ext_cor = u_mag - ext_cor[0] * ebv
+
+    flag_r =[i=='SDSS_r' for i in catalog_bands]
+    r_mag, r_mag_err = model_ab_mag[flag_r], model_ab_mag_err[flag_r]
+    if len(r_mag) > 1:
+        r_mag = r_mag[0]
+    if len(r_mag_err) > 1:
+        r_mag_err = r_mag_err[0]
+    r_mag_ext_cor = r_mag - ext_cor[1] * ebv
+
+    u_r_ext_cor = u_mag_ext_cor - r_mag_ext_cor
+    u_r_err = np.sqrt(u_mag_err ** 2 + r_mag_err ** 2)
+
+    list_mass = [mass_median, mass_p16, mass_p84]
+    list_color = [u_r_ext_cor, u_r_err]
+
+    if np.round(list_mass[1], 2) == 0:
+        list_mass[1] = 0.01
+    if np.round(list_mass[2], 2) == 0:
+        list_mass[2] = 0.01
+    if np.round(list_color[1], 2) == 0:
+        list_color[1] = 0.01
+
+    return list_mass, list_color
 
 
 def corner_plot(result):
@@ -537,7 +621,7 @@ def host_sub_lc(tde_name, path, ebv):
             host_abmage = model_ab_mag_err[host_band][0]
             # Subtracting host contribution from the light curve
             host_sub_flu = flu - host_flux
-            host_sub_flue = host_sub_flu*np.sqrt((flue/flu) ** 2 + (host_flux_err/host_flux) ** 2)
+            host_sub_flue = host_sub_flu * np.sqrt((flue / flu) ** 2 + (host_flux_err / host_flux) ** 2)
 
             # dealing with negative fluxes
             host_sub_abmag = np.zeros(np.shape(host_sub_flu))
@@ -547,10 +631,12 @@ def host_sub_lc(tde_name, path, ebv):
             is_pos_flux = host_sub_flu > 0
             host_sub_abmag[is_pos_flux] = tools.flux_to_mag(host_sub_flu[is_pos_flux], band_wl)
             host_sub_abmag[~is_pos_flux] = -99
-            host_sub_abmage[is_pos_flux] = np.sqrt(abmage[is_pos_flux]**2 + host_abmage**2)
+            host_sub_abmage[is_pos_flux] = np.sqrt(abmage[is_pos_flux] ** 2 + host_abmage ** 2)
             host_sub_abmage[~is_pos_flux] = -99
+
+            host_sub_flue[~is_pos_flux & (flue > 0)] = np.sqrt((host_flux_err**2 + flue[~is_pos_flux & (flue > 0)]**2))
             host_sub_flu[~is_pos_flux] = 0
-            host_sub_flue[~is_pos_flux] = abs(host_sub_flu[~is_pos_flux]*np.sqrt((flue[~is_pos_flux]/flu[~is_pos_flux]) ** 2 + (host_flux_err/host_flux) ** 2))
+            host_sub_flue[~is_pos_flux & (flue < 0)] = -99
             sig_host[is_pos_flux] = host_sub_flu[is_pos_flux] / host_flux
             sig_host[~is_pos_flux] = 0.00
 
@@ -565,11 +651,11 @@ def host_sub_lc(tde_name, path, ebv):
             g.write(
                 'obsid' + '\t' + 'mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux_dens' + '\t' + 'flux_dens_err' + '\t' + 'TDE/host' + '\n')
             for yy in range(len(mjd)):
-                    obsid_yy = str('000' + str(int(obsid[yy])))
-                    g.write(
-                        obsid_yy + '\t' + '{:.2f}'.format(mjd[yy]) + '\t' + '{:.2f}'.format(host_sub_abmag[yy]) + '\t' +
-                        '{:.2f}'.format(host_sub_abmage[yy]) + '\t' + '{:.2e}'.format(host_sub_flu[yy]) + '\t' +
-                        '{:.2e}'.format(host_sub_flue[yy]) + '\t' + '{:.2f}'.format(sig_host[yy]) + '\n')
+                obsid_yy = str('000' + str(int(obsid[yy])))
+                g.write(
+                    obsid_yy + '\t' + '{:.2f}'.format(mjd[yy]) + '\t' + '{:.2f}'.format(host_sub_abmag[yy]) + '\t' +
+                    '{:.2f}'.format(host_sub_abmage[yy]) + '\t' + '{:.2e}'.format(host_sub_flu[yy]) + '\t' +
+                    '{:.2e}'.format(host_sub_flue[yy]) + '\t' + '{:.2f}'.format(sig_host[yy]) + '\n')
             g.close()
 
 
@@ -663,9 +749,6 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, gal_ebv, show_figs=True,
 
     # saving results
     save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, n_inter, n_burn, n_cores)
-
-    # Writing host subtracted light curves
-    #host_sub_lc(tde_name, path)
 
     print('MAP value: {}'.format(theta_max))
     fit_plot = plot_resulting_fit(tde_name, path)
