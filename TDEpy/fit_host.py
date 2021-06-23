@@ -136,7 +136,7 @@ def build_model(gal_ebv, object_redshift=None, init_theta=None):
     # Setting the priors forms and limits
     model_params["mass"]["prior"] = priors.LogUniform(mini=1e6, maxi=1e12)
     model_params["logzsol"]["prior"] = priors.Uniform(mini=-1.8, maxi=0.3)
-    model_params["dust2"]["prior"] = priors.ClippedNormal(mean=Av_init, sigma=0.05, mini=Av_init - 0.1,
+    model_params["dust2"]["prior"] = priors.ClippedNormal(mean=Av_init, sigma=0.05, mini=Av_init,
                                                           maxi=Av_init + 0.1)
     # model_params["dust2"]["prior"] = priors.Uniform(mini=0.0, maxi=0.5)
     model_params["tage"]["prior"] = priors.Uniform(mini=0.1, maxi=13.8)
@@ -621,7 +621,7 @@ def host_sub_lc(tde_name, path, ebv):
             host_abmage = model_ab_mag_err[host_band][0]
             # Subtracting host contribution from the light curve
             host_sub_flu = flu - host_flux
-            host_sub_flue = host_sub_flu * np.sqrt((flue / flu) ** 2 + (host_flux_err / host_flux) ** 2)
+            host_sub_flue = np.sqrt(flue ** 2 + host_flux_err ** 2)
 
             # dealing with negative fluxes
             host_sub_abmag = np.zeros(np.shape(host_sub_flu))
