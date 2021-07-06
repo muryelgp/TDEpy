@@ -14,13 +14,13 @@ def flux_to_mag(flux, wl):
 
 def df_to_dmag(f, df, wl):
     A = 2.5
-    B = wl**2 / 2.99792458e+18
+    B = wl ** 2 / 2.99792458e+18
     dmag = abs(A * df / (f * np.log(10)))
     return dmag
 
 
 def dmag_to_df(dmag, f):
-    df = f * 0.4*np.log(10)*dmag
+    df = f * 0.4 * np.log(10) * dmag
     return df
 
 
@@ -71,3 +71,10 @@ def format_host_photo(band, lambda_0, ab_mag, ab_mag_err, catalog, aperture):
         formatted_string = str(band) + '\t' + str(lambda_0) + '\t' + '{:.3f}'.format(
             ab_mag) + '\t' + '{:.3f}'.format(ab_mag_err) + '\t' + str(catalog) + '\t' + str(aperture) + '\n'
         return formatted_string
+
+
+def round_small(array, limit):
+    array = np.array(array)
+    flag = array < limit
+    array[flag] = limit
+    return array

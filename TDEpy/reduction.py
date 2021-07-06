@@ -184,9 +184,10 @@ def create_reg(ra, dec, radius, dir, show_regions):
     x_source, y_source = w.world_to_pixel(SkyCoord(ra=float(ra), dec=float(dec), unit="deg", frame=FK5))
     new_x_source, new_y_source = centroid_sources(img, x_source, y_source, box_size=21,
                                                   centroid_func=centroid_com)
+    src_coords = w.pixel_to_world(new_x_source, new_y_source)
 
     with open(dir + '/' + 'source.reg', "w") as text_file:
-        text_file.write('fk5;circle(%.6f, %.6f, %.1f") # color=green' % (float(ra), float(dec), np.round(radius[0], 1)))
+        text_file.write('fk5;circle(%.6f, %.6f, %.1f") # color=green' % (float(src_coords.ra.deg), float(src_coords.dec.deg), np.round(radius[0], 1)))
 
     # Creating background region
     rho = random.randrange(0, 300, 1)
@@ -220,8 +221,8 @@ def create_reg(ra, dec, radius, dir, show_regions):
     fig, ax = plt.figure(), plt.subplot(projection=w)
     plot = ax.imshow(img, vmin=0, vmax=8 * (median_bkg + std_bkg), origin='lower')
     plt.colorbar(plot, ax=ax)
-    c_b = plt.Circle((x_0, y_0), radius[1], color='red', fill=False)
-    c_s = plt.Circle((new_x_source, new_y_source), radius[0], color='red', fill=False)
+    c_b = plt.Circle((bkg_coords.ra.deg, bkg_coords.dec.deg), radius[1]/3600, color='red', fill=False, transform=ax.get_transform('icrs'))
+    c_s = plt.Circle((src_coords.ra.deg, src_coords.dec.deg), radius[0]/3600, color='red', fill=False, transform=ax.get_transform('icrs'))
     ax.add_patch(c_s)
     ax.add_patch(c_b)
     plt.savefig(dir + '/regions.png', bbox_inches='tight')

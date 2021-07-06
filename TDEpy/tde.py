@@ -499,7 +499,7 @@ class TDE:
             pass
         else:
             raise Exception(
-                "You need to choose which MIR magnitude (mir) to use, the options are: 'Model', or 'None'")
+                "You need to choose which MIR magnitude (mir) to use, the options are: 'Model', or None")
 
         # Downloading NIR (UKIDSS or 2MASS) data
         if nir == 'default/Petro':
@@ -510,7 +510,7 @@ class TDE:
             pass
         else:
             raise Exception(
-                "You need to choose which NIR magnitude (nir) to use, the options are: 'default/Petro', 'standard/PSF' or 'None'")
+                "You need to choose which NIR magnitude (nir) to use, the options are: 'default/Petro', 'standard/PSF' or None")
 
         # Downloading Optical (Pan-Starrs or DES and/or SkyMapper and/or SDSS) data
         if opt == 'Kron/Petro':
@@ -811,4 +811,4 @@ class TDE:
         os.chdir(pwd)
 
     def fit_light_curve(self):
-        fit_light_curve.run_fit(self.tde_dir, self.z)
+        fit_light_curve.run_fit(self.tde_dir, float(self.z))

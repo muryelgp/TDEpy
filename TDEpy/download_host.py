@@ -303,13 +303,13 @@ def download_opt(aperture, coords_host, host_file_path):
                                  obj['e_gpmag'][0]
 
             if np.isfinite(z):
-                host_file.write(tools.format_host_photo('z', 8932, z, e_z, 'SDSS', 'Model'))
+                host_file.write(tools.format_host_photo('z', 8932, z, e_z, 'SDSS', 'PSF'))
             if np.isfinite(i):
-                host_file.write(tools.format_host_photo('i', 7480, i, e_i, 'SDSS', 'Model'))
+                host_file.write(tools.format_host_photo('i', 7480, i, e_i, 'SDSS', 'PSF'))
             if np.isfinite(r):
-                host_file.write(tools.format_host_photo('r', 6166, r, e_r, 'SDSS', 'Model'))
+                host_file.write(tools.format_host_photo('r', 6166, r, e_r, 'SDSS', 'PSF'))
             if np.isfinite(g):
-                host_file.write(tools.format_host_photo('g', 4686, g, e_g, 'SDSS', 'Model'))
+                host_file.write(tools.format_host_photo('g', 4686, g, e_g, 'SDSS', 'PSF'))
 
         except:
             print('No SDSS Data found')
