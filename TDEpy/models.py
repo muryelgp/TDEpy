@@ -18,15 +18,20 @@ def blackbody(T, wl):
 
     return flux_wl*nu
 
+def Blackbody_evolution(t, theta, theta_err):
+    log_L_BB, t_peak, sigma, t0, p, T_grid = theta
+    log_L_BB, t_peak, sigma, t0, p, T_grid = theta_err
+
+
 
 def bolometric_correction(T, wl):
     K_wl = ((sigma_sb.cgs * ((10 ** T * u.K) ** 4)).cgs / (np.pi * blackbody(10 ** T, wl))).cgs.value
     return K_wl
 
 
-def Blackbody_var_T_gauss_rise_powerlaw_decay(t, wl, theta):
+def Blackbody_var_T_gauss_rise_powerlaw_decay(t, wl, t_peak, sigma, theta):
 
-    log_L_peak, t_peak, sigma, t0, p, *T_grid = theta
+    log_L_BB_peak, t0, p, *T_grid = theta
 
     t_array = np.tile(t, (len(wl), 1)).transpose()
     light_curve_shape = np.zeros(np.shape(t_array))
@@ -38,7 +43,7 @@ def Blackbody_var_T_gauss_rise_powerlaw_decay(t, wl, theta):
     after_peak = delt_t > 0
     light_curve_shape[after_peak] = ((delt_t[after_peak] + t0)/t0)**(p)
 
-    t_grid = t_peak + np.arange(-60, 361, 30)
+    t_grid = t_peak + np.arange(-60, 301, 30)
     flag_T_grid = gen_flag_T_grid(t, t_grid, T_grid)
     T_t = np.interp(t, t_grid[flag_T_grid], np.array(T_grid)[flag_T_grid])
 
@@ -47,10 +52,7 @@ def Blackbody_var_T_gauss_rise_powerlaw_decay(t, wl, theta):
 
     blackbody_t_wl = ((np.pi * blackbody(10**T_t_array, wl_array)) / (sigma_sb.cgs * ((10**T_t_array * u.K) ** 4)).cgs).cgs.value
 
-    flag_one_year = delt_t > 360
-    blackbody_t_wl[flag_one_year] = np.nan
-
-    model = 10**log_L_peak * blackbody_t_wl * light_curve_shape
+    model = 10**log_L_BB_peak * blackbody_t_wl * light_curve_shape
 
     return model
 
@@ -86,9 +88,6 @@ def const_T_gauss_rise_exp_decay(t, wl, theta):
     wl_ref[:] = wl[0]
 
     blackbody_t_wl = blackbody(10 ** T_t_array, wl_array) / blackbody(10 ** T_t_array, wl_ref)
-    flag_100_days = delt_t > 100
-    blackbody_t_wl[flag_100_days] = np.nan
-
     model = 10 ** log_L_W2_peak * blackbody_t_wl * light_curve_shape
     return model
 
@@ -96,8 +95,8 @@ def const_T_gauss_rise_exp_decay(t, wl, theta):
 def lnprior(theta, model_name, observables):
     if model_name == 'Blackbody_var_T_gauss_rise_powerlaw_decay':
 
-        log_L_peak, t_peak, sigma, t0, p, *T_grid = theta  # , p
-        t, wl, T0, sed, sed_err = observables
+        log_L_peak, t0, p, *T_grid = theta  # , p
+        t, wl, t_peak, sigma, T0, sed, sed_err = observables
 
         # setting flat priors
         t_max_L = t[np.where(sed == np.nanmax(sed))[0]][0]
@@ -106,7 +105,7 @@ def lnprior(theta, model_name, observables):
         t0_prior = 1 <= t0 <= 500
         p_prior = -5 <= p <= 0
 
-        t_grid = t_peak + np.arange(-60, 361, 30)
+        t_grid = t_peak + np.arange(-60, 301, 30)
         flag_T_grid = gen_flag_T_grid(t, t_grid, T_grid)
         T_t = np.interp(t, t_grid[flag_T_grid], np.array(T_grid)[flag_T_grid])
         T_grid_prior = (abs(np.diff(10**np.array(T_t))/(np.diff(t)+0.1)) < 200).all()
@@ -136,13 +135,14 @@ def lnprior(theta, model_name, observables):
 
 def lnlike(theta, model_name, observables):
     if model_name == 'Blackbody_var_T_gauss_rise_powerlaw_decay':
-        t, wl, T0, sed, sed_err = observables
+        t, wl, t_peak, sigma, T0, sed, sed_err = observables
 
-        model = Blackbody_var_T_gauss_rise_powerlaw_decay(t, wl, theta)
+        model = Blackbody_var_T_gauss_rise_powerlaw_decay(t, wl, t_peak, sigma, theta)
         err = sed_err
         obs = sed
+        flag_300_days = (t - t_peak) <= 300
         # MLE is y - model squared over sigma squared
-        like = -0.5 * np.nansum(((obs - model) ** 2.) / err ** 2)
+        like = -0.5 * np.nansum(((obs[flag_300_days] - model[flag_300_days]) ** 2.) / err[flag_300_days] ** 2)
         return like
 
     if model_name == 'const_T_gauss_rise_exp_decay':
@@ -151,8 +151,9 @@ def lnlike(theta, model_name, observables):
         model = const_T_gauss_rise_exp_decay(t, wl, theta)
         err = sed_err
         obs = sed
+        flag_100_days = (t - theta[1]) <= 100
         # MLE is y - model squared over sigma squared
-        like = -0.5 * np.nansum(((obs - model) ** 2.) / err ** 2)
+        like = -0.5 * np.nansum(((obs[flag_100_days] - model[flag_100_days]) ** 2.) / err[flag_100_days] ** 2)
         return like
 
 

@@ -75,6 +75,6 @@ def format_host_photo(band, lambda_0, ab_mag, ab_mag_err, catalog, aperture):
 
 def round_small(array, limit):
     array = np.array(array)
-    flag = array < limit
+    flag = abs(array) < limit
     array[flag] = limit
     return array

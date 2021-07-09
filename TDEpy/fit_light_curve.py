@@ -161,9 +161,9 @@ def run_fit(tde_dir, z):
 
     with Pool() as pool:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, models.lnprob, args=(model_name, observables), pool=pool)
-        sampler.run_mcmc(pos, 1000, progress=True, skip_initial_state_check=True)
+        sampler.run_mcmc(pos, 100, progress=True, skip_initial_state_check=True)
 
-    samples = sampler.chain[:, 500:, :].reshape((-1, ndim))
+    samples = sampler.chain[:, 50:, :].reshape((-1, ndim))
 
     L_peak, t_peak, sigma, tau, T0 = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
                                                           zip(*np.percentile(samples, [16, 50, 84], axis=0)))
@@ -203,52 +203,49 @@ def run_fit(tde_dir, z):
     # Fitting Model 2 -> Blackbody variable temperature with Gaussian rise and power-law decay
     model_name = 'Blackbody_var_T_gauss_rise_powerlaw_decay'
 
-    observables = [t, band_wls, T0[0], sed_x_t, sed_err_x_t]
-    index_max = np.where(sed_x_t == np.nanmax(sed_x_t))
-    L_BB_init = np.nanmax(sed_x_t)*models.bolometric_correction(T0[0], band_wls[index_max[1]])
-    log_L_peak_init, t_peak_init, sigma_init, t0_init, p_init = np.log10(L_BB_init), t_peak[0], sigma[0], 50, -5. / 3.
+    observables = [t, band_wls, t_peak[0], sigma[0], T0[0], sed_x_t, sed_err_x_t]
+
+    L_BB_init = L_peak[0]*models.bolometric_correction(T0[0], band_wls[0])
+    log_L_BB_init, t0_init, p_init = np.log10(L_BB_init), 50, -5. / 3.
     T = np.zeros(15)
     T[:] = T0[0]
 
     # Posterior emcee sampling
-    ndim, nwalkers = 20, 100
-    pos = [np.concatenate(([np.random.normal(log_L_peak_init, 0.5),
-                            np.random.normal(t_peak_init, 3),
-                            np.random.normal(sigma_init, 3),
+    ndim, nwalkers = 16, 100
+    pos = [np.concatenate(([np.random.normal(log_L_BB_init, 0.5),
                             np.random.normal(t0_init, 30),
                             np.random.normal(p_init, 0.1)],
-                           [np.random.normal(T0[0], 0.05) for j in range(15)])) for i in range(nwalkers)]
-    start = time.time()
+                           np.append([T0[0], T[0]], [np.log10(10**T[0] + np.random.uniform(-50, 200)*dt) for dt in np.arange(0, 301, 30)]))) for i in range(nwalkers)]
 
 
     with Pool() as pool:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, models.lnprob, args=(model_name, observables), pool=pool)
-        sampler.run_mcmc(pos, 1000, progress=True, skip_initial_state_check=True)
+        sampler.run_mcmc(pos, 100, progress=True, skip_initial_state_check=True)
 
-    samples = sampler.chain[:, 500:, :].reshape((-1, ndim))
-    end = time.time()
+    samples = sampler.chain[:, 50:, :].reshape((-1, ndim))
 
 
-    samples_redim = np.zeros((np.shape(samples)[0], 7))
-    samples_redim[:, 0:5] = samples[:, 0:5]
-    samples_redim[:, 5] = samples[:, 7]
-    t_grid = np.array([samples_redim[i, 1] + np.arange(-60, 361, 30) for i in range(np.shape(samples)[0])])
-    T_grid = np.array(samples[:, 5:])
+    samples_redim = np.zeros((np.shape(samples)[0], 5))
+    samples_redim[:, 0:3] = samples[:, 0:3]
+    samples_redim[:, 3] = samples[:, 5]
+    t_grid = np.array([t_peak[0] + np.arange(-60, 301, 30) for i in range(np.shape(samples)[0])])
+    T_grid = np.array(samples[:, 3:])
     flag_T_grid = models.gen_flag_T_grid(t, t_grid[0, :], T_grid[0, :])
-    samples_redim[:, 6] = np.mean(abs(np.diff(10**T_grid[:, flag_T_grid], axis=1)/np.diff(t_grid[:, flag_T_grid])), axis=1)
+    samples_redim[:, 4] = np.mean(abs(np.diff(10**T_grid[:, flag_T_grid], axis=1)/np.diff(t_grid[:, flag_T_grid])), axis=1)
 
-    L_BB_peak, t_peak, sigma, t0, p, log_T_peak, dT_dt = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
+    L_BB_peak, t0, p, log_T_peak, dT_dt = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
                                        zip(*np.percentile(samples_redim, [16, 50, 84], axis=0)))
 
-    _, _, _, _, _, *T_t = np.percentile(samples, 50, axis=0)
-    _, _, _, _, _, *T_t_p16 = map(lambda v: v[1] - v[0],
+    _, _, _, *T_t = np.percentile(samples, 50, axis=0)
+    _, _, _, *T_t_p16 = map(lambda v: v[1] - v[0],
                                        zip(*np.percentile(samples, [16, 50], axis=0)))
-    _, _, _, _, _, *T_t_p84 = map(lambda v: v[1] - v[0],
+    _, _, _, *T_t_p84 = map(lambda v: v[1] - v[0],
                                   zip(*np.percentile(samples, [50, 84], axis=0)))
 
-    theta_median = np.concatenate(([L_BB_peak[0], t_peak[0], sigma[0], t0[0], p[0]], T_t))
+
 
     model_file = open(os.path.join(modelling_dir, 'light_curve_model.txt'), 'a')
+    model_file.write('\n')
     model_file.write('# Model 2: Evolving Blackbody with Gaussian rise and power-law decay\n')
     model_file.write('# Parameter' + '\t' + 'median' + '\t' + 'err_p16' + '\t' + 'err_p84' + '\n')
 
@@ -272,21 +269,41 @@ def run_fit(tde_dir, z):
     model_file.write('p       ' + '\t' + '{:.1f}'.format(p[0]) + '\t' + '{:.1f}'.format(p[2]) + '\t' +
                      '{:.1f}'.format(p[1]) + '\n')
 
+    T_t, T_t_p16, T_t_p84 = np.array(T_t), np.array(T_t_p16), np.array(T_t_p84)
+    T_t_p16 = tools.round_small(T_t_p16, 0.01)
+    T_t_p84 = tools.round_small(T_t_p84, 0.01)
     T_t[~flag_T_grid] = np.nan
     T_t_p16[~flag_T_grid] = np.nan
     T_t_p84[~flag_T_grid] = np.nan
-    delt_t = np.arange(-60, 361, 30)
+    delt_t = [str(np.arange(-60, 301, 30)[i]) for i in range(13)]
     delt_t[2] = 'peak'
-    for i in range(15):
+
+    for i in range(13):
         T_i = np.array([T_t[i], T_t_p16[i], T_t_p84[i]])
         T_i = tools.round_small(T_i, 0.01)
-        model_file.write('T(' + str(delt_t[i]) +')' + '\t' + '{:.1f}'.format(T_i[0]) + '\t' + '{:.1f}'.format(T_i[2]) + '\t' +
-                         '{:.1f}'.format(T_i[1]) + '\n')
+        model_file.write('T(' + str(delt_t[i]) +')' + '\t' + '{:.2f}'.format(T_i[0]) + '\t' + '{:.2f}'.format(T_i[2]) + '\t' +
+                         '{:.2f}'.format(T_i[1]) + '\n')
 
     model_file.write(
         '<dT/dt>' + '\t' + '{:.1f}'.format(dT_dt[0]) + '\t' + '{:.1f}'.format(dT_dt[2]) + '\t' +
         '{:.1f}'.format(dT_dt[1]) + '\n')
     model_file.close()
+
+    theta_median = np.concatenate(([L_BB_peak[0], t_peak[0], sigma[0], t0[0], p[0]], T_t))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
