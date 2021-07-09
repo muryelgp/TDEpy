@@ -61,7 +61,8 @@ def gen_flag_T_grid(t, t_grid, T_grid):
         False)
     flag_left_T_grid = np.concatenate(
         ([False], [np.sum((t < t_grid[i]) & (t > t_grid[i] - 30)) > 0 for i in range(1, len(T_grid))]))
-    flag_T_grid = flag_right_T_grid | flag_left_T_grid
+    flag_finite = np.isfinite(T_grid)
+    flag_T_grid = (flag_right_T_grid | flag_left_T_grid) & flag_finite
     return flag_T_grid
 
 
