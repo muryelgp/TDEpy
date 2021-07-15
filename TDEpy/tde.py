@@ -99,6 +99,30 @@ class TDE:
         # Saving info into a fits file
         self.save_info()
 
+        os.chdir(self.tde_dir)
+        # Looking to ZTF data
+        print('Looking for ZTF data')
+        if str(self.other_name)[0:3] == 'ZTF' and self.is_tns:
+            ztf_name = self.other_name
+            try:
+                os.mkdir('ztf')
+            except:
+                pass
+            try:
+                reduction.download_ztfdata_lasair(ztf_name)
+            except:
+                pass
+            try:
+                os.mkdir('photometry')
+            except:
+                pass
+            # saving ZTF data
+            reduction.load_ztfdata(ztf_name, self.ebv)
+        else:
+            print('There is not ZTF for this source')
+            pass
+
+
         # Getting Swift Target ID and number of observations
         print('Searching for Swift observations.....')
 
@@ -141,32 +165,6 @@ class TDE:
             print('Downloading Swift data for Target ID ' + str(target_id) + ', it will take some time!')
             reduction.download_swift(target_id, n_obs, init=1)
             print('All Swift data for Target ID ' + str(target_id) + ' downloaded!')
-
-
-
-        os.chdir(self.tde_dir)
-
-        # Looking to ZTF data
-        print('Looking for ZTF data')
-        if str(self.other_name)[0:3] == 'ZTF' and self.is_tns:
-            ztf_name = self.other_name
-            try:
-                os.mkdir('ztf')
-            except:
-                pass
-            try:
-                reduction.download_ztfdata_lasair(ztf_name)
-            except:
-                pass
-            try:
-                os.mkdir('photometry')
-            except:
-                pass
-            # saving ZTF data
-            reduction.load_ztfdata(ztf_name, self.ebv)
-        else:
-            print('There is not ZTF for this source')
-            pass
 
         os.chdir(self.work_dir)
 
@@ -810,5 +808,12 @@ class TDE:
         tar_handle.close()
         os.chdir(pwd)
 
-    def fit_light_curve(self):
-        fit_light_curve.run_fit(self.tde_dir, float(self.z))
+    def fit_light_curve(self, n_cores=None, n_walkers=100, n_inter=1000, n_burn=500):
+        if n_cores is None:
+            n_cores = os.cpu_count()/2
+        fit_light_curve.run_fit(self.tde_dir, float(self.z), n_cores, n_walkers, n_inter, n_burn)
+
+    def plot_lightcuvre_models(self):
+        fit_light_curve.plot_models(self.tde_dir, float(self.z))
+        fit_light_curve.plot_BB_evolution(self.tde_dir)
+        #fit_light_curve.plot_SED(self.tde_dir, float(self.z))

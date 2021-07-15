@@ -256,8 +256,8 @@ def load_ztfdata(ztf_name, ebv):
     except:
         return
     # extinction corrector factor [g, r]
-    ext_corr = np.array([3.60, 2.70]) * ebv
-    wl_o = np.array([4866, 6215])
+    ext_corr = np.array([3.74922728, 2.64227246]) * ebv
+    wl_o = np.array([4722.74, 6339.61])
     for i in range(len(data['candidates'])):
         try:
             if data['candidates'][i]['dc_mag_r02'] == -1:
@@ -266,16 +266,14 @@ def load_ztfdata(ztf_name, ebv):
                 mage_g.append(data['candidates'][i]['sigmapsf'])
                 flux_g.append(tools.mag_to_flux(data['candidates'][i]['magpsf'] - ext_corr[0], wl_o[0]))
                 fluxe_g.append(
-                    tools.mag_to_flux(data['candidates'][i]['magpsf'] - ext_corr[0], wl_o[0]) - tools.mag_to_flux(
-                        data['candidates'][i]['magpsf'] - ext_corr[0] + data['candidates'][i]['sigmapsf'], wl_o[0]))
+                    tools.dmag_to_df(data['candidates'][i]['sigmapsf'], tools.mag_to_flux(data['candidates'][i]['magpsf'] - ext_corr[0], wl_o[0])))
             elif data['candidates'][i]['dc_mag_g02'] == -1:
                 mjd_r.append(data['candidates'][i]['mjd'])
-                mag_r.append(data['candidates'][i]['magpsf'])
-                mage_r.append(data['candidates'][i]['sigmapsf'] - ext_corr[1])
-                flux_r.append(tools.mag_to_flux(data['candidates'][i]['magpsf'] - ext_corr[0], wl_o[1]))
+                mag_r.append(data['candidates'][i]['magpsf'] - ext_corr[1])
+                mage_r.append(data['candidates'][i]['sigmapsf'])
+                flux_r.append(tools.mag_to_flux(data['candidates'][i]['magpsf'] - ext_corr[1], wl_o[1]))
                 fluxe_r.append(
-                    tools.mag_to_flux(data['candidates'][i]['magpsf'] - ext_corr[0], wl_o[1]) - tools.mag_to_flux(
-                        data['candidates'][i]['magpsf'] - ext_corr[1] + data['candidates'][i]['sigmapsf'], wl_o[1]))
+                    tools.dmag_to_df(data['candidates'][i]['sigmapsf'], tools.mag_to_flux(data['candidates'][i]['magpsf'] - ext_corr[1], wl_o[1])))
         except:
             pass
 
