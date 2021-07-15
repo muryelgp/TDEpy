@@ -453,7 +453,7 @@ def run_fit(tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500):
                             np.random.normal(sigma_init, 1),
                             np.random.normal(t0_init, 10),
                             np.random.normal(p_init, 0.1)],
-                           np.append([T0[0] + np.random.normal(0, 0.05), T0[0]] + np.random.normal(0, 0.05), [np.log10(10 ** T0[0] + np.random.uniform(-50, 200) * dt) + np.random.normal(0, 0.05) for dt in
+                           np.append([T0[0] + np.random.normal(0, 0.05), T0[0] + np.random.normal(0, 0.05)] , [np.log10(10 ** T0[0] + np.random.uniform(-50, 200) * dt) + np.random.normal(0, 0.05) for dt in
                                                       np.arange(0, 301, 30)]))) for i in range(nwalkers)]
 
     with Pool(int(n_cores)) as pool:
