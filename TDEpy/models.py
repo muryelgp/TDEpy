@@ -33,7 +33,7 @@ def Blackbody_evolution(t, theta, theta_err):
     log_L_BB_sample = np.tile(np.random.normal(log_L_BB, log_L_BB_err, 100), (len(t), 1)).transpose()
 
     sigma_sample = np.tile(np.random.normal(sigma, sigma_err, 100), (len(t), 1)).transpose()
-    t0_sample = np.tile(np.random.normal(t0, t0, 100), (len(t), 1)).transpose()
+    t0_sample = np.tile(np.random.normal(t0, t0_err, 100), (len(t), 1)).transpose()
     p_sample = np.tile(np.random.normal(p, p_err, 100), (len(t), 1)).transpose()
 
     t_array = np.tile(t, (100, 1))
@@ -163,7 +163,7 @@ def lnprior(theta, model_name, observables):
         T_grid_prior = ((np.array(T_grid) < 5) & (np.array(T_grid) > 4)).all()
 
         if sigma_prior and t0_prior and t_peak_prior and p_prior and T_grid_prior:
-            return np.nansum(-0.5*(np.array(T_grid)[flag_T_grid]-T0)**2/0.1**2)
+            return 0.0 #np.nansum(-0.5*(np.array(T_grid)[flag_T_grid]-T0)**2/0.1**2)
         else:
             return -np.inf
 

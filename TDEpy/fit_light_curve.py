@@ -337,6 +337,7 @@ def plot_SED(tde_dir, z, sampler, nwalkers, nburn, ninter, show=True):
     ax2.set_ylim(lo_lim, up_lim)
     ax3.set_ylim(lo_lim, up_lim)
     plt.tight_layout()
+    plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'SED_evolution.png'), bbox_inches='tight')
     plt.show()
 
 
