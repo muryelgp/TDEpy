@@ -347,8 +347,8 @@ def plot_corner(plot_dir, fig_name, theta_median, sample, labels, show=True):
         data[i, :] = x
     bounds = []
     for i in range(np.shape(sample)[1]):
-        sig1 = theta_median[i] - np.percentile((data[:, i]), 16)
-        sig2 = np.percentile((data[:, i]), 84) - theta_median[i]
+        sig1 = np.percentile((data[:, i]), 50) - np.percentile((data[:, i]), 16)
+        sig2 = np.percentile((data[:, i]), 84) - np.percentile((data[:, i]), 50)
         mean_dist = np.mean([sig1, sig2])
         bounds.append((theta_median[i] - 4 * mean_dist, theta_median[i] + 4 * mean_dist))
 
