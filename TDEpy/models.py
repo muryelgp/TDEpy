@@ -155,7 +155,7 @@ def lnprior(theta, model_name, observables):
         t_max_L = t[np.where(sed == np.nanmax(sed))[0]][0]
         t_peak_prior = t_max_L - 30 <= t_peak <= t_max_L + 30
         sigma_prior = 1 <= sigma <= 10 ** 1.5
-        t0_prior = 1 <= t0 <= 500
+        t0_prior = 1 <= t0 <= 200
         p_prior = 0 <= p <= 5
 
         t_grid = t_peak + np.arange(-60, 301, 30)
