@@ -330,7 +330,7 @@ class TDE:
                 else:
                     try:
                         data_path = os.path.join(self.tde_dir, 'photometry', 'obs', str(band) + '.txt')
-                        obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=2,
+                        obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=1,
                                                                           unpack=True)
                     except:
                         continue

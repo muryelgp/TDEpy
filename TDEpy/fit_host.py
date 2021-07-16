@@ -616,11 +616,11 @@ def host_sub_lc(tde_name, path, ebv):
             # selecting model fluxes at the respective band
             host_band = host_bands == band_dic[band]
             band_wl = model_wl_c[host_band][0]
-            host_flux = model_flux[host_band][0] / (10. ** (-0.4 * extcorr[band] * ebv))
+            host_flux = model_flux[host_band][0]
             host_flux_err = model_flux_err[host_band][0]
             host_abmage = model_ab_mag_err[host_band][0]
             # Subtracting host contribution from the light curve
-            host_sub_flu = flu - host_flux
+            host_sub_flu = (flu - host_flux) / (10. ** (-0.4 * extcorr[band] * ebv))
             host_sub_flue = np.sqrt(flue ** 2 + host_flux_err ** 2)
 
             # dealing with negative fluxes
@@ -637,7 +637,7 @@ def host_sub_lc(tde_name, path, ebv):
             host_sub_flue[~is_pos_flux & (flue > 0)] = np.sqrt((host_flux_err**2 + flue[~is_pos_flux & (flue > 0)]**2))
             host_sub_flu[~is_pos_flux] = 0
             host_sub_flue[~is_pos_flux & (flue < 0)] = -99
-            sig_host[is_pos_flux] = host_sub_flu[is_pos_flux] / host_flux
+            sig_host[is_pos_flux] = (flu - host_flux)[is_pos_flux] / host_flux
             sig_host[~is_pos_flux] = 0.00
 
             write_path = os.path.join(tde_dir, 'photometry', 'host_sub', str(band) + '.txt')
