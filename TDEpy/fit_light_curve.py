@@ -180,16 +180,16 @@ def plot_models(tde_name, tde_dir, z, print_name=True, show=True):
         ax2.plot(t_model - t_peak, model_i, color=color[i])
 
     ax1.set_yscale('log')
-    ax1.set_xlim(-60, 301)
+    #ax1.set_xlim(-60, 301)
     ax2.set_yscale('log')
-    ax2.set_xlim(-60, 301)
+    #ax2.set_xlim(-60, 301)
 
     ax2.set_xlabel('Days since peak')
     ax1.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$')
     ax2.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$')
     plt.tight_layout()
     if print_name:
-        ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12, transform=ax1.transAxes)
+        ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=16, transform=ax1.transAxes)
     plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'model_light_curves.png'), bbox_inches='tight')
     if show:
         plt.show()
@@ -216,7 +216,7 @@ def plot_BB_evolution(tde_name, tde_dir, print_name=True, show=True):
     ax3.set_xlabel('Days since peak')
     plt.tight_layout()
     if print_name:
-        ax1.text(0.1, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12, transform=ax1.transAxes)
+        ax1.text(0.1, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=14, transform=ax1.transAxes)
     plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'Blackbody_evolution.png'), bbox_inches='tight')
     if show:
         plt.show()
@@ -341,7 +341,7 @@ def plot_SED(tde_name, tde_dir, z, sampler, nwalkers, nburn, ninter, print_name=
     ax3.set_ylim(lo_lim, up_lim)
     plt.tight_layout()
     if print_name:
-        ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12, transform=ax1.transAxes)
+        ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=14, transform=ax1.transAxes)
     plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'SED_evolution.png'), bbox_inches='tight')
     if show:
         plt.show()
@@ -458,9 +458,9 @@ def run_fit(tde_name, tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500)
     pos = [np.concatenate(([np.random.normal(log_L_BB_init, 0.5),
                             np.random.normal(t_peak_init, 1),
                             np.random.normal(sigma_init, 1),
-                            np.random.normal(t0_init, 5),
+                            np.random.normal(t0_init, 10),
                             np.random.normal(p_init, 0.2)],
-                           np.append([T0[0], T0[0]], [np.log10(10 ** T0[0] + np.random.uniform(-50, 400) * dt) + np.random.normal(0, 0.05) for dt in
+                           np.append([T0[0], T0[0]], [np.log10(10 ** T0[0] + np.random.uniform(-50, 300) * dt) + np.random.normal(0, 0.05) for dt in
                                                       np.arange(0, 301, 30)]))) for i in range(nwalkers)]
 
     with Pool(int(n_cores)) as pool:

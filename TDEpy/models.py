@@ -159,7 +159,11 @@ def lnprior(theta, model_name, observables):
         p_prior = 0 <= p <= 5
 
         t_grid = t_peak + np.arange(-60, 301, 30)
-        T_grid_prior = ((np.array(T_grid) < 5) & (np.array(T_grid) > 4)).all()
+        t_grid = t_peak + np.arange(-60, 301, 30)
+        flag_T_grid = gen_flag_T_grid(t, t_grid, T_grid)
+        T_t = np.interp(t, t_grid[flag_T_grid], np.array(T_grid)[flag_T_grid])
+        T_grid_prior = (abs(np.diff(10 ** np.array(T_t)) / (np.diff(t) + 0.001)) < 300).all()
+        T_grid_prior = T_grid_prior & ((np.array(T_grid) < 5) & (np.array(T_grid) > 4)).all()
 
         if sigma_prior and t0_prior and t_peak_prior and p_prior and T_grid_prior:
             return 0.0 #np.nansum(-0.5*(np.array(T_grid)[flag_T_grid]-T0)**2/0.1**2)
