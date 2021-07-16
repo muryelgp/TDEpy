@@ -195,7 +195,7 @@ def plot_models(tde_name, tde_dir, z, print_name=True, show=True):
     plt.tight_layout()
     if print_name:
         ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=16, transform=ax1.transAxes)
-    plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'model_light_curves.png'), bbox_inches='tight')
+    plt.savefig(os.path.join(tde_dir, 'modelling', 'plots', 'model_light_curves.png'), bbox_inches='tight')
     if show:
         plt.show()
 
@@ -222,7 +222,7 @@ def plot_BB_evolution(tde_name, tde_dir, print_name=True, show=True):
     plt.tight_layout()
     if print_name:
         ax1.text(0.1, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=14, transform=ax1.transAxes)
-    plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'Blackbody_evolution.png'), bbox_inches='tight')
+    plt.savefig(os.path.join(tde_dir, 'modelling', 'plots', 'Blackbody_evolution.png'), bbox_inches='tight')
     if show:
         plt.show()
 
@@ -301,7 +301,7 @@ def plot_SED(tde_name, tde_dir, z, sampler, nwalkers, nburn, ninter, print_name=
     ax2.set_xlim(nu_list[-1].value, 2.1e15)
     up_lim, lo_lim = np.max(bb_sed.value), np.min(bb_sed.value)
     ax2.set_ylim(10**(np.log10(lo_lim) - 0.3), 10**(np.log10(up_lim) + 0.3))
-    title = r'$t={:.0f} \pm 2$ days pos max; $T={:.0f} \  K$'.format(int(t_near_peak-t_peak), 10**T_near_peak)
+    title = r'$t={:.0f} \pm 2$ days post max; $T={:.0f} \  K$'.format(int(t_near_peak-t_peak), 10**T_near_peak)
     ax2.set_title(title, fontsize=12)
     ax2.legend(fontsize='xx-small', loc=4)
 
@@ -347,12 +347,12 @@ def plot_SED(tde_name, tde_dir, z, sampler, nwalkers, nburn, ninter, print_name=
     plt.tight_layout()
     if print_name:
         ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=14, transform=ax1.transAxes)
-    plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'SED_evolution.png'), bbox_inches='tight')
+    plt.savefig(os.path.join(tde_dir, 'modelling', 'plots', 'SED_evolution.png'), bbox_inches='tight')
     if show:
         plt.show()
 
 
-def plot_corner(plot_dir, fig_name, theta_median, sample, labels, show=True):
+def plot_corner(tde_dir, fig_name, theta_median, sample, labels, show=True):
     data = np.zeros(np.shape(sample))
     for i, x in enumerate(sample):
         data[i, :] = x
@@ -367,7 +367,7 @@ def plot_corner(plot_dir, fig_name, theta_median, sample, labels, show=True):
                            labels=labels,  #
                            quantiles=[0.16, 0.5, 0.84],
                            show_titles=True, title_kwargs={"fontsize": 12}, range=bounds)
-    plt.savefig(os.path.join(plot_dir, fig_name), bbox_inches='tight')
+    plt.savefig(os.path.join(tde_dir, 'modelling', 'plots', fig_name), bbox_inches='tight')
     if show:
         plt.show()
 
@@ -397,7 +397,7 @@ def run_fit(tde_name, tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500)
         L_W2_peak_init), t_peak_init, 20, 30, np.log10(25000)
     ndim, nwalkers = 5, nwalkers
 
-    pos = [[np.random.normal(log_L_peak_init, 1),
+    pos = [[np.random.normal(log_L_peak_init, 0.5),
             np.random.normal(t_peak_init, 15),
             np.random.normal(sigma_init, 10),
             np.random.normal(tau_init, 10),
@@ -448,7 +448,7 @@ def run_fit(tde_name, tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500)
     except:
         pass
     fig_name = 'corner_plot_model1'
-    plot_corner(plot_dir, fig_name, theta_median, samples, labels, show=True)
+    plot_corner(tde_dir, fig_name, theta_median, samples, labels, show=True)
 
     # Fitting Model 2 -> Blackbody variable temperature with Gaussian rise and power-law decay
     model_name = 'Blackbody_var_T_gauss_rise_powerlaw_decay'
@@ -540,7 +540,7 @@ def run_fit(tde_name, tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500)
     theta_median = np.concatenate(([L_BB_peak[0], t_peak[0], sigma[0], t0[0], p[0]], T_t))
     theta_err_p16 = np.concatenate(([L_BB_peak[2], t_peak[2], sigma[2], t0[2], p[2]], T_t_p16))
     theta_err_p84 = np.concatenate(([L_BB_peak[1], t_peak[1], sigma[1], t0[1], p[1]], T_t_p84))
-    theta_err = np.nanmin([theta_err_p16, theta_err_p84], axis=0)
+    theta_err = np.min([theta_err_p16, theta_err_p84], axis=0)
 
     log_T, log_T_err, log_BB, log_BB_err, log_R, log_R_err = models.Blackbody_evolution(t, theta_median, theta_err)
 
@@ -566,7 +566,11 @@ def run_fit(tde_name, tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500)
 
     plot_dir = os.path.join(tde_dir, 'plots', 'modelling')
     fig_name = 'corner_plot_model2'
-    plot_corner(plot_dir, fig_name, theta_median_redim, samples_redim, labels, show=True)
+    try:
+        os.mkdir(os.path.join(tde_dir, 'modelling', 'plots'))
+    except:
+        pass
+    plot_corner(tde_dir, fig_name, theta_median_redim, samples_redim, labels, show=True)
     plot_models(tde_name, tde_dir, z, show=True)
     plot_BB_evolution(tde_name, tde_dir, show=True)
     plot_SED(tde_name, tde_dir, z, sampler, nwalkers, nburn, ninter, show=True)
