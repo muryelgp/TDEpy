@@ -451,7 +451,7 @@ def run_fit(tde_name, tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500)
     observables = [t, band_wls, theta_median, sed_x_t, sed_err_x_t]
 
     L_BB_init = (10 ** L_peak[0]) * models.bolometric_correction(T0[0], band_wls[0])
-    log_L_BB_init, t_peak_init, sigma_init, t0_init, p_init = np.log10(L_BB_init), t_peak[0], sigma[0], 10, 5. / 3.
+    log_L_BB_init, t_peak_init, sigma_init, t0_init, p_init = np.log10(L_BB_init), t_peak[0], sigma[0], 30, 5. / 3.
 
     # Posterior emcee sampling
     ndim, nwalkers = 18, nwalkers
