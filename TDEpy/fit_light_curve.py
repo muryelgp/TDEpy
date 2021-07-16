@@ -189,7 +189,7 @@ def plot_models(tde_name, tde_dir, z, print_name=True, show=True):
     ax2.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$')
     plt.tight_layout()
     if print_name:
-        ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12)
+        ax1.text((0.2, 0.05), tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12)
     plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'model_light_curves.png'), bbox_inches='tight')
     if show:
         plt.show()
@@ -216,7 +216,7 @@ def plot_BB_evolution(tde_name, tde_dir, print_name=True, show=True):
     ax3.set_xlabel('Days since peak')
     plt.tight_layout()
     if print_name:
-        ax1.text(0.1,0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12)
+        ax1.text((0.1, 0.05), tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12)
     plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'Blackbody_evolution.png'), bbox_inches='tight')
     if show:
         plt.show()
@@ -335,13 +335,13 @@ def plot_SED(tde_name, tde_dir, z, sampler, nwalkers, nburn, ninter, print_name=
     ax3.set_ylim(10**(np.log10(lo_lim) - 0.3), 10**(np.log10(up_lim) + 0.3))
     title = r'$t={:.0f} \pm 2$ days pos max; $T={:.0f} \ K$'.format(int(t_near_200 - t_peak), 10**T_near_200)
     ax3.set_title(title, fontsize=12)
-    up_lim = np.max([ax2.get_ylim(), ax2.get_ylim()])
-    lo_lim = np.min([ax2.get_ylim(), ax2.get_ylim()])
+    up_lim = np.max([ax2.get_ylim(), ax3.get_ylim()])
+    lo_lim = np.min([ax2.get_ylim(), ax3.get_ylim()])
     ax2.set_ylim(lo_lim, up_lim)
     ax3.set_ylim(lo_lim, up_lim)
     plt.tight_layout()
     if print_name:
-        ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12)
+        ax1.text((0.2, 0.05), tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12)
     plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'SED_evolution.png'), bbox_inches='tight')
     if show:
         plt.show()
@@ -371,6 +371,7 @@ def run_fit(tde_name, tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500)
     # Creating directory to save model results
     modelling_dir = os.path.join(tde_dir, 'modelling')
     try:
+        os.chdir(modelling_dir)
         os.chdir(modelling_dir)
     except:
         os.mkdir(modelling_dir)
