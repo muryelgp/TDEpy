@@ -303,7 +303,7 @@ def plot_SED(tde_name, tde_dir, z, sampler, nwalkers, nburn, ninter, print_name=
     ax2.set_ylim(10**(np.log10(lo_lim) - 0.3), 10**(np.log10(up_lim) + 0.3))
     title = r'$t={:.0f} \pm 2$ days pos max; $T={:.0f} \  K$'.format(int(t_near_peak-t_peak), 10**T_near_peak)
     ax2.set_title(title, fontsize=12)
-    ax2.legend(fontsize='x-small', loc=4)
+    ax2.legend(fontsize='xx-small', loc=4)
 
 
     near_200 = np.where(abs(delt_t-200) == np.nanmin(abs(delt_t-200)))
@@ -456,7 +456,7 @@ def run_fit(tde_name, tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500)
     observables = [t, band_wls, theta_median, sed_x_t, sed_err_x_t]
 
     L_BB_init = (10 ** L_peak[0]) * models.bolometric_correction(T0[0], band_wls[0])
-    log_L_BB_init, t_peak_init, sigma_init, t0_init, p_init = np.log10(L_BB_init), t_peak[0], sigma[0], 20, 5. / 3.
+    log_L_BB_init, t_peak_init, sigma_init, t0_init, p_init = np.log10(L_BB_init), t_peak[0], sigma[0], 10, 5. / 3.
 
     # Posterior emcee sampling
     ndim, nwalkers = 18, nwalkers
@@ -465,7 +465,7 @@ def run_fit(tde_name, tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500)
                             np.random.normal(sigma_init, 1),
                             np.random.normal(t0_init, 5),
                             np.random.normal(p_init, 0.2)],
-                           np.append([T0[0], T0[0]], [np.log10(10 ** T0[0] + np.random.uniform(-50, 300) * dt) + np.random.normal(0, 0.05) for dt in
+                           np.append([T0[0], T0[0]], [np.log10(10 ** T0[0] + np.random.uniform(-50, 350) * dt) + np.random.normal(0, 0.01) for dt in
                                                       np.arange(0, 301, 30)]))) for i in range(nwalkers)]
 
     with Pool(int(n_cores)) as pool:
