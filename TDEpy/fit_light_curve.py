@@ -143,7 +143,7 @@ def read_BB_evolution(model_dir):
     return t, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err
 
 
-def plot_models(tde_dir, z, show=True):
+def plot_models(tde_name, tde_dir, z, print_name=True, show=True):
     t, band_wls, sed_x_t, sed_err_x_t = gen_observables(tde_dir, z)
     modelling_dir = os.path.join(tde_dir, 'modelling')
     color = ['magenta', 'darkviolet', 'navy', 'blue', 'cyan', 'green', 'red']
@@ -183,17 +183,19 @@ def plot_models(tde_dir, z, show=True):
     ax1.set_xlim(-60, 301)
     ax2.set_yscale('log')
     ax2.set_xlim(-60, 301)
-    # ax1.set_xlabel('Days since peak')
+
     ax2.set_xlabel('Days since peak')
     ax1.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$')
     ax2.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$')
     plt.tight_layout()
+    if print_name:
+        ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12)
     plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'model_light_curves.png'), bbox_inches='tight')
     if show:
         plt.show()
 
 
-def plot_BB_evolution(tde_dir, show=True):
+def plot_BB_evolution(tde_name, tde_dir, print_name=True, show=True):
     modelling_dir = os.path.join(tde_dir, 'modelling')
     t, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err = read_BB_evolution(modelling_dir)
     theta_median, p16, p84 = read_model2(modelling_dir)
@@ -212,16 +214,15 @@ def plot_BB_evolution(tde_dir, show=True):
                  capsize=2)
     ax3.set_ylabel('log T [K]')
     ax3.set_xlabel('Days since peak')
-    ax1.set_xlim(-60, 301)
-    ax2.set_xlim(-60, 301)
-    ax3.set_xlim(-60, 301)
     plt.tight_layout()
+    if print_name:
+        ax1.text(0.1,0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12)
     plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'Blackbody_evolution.png'), bbox_inches='tight')
     if show:
         plt.show()
 
 
-def plot_SED(tde_dir, z, sampler, nwalkers, nburn, ninter, show=True):
+def plot_SED(tde_name, tde_dir, z, sampler, nwalkers, nburn, ninter, print_name=True, show=True):
     modelling_dir = os.path.join(tde_dir, 'modelling')
     t, band_wls, sed_x_t, sed_err_x_t = gen_observables(tde_dir, z)
     t_BB, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err = read_BB_evolution(modelling_dir)
@@ -297,16 +298,18 @@ def plot_SED(tde_dir, z, sampler, nwalkers, nburn, ninter, show=True):
     ax2.set_ylim(10**(np.log10(lo_lim) - 0.3), 10**(np.log10(up_lim) + 0.3))
     title = r'$t={:.0f} \pm 2$ days pos max; $T={:.0f} \  K$'.format(int(t_near_peak-t_peak), 10**T_near_peak)
     ax2.set_title(title, fontsize=12)
+    ax2.legend(fontsize='x-small', loc=4)
 
-    near_100 = np.where(abs(delt_t-100) == np.nanmin(abs(delt_t-100)))
-    t_near_100 = t[near_100]
-    flag_100 = abs(t - t_near_100) <= 2
-    flag_100_BB = abs(t_BB - t_near_100) <= 2
-    T_near_100 = np.mean(log_T[flag_100_BB])
-    L_BB_near_100 = 10**np.mean(log_BB[flag_100_BB])
+
+    near_200 = np.where(abs(delt_t-200) == np.nanmin(abs(delt_t-200)))
+    t_near_200 = t[near_200]
+    flag_200 = abs(t - t_near_200) <= 2
+    flag_200_BB = abs(t_BB - t_near_200) <= 2
+    T_near_200 = np.mean(log_T[flag_200_BB])
+    L_BB_near_200 = 10**np.mean(log_BB[flag_200_BB])
     for i in range(np.shape(sed_x_t)[1]):
-        y = sed_x_t[flag_100, i]
-        y_err = sed_err_x_t[flag_100, i]
+        y = sed_x_t[flag_200, i]
+        y_err = sed_err_x_t[flag_200, i]
         flag = np.isfinite(y)
         wl = band_wls[i] * u.Angstrom
         nu = np.zeros(np.shape(y[flag]))
@@ -317,8 +320,8 @@ def plot_SED(tde_dir, z, sampler, nwalkers, nburn, ninter, show=True):
                      markeredgewidth=0.5, markersize=7, elinewidth=0.7, capsize=0)
 
     nu_list = (c.cgs / (np.arange(1300, 10000, 10) * u.Angstrom)).cgs
-    A = L_BB_near_100 / ((sigma_sb.cgs * ((10 ** T_near_100 * u.K) ** 4)).cgs / np.pi).cgs.value
-    bb_sed = (A * models.blackbody(10**T_near_100, (c.cgs/nu_list).to('AA').value))
+    A = L_BB_near_200 / ((sigma_sb.cgs * ((10 ** T_near_200 * u.K) ** 4)).cgs / np.pi).cgs.value
+    bb_sed = (A * models.blackbody(10**T_near_200, (c.cgs/nu_list).to('AA').value))
     ax3.plot(nu_list.value, bb_sed, ls='--', c='blue')
     ax3.set_yscale('log')
     ax3.set_xscale('log')
@@ -330,15 +333,18 @@ def plot_SED(tde_dir, z, sampler, nwalkers, nburn, ninter, show=True):
     ax3.set_xlim(nu_list[-1].value, 2.1e15)
     up_lim, lo_lim = np.max(bb_sed.value), np.min(bb_sed.value)
     ax3.set_ylim(10**(np.log10(lo_lim) - 0.3), 10**(np.log10(up_lim) + 0.3))
-    title = r'$t={:.0f} \pm 2$ days pos max; $T={:.0f} \ K$'.format(int(t_near_100 - t_peak), 10**T_near_100)
+    title = r'$t={:.0f} \pm 2$ days pos max; $T={:.0f} \ K$'.format(int(t_near_200 - t_peak), 10**T_near_200)
     ax3.set_title(title, fontsize=12)
     up_lim = np.max([ax2.get_ylim(), ax2.get_ylim()])
     lo_lim = np.min([ax2.get_ylim(), ax2.get_ylim()])
     ax2.set_ylim(lo_lim, up_lim)
     ax3.set_ylim(lo_lim, up_lim)
     plt.tight_layout()
+    if print_name:
+        ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12)
     plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'SED_evolution.png'), bbox_inches='tight')
-    plt.show()
+    if show:
+        plt.show()
 
 
 def plot_corner(plot_dir, fig_name, theta_median, sample, labels, show=True):
@@ -361,7 +367,7 @@ def plot_corner(plot_dir, fig_name, theta_median, sample, labels, show=True):
         plt.show()
 
 
-def run_fit(tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500):
+def run_fit(tde_name, tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500):
     # Creating directory to save model results
     modelling_dir = os.path.join(tde_dir, 'modelling')
     try:
@@ -528,7 +534,7 @@ def run_fit(tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500):
     theta_median = np.concatenate(([L_BB_peak[0], t_peak[0], sigma[0], t0[0], p[0]], T_t))
     theta_err_p16 = np.concatenate(([L_BB_peak[2], t_peak[2], sigma[2], t0[2], p[2]], T_t_p16))
     theta_err_p84 = np.concatenate(([L_BB_peak[1], t_peak[1], sigma[1], t0[1], p[1]], T_t_p84))
-    theta_err = np.mean([theta_err_p16, theta_err_p84], axis=0)
+    theta_err = np.nanmin([theta_err_p16, theta_err_p84], axis=0)
 
     log_T, log_T_err, log_BB, log_BB_err, log_R, log_R_err = models.Blackbody_evolution(t, theta_median, theta_err)
 
