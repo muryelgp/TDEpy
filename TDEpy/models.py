@@ -149,17 +149,16 @@ def lnprior(theta, model_name, observables):
     if model_name == 'Blackbody_var_T_gauss_rise_powerlaw_decay':
 
         log_L_peak, t_peak, sigma, t0, p, *T_grid = theta  # , p
-        t, wl, T0, sed, sed_err = observables
+        t, wl, theta_median, sed, sed_err = observables
+        _, t_peak_model1, sigma_model1, _, T0 = theta_median
 
         # setting flat priors
-        t_max_L = t[np.where(sed == np.nanmax(sed))[0]][0]
-        t_peak_prior = t_max_L - 30 <= t_peak <= t_max_L + 30
-        sigma_prior = 1 <= sigma <= 10 ** 1.5
+        t_peak_prior = t_peak_model1 - 3 <= t_peak <= t_peak_model1 + 3
+        sigma_prior = sigma_model1 - 0.1*sigma_model1 <= sigma <= sigma_model1 + 0.1*sigma_model1
         t0_prior = 1 <= t0 <= 200
         p_prior = 0 <= p <= 5
 
         t_grid = t_peak + np.arange(-60, 301, 30)
-        flag_T_grid = gen_flag_T_grid(t, t_grid, T_grid)
         T_grid_prior = ((np.array(T_grid) < 5) & (np.array(T_grid) > 4)).all()
 
         if sigma_prior and t0_prior and t_peak_prior and p_prior and T_grid_prior:
@@ -187,7 +186,8 @@ def lnprior(theta, model_name, observables):
 
 def lnlike(theta, model_name, observables):
     if model_name == 'Blackbody_var_T_gauss_rise_powerlaw_decay':
-        t, wl, T0, sed, sed_err = observables
+        t, wl, theta_median, sed, sed_err = observables
+
         t_peak = theta[1]
         model = Blackbody_var_T_gauss_rise_powerlaw_decay(t, wl, theta)
         err = sed_err
