@@ -226,7 +226,7 @@ def plot_SED(tde_dir, z, sampler, nwalkers, nburn, ninter, show=True):
     t, band_wls, sed_x_t, sed_err_x_t = gen_observables(tde_dir, z)
     t_BB, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err = read_BB_evolution(modelling_dir)
     theta_median, p16, p84 = read_model2(modelling_dir)
-    t_model = theta_median[1] + np.arange(-50, 301, 1)
+    t_model = theta_median[1] + np.arange(-40, 301, 1)
 
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 4))
     label = [r'$UV~W2$', r'$UV~M2$', r'$UV~W1$', 'U', 'B', 'g', 'r']
@@ -453,7 +453,7 @@ def run_fit(tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500):
                             np.random.normal(sigma_init, 1),
                             np.random.normal(t0_init, 5),
                             np.random.normal(p_init, 0.1)],
-                           np.append([T0[0], T0[0]], [np.log10(10 ** T0[0] + np.random.uniform(-50, 300) * dt) + np.random.normal(0, 0.05) for dt in
+                           np.append([T0[0], T0[0]], [np.log10(10 ** T0[0] + np.random.uniform(-50, 300) * dt) + np.random.normal(0, 0.01) for dt in
                                                       np.arange(0, 301, 30)]))) for i in range(nwalkers)]
 
     with Pool(int(n_cores)) as pool:
