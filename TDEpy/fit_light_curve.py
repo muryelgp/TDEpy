@@ -189,7 +189,7 @@ def plot_models(tde_name, tde_dir, z, print_name=True, show=True):
     ax2.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$')
     plt.tight_layout()
     if print_name:
-        ax1.text((0.2, 0.05), tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12)
+        ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12, transform=ax1.transAxes)
     plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'model_light_curves.png'), bbox_inches='tight')
     if show:
         plt.show()
@@ -216,7 +216,7 @@ def plot_BB_evolution(tde_name, tde_dir, print_name=True, show=True):
     ax3.set_xlabel('Days since peak')
     plt.tight_layout()
     if print_name:
-        ax1.text((0.1, 0.05), tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12)
+        ax1.text(0.1, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12, transform=ax1.transAxes)
     plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'Blackbody_evolution.png'), bbox_inches='tight')
     if show:
         plt.show()
@@ -341,7 +341,7 @@ def plot_SED(tde_name, tde_dir, z, sampler, nwalkers, nburn, ninter, print_name=
     ax3.set_ylim(lo_lim, up_lim)
     plt.tight_layout()
     if print_name:
-        ax1.text((0.2, 0.05), tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12)
+        ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=12, transform=ax1.transAxes)
     plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'SED_evolution.png'), bbox_inches='tight')
     if show:
         plt.show()
