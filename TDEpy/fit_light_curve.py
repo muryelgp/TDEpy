@@ -167,8 +167,9 @@ def plot_models(tde_name, tde_dir, z, print_name=True, show=True):
 
     theta_median, p16, p84 = read_model2(modelling_dir)
     model = models.Blackbody_var_T_gauss_rise_powerlaw_decay(t_model, band_wls, theta_median)
+    t_peak = theta_median[1]
     for i in range(np.shape(model)[1]):
-        t_peak = theta_median[1]
+
         y = sed_x_t[:, i]
         y_err = sed_err_x_t[:, i]
         flag = np.isfinite(y)
@@ -180,10 +181,12 @@ def plot_models(tde_name, tde_dir, z, print_name=True, show=True):
         ax2.plot(t_model - t_peak, model_i, color=color[i])
 
     ax1.set_yscale('log')
-    #ax1.set_xlim(-60, 301)
-    ax2.set_yscale('log')
-    #ax2.set_xlim(-60, 301)
 
+    ax2.set_yscale('log')
+    if np.max(t - t_peak) < 300:
+        ax2.set_xlim(-60, np.max(t- t_peak))
+    else:
+        ax1.set_xlim(-60, 301)
     ax2.set_xlabel('Days since peak')
     ax1.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$')
     ax2.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$')
