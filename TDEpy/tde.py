@@ -287,7 +287,7 @@ class TDE:
         """
 
         # Creating color and legend dictionaries for each band
-        color_dic = dict(sw_uu='blue', sw_bb='cyan', sw_vv='gold', sw_w1='navy', sw_m2='darkviolet',
+        color_dic = dict(sw_uu='dodgerblue', sw_bb='cyan', sw_vv='gold', sw_w1='navy', sw_m2='darkviolet',
                          sw_w2='magenta', ztf_g='green', ztf_r='red')
         legend_dic = dict(sw_uu='$U$', sw_bb='$B$', sw_vv='$V$', sw_w1=r'$UV~W1$', sw_m2=r'$UV~M2$',
                           sw_w2=r'$UV~W2$', ztf_g='g', ztf_r='r')
@@ -801,6 +801,9 @@ class TDE:
 
             if os.path.exists(self.name + '/host'):
                 tar_handle.add(self.name + '/host')
+
+            if os.path.exists(self.name + '/modelling'):
+                tar_handle.add(self.name + '/modelling')
 
             if os.path.exists(self.name + '/' + self.name + '_info.fits'):
                 tar_handle.add(self.name + '/' + self.name + '_info.fits')

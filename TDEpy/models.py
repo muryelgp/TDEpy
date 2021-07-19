@@ -141,7 +141,7 @@ def const_T_gauss_rise_exp_decay(t, wl, theta):
     wl_ref[:] = wl[0]
 
     blackbody_t_wl = blackbody(10 ** T_t_array, wl_array) / blackbody(10 ** T_t_array, wl_ref)
-    model = 10 ** log_L_W2_peak * blackbody_t_wl * light_curve_shape
+    model = 10 ** log_L_W2_peak * blackbody_t_wl.value * light_curve_shape
     return model
 
 
@@ -160,11 +160,11 @@ def lnprior(theta, model_name, observables):
 
         t_grid = t_peak + np.arange(-60, 301, 30)
         flag_T_grid = gen_flag_T_grid(t, t_grid, T_grid)
-        T_grid_prior = (abs(np.diff(10 ** np.array(T_grid)[flag_T_grid]) / (np.diff(t_grid[flag_T_grid]))) < 10000).all()
+        T_grid_prior = (abs(np.diff(10 ** np.array(T_grid)[flag_T_grid]) / (np.diff(t_grid[flag_T_grid]) + 0.01)) < 6000).all()
         T_grid_prior = T_grid_prior & ((np.array(T_grid) < 5) & (np.array(T_grid) > 4)).all()
 
         if sigma_prior and t0_prior and t_peak_prior and p_prior and T_grid_prior:
-            return 0.0 #np.nansum(-0.5*(np.array(T_grid)[flag_T_grid]-T0)**2/0.1**2)
+            return np.nansum(-0.5*(np.array(T_grid)[flag_T_grid]-T0)**2/0.1**2)
         else:
             return -np.inf
 
@@ -177,7 +177,7 @@ def lnprior(theta, model_name, observables):
         log_L_W2_peak_prior = np.nanmax(sed[:, 0])/2 <= 10**log_L_W2_peak <= np.nanmax(sed[:, 0]) * 2
         t_max_L = t[np.where(sed[:, 0] == np.nanmax(sed[:, 0]))[0]][0]
         t_peak_prior = t_max_L - 30 <= t_peak <= t_max_L + 30
-        sigma_prior = 1 <= sigma <= 10 ** 1.5
+        sigma_prior = 1 <= sigma <= 10 ** 2
         tau_prior = 1 <= tau <= 10**3
         T0_grid_prior = 4 <= log_T0 <= 5
         if sigma_prior and log_L_W2_peak_prior and t_peak_prior and tau_prior and T0_grid_prior:

@@ -611,13 +611,14 @@ def host_sub_lc(tde_name, path, ebv):
         # Loading and plotting Swift data
         data_path = os.path.join(tde_dir, 'photometry', 'obs', str(band) + '.txt')
         if os.path.exists(data_path):
-            obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=2, unpack=True)
+            obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=1, unpack=True)
 
             # selecting model fluxes at the respective band
             host_band = host_bands == band_dic[band]
             band_wl = model_wl_c[host_band][0]
             host_flux = model_flux[host_band][0]
             host_flux_err = model_flux_err[host_band][0]
+            host_abmag = model_ab_mag[host_band][0]
             host_abmage = model_ab_mag_err[host_band][0]
             # Subtracting host contribution from the light curve
             host_sub_flu = (flu - host_flux) / (10. ** (-0.4 * extcorr[band] * ebv))
@@ -631,7 +632,7 @@ def host_sub_lc(tde_name, path, ebv):
             is_pos_flux = host_sub_flu > 0
             host_sub_abmag[is_pos_flux] = tools.flux_to_mag(host_sub_flu[is_pos_flux], band_wl)
             host_sub_abmag[~is_pos_flux] = -99
-            host_sub_abmage[is_pos_flux] = np.sqrt(abmage[is_pos_flux] ** 2 + host_abmage ** 2)
+            host_sub_abmage[is_pos_flux] = tools.df_to_dmag(host_sub_flu[is_pos_flux], host_sub_flue[is_pos_flux], band_wl)
             host_sub_abmage[~is_pos_flux] = -99
 
             host_sub_flue[~is_pos_flux & (flue > 0)] = np.sqrt((host_flux_err**2 + flue[~is_pos_flux & (flue > 0)]**2))
