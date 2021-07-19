@@ -409,7 +409,7 @@ def run_fit(tde_name, tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500)
 
     theta_init = [log_L_peak_init, t_peak_init, sigma_init, tau_init, T0_init]
     nll = lambda *args: -models.lnlike(*args)
-    bounds = ((log_L_peak_init - 0.5, log_L_peak_init + 0.5), (t_peak_init - 50, t_peak_init + 50), (1, 100), (1, 200), (4, 5))
+    bounds = ((log_L_peak_init - 2, log_L_peak_init + 2), (t_peak_init - 100, t_peak_init + 100), (1, 100), (1, 200), (4, 5))
     result = op.minimize(nll, theta_init, args=(model_name, observables), bounds=bounds, method='Powell')
     print(result["x"])
     log_L_peak_opt, t_peak_opt, sigma_opt, tau_opt, T0_opt = result["x"]  # will be used to initialise the walkers
@@ -417,8 +417,8 @@ def run_fit(tde_name, tde_dir, z, n_cores, nwalkers=100, ninter=1000, nburn=500)
 
     ndim, nwalkers = 5, nwalkers
 
-    pos = [[np.random.normal(log_L_peak_opt, 0.5),
-            np.random.normal(t_peak_opt, 15),
+    pos = [[np.random.normal(log_L_peak_opt, 1),
+            np.random.normal(t_peak_opt, 30),
             np.random.normal(sigma_opt, 10),
             np.random.normal(tau_opt, 30),
             np.random.normal(T0_opt, 0.2)]
