@@ -155,7 +155,7 @@ def lnprior(theta, model_name, observables):
         # setting flat priors
         t_peak_prior = t_peak_model1 - 3 <= t_peak <= t_peak_model1 + 3
         sigma_prior = sigma_model1 - 0.2*sigma_model1 <= sigma <= sigma_model1 + 0.2*sigma_model1
-        t0_prior = 1 <= t0 <= 200
+        t0_prior = 1 <= t0 <= 300
         p_prior = 0 <= p <= 5
 
         t_grid = t_peak + np.arange(-60, 301, 30)

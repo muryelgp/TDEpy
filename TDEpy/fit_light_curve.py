@@ -72,6 +72,7 @@ def gen_observables(tde_dir, z):
     if mjd_g is not None:
         mjd_ztf = np.concatenate((mjd_ztf, mjd_r))
     if len(mjd_ztf) > 0:
+        mjd_ztf = mjd_ztf[np.argsort(mjd_ztf)]
         ztf_max_mjd = (np.max(mjd_ztf))
         ztf_min_mjd = (np.min(mjd_ztf))
         mjd_ztf = [mjd_ztf_i for mjd_ztf_i in mjd_ztf]
