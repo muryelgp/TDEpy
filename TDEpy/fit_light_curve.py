@@ -90,6 +90,7 @@ def gen_observables(tde_dir, z):
             if mjd >= sw_max_mjd and np.isfinite(mjd):
                 epochs = np.append(epochs, mjd)
 
+    epochs = epochs[np.isfinite(epochs)]
     n_bands = 7
 
     # Creating an array to represent the SED(t) with the same time bin as the epoch array
@@ -112,8 +113,9 @@ def gen_observables(tde_dir, z):
 
     for i in range(len(lum_list[:5])):
         flag = (epochs >= sw_min_mjd) & (epochs <= sw_max_mjd)
-        sed_x_t[flag, i] = lum_list[i][ordering][flag]
-        sed_err_x_t[flag, i] = lum_err_list[i][ordering][flag]
+        flag_finite = np.isfinite(mjd_sw[ordering])
+        sed_x_t[flag, i] = lum_list[i][ordering][flag_finite]
+        sed_err_x_t[flag, i] = lum_err_list[i][ordering][flag_finite]
 
     for i in range(len(lum_list[5:])):
         if mjd_list[5 + i] is not None:
