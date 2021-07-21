@@ -9,6 +9,30 @@ from . import reduction as reduction
 from . import tools as tools
 
 
+def get_host_radius(coords_host):
+    try:
+        v = Vizier(
+        columns=['gPrad', "+_r"])
+        result_sdss = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['V/147/sdss12'])[0]
+        radius = result_sdss[0]['gPrad']
+    except:
+        try:
+            v = Vizier(
+                columns=['KRadg', "+_r"])
+            result_des = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/357/des_dr1'])[0]
+            radius = result_des[0]['KRadg']
+        except:
+            try:
+                v = Vizier(
+                    columns=['RadrPetro', "+_r"])
+                result_sm = v.query_region(coords_host, radius=0.0014 * units.deg, catalog=['II/358/smss'])[0]
+                radius = result_sm[0]['RadrPetro']
+            except:
+                radius = None
+
+    return radius
+
+
 def download_mir(coords_host, host_file_path):
     host_file = open(host_file_path, 'a')
 

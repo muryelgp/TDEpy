@@ -10,7 +10,7 @@ from prospect.sources import CSPSpecBasis
 from prospect.models.templates import TemplateLibrary, describe
 import pkg_resources
 from . import tools as tools
-
+import corner
 
 # re-defining plotting defaults
 
@@ -177,7 +177,7 @@ def plot_resulting_fit(tde_name, path):
     tde_dir = os.path.join(path, tde_name)
     host_dir = os.path.join(tde_dir, 'host')
 
-    fig, ax = plt.subplots(figsize=(16, 8))
+    fig, ax = plt.subplots(figsize=(12, 6))
 
     band, obs_wl_c, obs_ab_mag, obs_ab_mag_err, catalogs, apertures = \
         np.loadtxt(os.path.join(host_dir, 'host_phot_obs.txt'),
@@ -242,10 +242,12 @@ def plot_resulting_fit(tde_name, path):
     ax.set_xticks([1e3, 1e4, 1e5])
     ax.set_xticklabels(['0.1', '1', '10'])
     ax.set_ylim(ymax, ymin)
-    ax.set_ylabel('AB mag', fontsize=14)
-    ax.set_xlabel(r'Wavelength $[\mu m]$', fontsize=14)
+    ax.set_ylabel('AB mag', fontsize=16)
+    ax.set_xlabel(r'Wavelength $[\mu m]$', fontsize=16)
     ax.set_title('Host Galaxy SED Fit (' + tde_name + ')')
     plt.legend(loc=4)
+    plt.tight_layout()
+
     return fig
 
 
@@ -300,7 +302,7 @@ def get_host_properties(result, host_dir, ebv):
 
     ext_cor = [4.8960, 2.7271]
     catalog_bands = [catalogs[i] + '_' + host_bands[i] for i in range(len(catalogs))]
-    flag_u = [i=='SDSS_u' for i in catalog_bands]
+    flag_u = [i == 'SDSS_u' for i in catalog_bands]
     u_mag, u_mag_err = model_ab_mag[flag_u], model_ab_mag_err[flag_u]
     if len(u_mag) > 1:
         u_mag = u_mag[0]
@@ -308,7 +310,7 @@ def get_host_properties(result, host_dir, ebv):
         u_mag_err = u_mag_err[0]
     u_mag_ext_cor = u_mag - ext_cor[0] * ebv
 
-    flag_r =[i=='SDSS_r' for i in catalog_bands]
+    flag_r = [i == 'SDSS_r' for i in catalog_bands]
     r_mag, r_mag_err = model_ab_mag[flag_r], model_ab_mag_err[flag_r]
     if len(r_mag) > 1:
         r_mag = r_mag[0]
@@ -321,13 +323,6 @@ def get_host_properties(result, host_dir, ebv):
 
     list_mass = [mass_median, mass_p16, mass_p84]
     list_color = [u_r_ext_cor, u_r_err]
-
-    if np.round(list_mass[1], 2) == 0:
-        list_mass[1] = 0.01
-    if np.round(list_mass[2], 2) == 0:
-        list_mass[2] = 0.01
-    if np.round(list_color[1], 2) == 0:
-        list_color[1] = 0.01
 
     return list_mass, list_color
 
@@ -369,17 +364,23 @@ def corner_plot(result):
         a, b, c, d, e = x
         data[i, :] = a, b, c, d, e
 
-    for i in range(np.shape(xx)[1]):
-        sig1 = theta_max[i] - np.percentile((data[:, i]), 16)
-        sig2 = np.percentile((data[:, i]), 84) - theta_max[i]
-        mean_dist = np.mean([sig1, sig2])
-        if i == 0 or i == 4:
-            bounds.append((np.log10(theta_max[i]) - 4 * mean_dist, np.log10(theta_max[i]) + 4 * mean_dist))
-        else:
-            bounds.append((theta_max[i] - 4 * mean_dist, theta_max[i] + 4 * mean_dist))
+    theta_max = [np.log10(theta_max[0]), theta_max[1], theta_max[2], theta_max[3], np.log10(theta_max[4])]
 
-    cornerfig = reader.subcorner(result, thin=5,
-                                 fig=plt.subplots(5, 5, figsize=(27, 27))[0], logify=["mass", "tau"], range=bounds)
+    for i in range(np.shape(xx)[1]):
+
+        sig1 = abs(theta_max[i] - np.percentile((data[:, i]), 16))
+        sig2 = abs(np.percentile((data[:, i]), 84) - theta_max[i])
+        mean_dist = np.max([sig1, sig2])
+        bounds.append((theta_max[i] - 3 * mean_dist, theta_max[i] + 3 * mean_dist))
+
+    # cornerfig = reader.subcorner(result, thin=5,
+    #                             fig=plt.subplots(5, 5, figsize=(27, 27))[0], range=bounds)
+
+    labels = [r'log $M_{*}/M_{\odot}$', r'log $Z/Z_{\odot}$', r'$\rm{A_{V}}$', r'log $t$', r'log $\tau_{\rm{sfh}}$']
+    cornerfig = corner.corner(data,
+                              labels=labels,
+                              quantiles=[0.16, 0.5, 0.84],
+                              show_titles=True, title_kwargs={"fontsize": 12}, range=bounds)
 
     return cornerfig
 
@@ -632,10 +633,12 @@ def host_sub_lc(tde_name, path, ebv):
             is_pos_flux = host_sub_flu > 0
             host_sub_abmag[is_pos_flux] = tools.flux_to_mag(host_sub_flu[is_pos_flux], band_wl)
             host_sub_abmag[~is_pos_flux] = -99
-            host_sub_abmage[is_pos_flux] = tools.df_to_dmag(host_sub_flu[is_pos_flux], host_sub_flue[is_pos_flux], band_wl)
+            host_sub_abmage[is_pos_flux] = tools.df_to_dmag(host_sub_flu[is_pos_flux], host_sub_flue[is_pos_flux],
+                                                            band_wl)
             host_sub_abmage[~is_pos_flux] = -99
 
-            host_sub_flue[~is_pos_flux & (flue > 0)] = np.sqrt((host_flux_err**2 + flue[~is_pos_flux & (flue > 0)]**2))
+            host_sub_flue[~is_pos_flux & (flue > 0)] = np.sqrt(
+                (host_flux_err ** 2 + flue[~is_pos_flux & (flue > 0)] ** 2))
             host_sub_flu[~is_pos_flux] = 0
             host_sub_flue[~is_pos_flux & (flue < 0)] = -99
             sig_host[is_pos_flux] = (flu - host_flux)[is_pos_flux] / host_flux
@@ -682,7 +685,7 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, gal_ebv, show_figs=True,
     os.chdir(os.path.join(path, tde_name, 'host'))
 
     if init_theta is None:
-        init_theta = [1e10, -1.0, 6, 0.5]
+        init_theta = [1e10, -1.0, 6, 2]
 
     if n_walkers is None:
         n_walkers = 100

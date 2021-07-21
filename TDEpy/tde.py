@@ -19,7 +19,7 @@ from . import fit_host as fit_host
 from . import reduction as reduction
 from . import download_host as download_host
 from . import fit_light_curve as fit_light_curve
-
+from . import tools as tools
 
 warnings.simplefilter('ignore', category=AstropyWarning)
 
@@ -29,6 +29,7 @@ class TDE:
     def __init__(self, tde_name: str, path: str):
 
         # Checking for names incompatibilities
+
 
         if (str(tde_name)[0:2] == 'AT') or (str(tde_name)[0:2] == 'at'):
             at_name = str(tde_name)[2:]
@@ -44,18 +45,42 @@ class TDE:
         self.name = tde_name
         self.tde_dir = os.path.join(path, self.name)
         self.sw_dir = os.path.join(self.tde_dir, 'swift')
-        self.plot_dir = os.path.join(self.tde_dir, 'plots')
         self.host_dir = os.path.join(self.tde_dir, 'host')
+        self.phot_dir = os.path.join(self.tde_dir, 'photometry')
         self.other_name, self.ra, self.dec, self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name, self.discovery_date = \
             None, None, None, None, None, None, None, None, None
+        self.M_bh = [None, None, None]
+        self.spec_class = None
+        self.host_radius = None
         self.host_mass, self.host_color = None, None
 
         # Checking if object/folder was already created
-        try:
-            os.mkdir(self.tde_dir)
-            os.chdir(self.tde_dir)
-        except FileExistsError:
-            os.chdir(self.tde_dir)
+        if self.is_tns:
+            try:
+                os.chdir(self.tde_dir)
+            except:
+                print('Searching for ' + str(self.name) + ' information...')
+                if self.is_tns:
+                    try:
+                        # Getting RA and DEC and other infos from TNS
+                        self.ra, self.dec, self.z, self.host_name, self.other_name, self.discovery_date = reduction.search_tns(
+                            str(self.name)[2:])
+                    except:
+                        raise Exception('Not able to retrieve data on ' + self.name)
+
+                # Getting foreground Milky Way extinction along the line of sight, from dust map astroquery.irsa_dust
+                try:
+                    self.ebv = self.get_ebv()  # E(B-V) from Schlafly & Finkbeiner 2011
+                except:
+                    pass
+                os.mkdir(self.tde_dir)
+                self.save_info()
+
+        if not self.is_tns:
+            try:
+                os.chdir(self.tde_dir)
+            except:
+                os.mkdir(self.tde_dir)
 
         # Checking if info file has already been created
         if os.path.exists(os.path.join(self.tde_dir, self.name + '_info.fits')):
@@ -82,27 +107,12 @@ class TDE:
                 'for non IAU names you need to insert both the Swift Target ID (target_id) of the source as well as \n'
                 'the number of observations(n_obs) to be downloaded. You can search for this at: https://www.swift.ac.uk/swift_portal/')
 
-        print('Searching for ' + str(self.name) + ' information...')
-        if self.is_tns:
-            try:
-                # Getting RA and DEC and other infos from TNS
-                self.ra, self.dec, self.z, self.host_name, self.other_name, self.discovery_date = reduction.search_tns(
-                    str(self.name)[2:])
-            except:
-                raise Exception('Not able to retrieve data on ' + self.name)
-
-        # Getting foreground Milky Way extinction along the line of sight, from dust map astroquery.irsa_dust
-        try:
-            self.ebv = self.get_ebv()  # E(B-V) from Schlafly & Finkbeiner 2011
-        except:
-            pass
-        # Saving info into a fits file
-        self.save_info()
-
         os.chdir(self.tde_dir)
         # Looking to ZTF data
+        print('Starting downloading data on ' + str(self.name))
         print('Looking for ZTF data')
-        if str(self.other_name)[0:3] == 'ZTF' and self.is_tns:
+        if (str(self.other_name)[0:3] == 'ZTF' and self.is_tns) or (str(self.name)[0:3] == 'ZTF'):
+
             ztf_name = self.other_name
             try:
                 os.mkdir('ztf')
@@ -122,11 +132,8 @@ class TDE:
             print('There is not ZTF for this source')
             pass
 
-
         # Getting Swift Target ID and number of observations
         print('Searching for Swift observations.....')
-
-        # Creating/entering Swift dir
         try:
             os.mkdir(self.sw_dir)
             os.chdir(self.sw_dir)
@@ -134,6 +141,9 @@ class TDE:
             os.chdir(self.sw_dir)
 
         if self.is_tns & (target_id is None) & (n_obs is None):
+            # Creating/entering Swift dir
+
+
             name_list, target_id_list, n_obs_list = reduction.get_target_id(self.name, self.ra, self.dec)
             for i in range(len(target_id_list)):
                 try:
@@ -142,7 +152,12 @@ class TDE:
                 except:
                     continue
                 start_time = Time(dfs['Start time (UT)'][1], format='isot', scale='utc').mjd
-                if start_time < self.discovery_date - 180.0:
+
+                if self.discovery_date is None:
+                    print(
+                        'Downloading Swift data for Target ID ' + str(target_id_list[i]) + ', it will take some time!')
+                    reduction.download_swift(target_id_list[i], int(n_obs_list[i]), init=1)
+                elif start_time < self.discovery_date - 180.0:
                     try:
                         os.mkdir(self.sw_dir)
                         os.chdir(self.sw_dir)
@@ -157,10 +172,12 @@ class TDE:
                         'Downloading Swift data for Target ID ' + str(target_id_list[i]) + ', it will take some time!')
                     reduction.download_swift(target_id_list[i], int(n_obs_list[i]), init=1)
                     os.chdir(self.sw_dir)
-                if start_time > self.discovery_date:
+                elif start_time >= self.discovery_date:
                     print(
                         'Downloading Swift data for Target ID ' + str(target_id_list[i]) + ', it will take some time!')
                     reduction.download_swift(target_id_list[i], int(n_obs_list[i]), init=1)
+
+
         else:
             print('Downloading Swift data for Target ID ' + str(target_id) + ', it will take some time!')
             reduction.download_swift(target_id, n_obs, init=1)
@@ -168,8 +185,8 @@ class TDE:
 
         os.chdir(self.work_dir)
 
-    def sw_photometry(self, radius=None, coords=None, write_to_file=True, show_light_curve=True, aper_cor=False,
-                      show_regions=True):
+    def uvot_photometry(self, radius=None, coords=None, write_to_file=True, show_light_curve=True, aper_cor=False,
+                      sigma=3, show_regions=True):
         """
         This function does the photometry on the Swift observations:
 
@@ -204,7 +221,12 @@ class TDE:
         """
 
         if radius is None:
-            radius = [5, 50]
+            if self.host_radius is not None:
+                if float(self.host_radius) > 5:
+                    radius = [round(self.host_radius), 50]
+                else:
+                    radius = [5, 50]
+
         elif type(radius) != list:
             raise Exception('radius should be a list with science and background region radius in arcsec, e.g. [5, 50]')
 
@@ -244,7 +266,7 @@ class TDE:
             reduction.create_reg(self.ra, self.dec, radius, self.sw_dir, show_regions)
 
         # Doing photometry in the Swift data
-        reduction.do_sw_photo(self.sw_dir, aper_cor)
+        reduction.do_sw_photo(self.sw_dir, aper_cor, sigma)
 
         # saving to files
         if write_to_file:
@@ -259,8 +281,7 @@ class TDE:
         # returning to the working path
         os.chdir(self.work_dir)
 
-    def plot_light_curve(self, host_sub=False, bands=None, write_plot=True, show_plot=True, figure_ext='png',
-                         plot_host_mag=False):
+    def plot_light_curve(self, host_sub=False, bands=None, write_plot=True, show_plot=True, plot_host_mag=False):
         """
         This function plots the TDEs light curves.
 
@@ -278,9 +299,6 @@ class TDE:
 
         show_plot : Boolean
             Whether to show the light curve plot or not. Default is True.
-
-        figure_ext: string
-            The format of the figure file to be saved. Default is 'png' but it can also be 'pdf'.
 
         plot_host_mag:
             In construction!
@@ -315,7 +333,7 @@ class TDE:
 
         mjd_max = 0
         mjd_min = 1e10
-        fig, ax = plt.subplots(figsize=(12, 8))
+        fig, ax = plt.subplots(figsize=(12, 7))
         for band in bands:
             # Loading and plotting Swift data
             if band[0] == 's':
@@ -330,7 +348,7 @@ class TDE:
                 else:
                     try:
                         data_path = os.path.join(self.tde_dir, 'photometry', 'obs', str(band) + '.txt')
-                        obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=1,
+                        obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=2,
                                                                           unpack=True)
                     except:
                         continue
@@ -389,27 +407,27 @@ class TDE:
                                     marker="*", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
                                     markeredgecolor='black', markersize=15, elinewidth=0.7, capsize=0)
 
-        ax.set_xlabel('MJD', fontsize=14)
-        ax.set_ylabel('AB mag', fontsize=14)
+        ax.set_xlabel('MJD', fontsize=16)
+        ax.set_ylabel('AB mag', fontsize=16)
         ax.invert_yaxis()
         if host_sub:
-            title = self.name + ' host subtracted light curve'
-            fig_name = self.name + '_host_sub_light_curve.'
+            title = self.name
+            fig_name = 'host_sub_light_curve.'
         else:
-            title = self.name + ' light curve'
-            fig_name = self.name + '_light_curve.'
+            title = self.name
+            fig_name = 'light_curve.'
         ax.set_title(title)
+        plt.tight_layout()
         if len(bands_plotted) > 3:
             plt.legend(ncol=2)
         else:
             plt.legend(ncol=1)
         if write_plot:
             try:
-                os.chdir(self.plot_dir)
+                os.mkdir(os.path.join(self.phot_dir, 'plots'))
             except:
-                os.mkdir(self.plot_dir)
-                os.chdir(self.plot_dir)
-            plt.savefig(os.path.join(self.plot_dir, fig_name + figure_ext), bbox_inches='tight')
+                pass
+            plt.savefig(os.path.join(self.phot_dir, 'plots', fig_name + '.pdf'), bbox_inches='tight')
         if show_plot:
             plt.show()
 
@@ -476,6 +494,10 @@ class TDE:
                 dec_host = self.dec
 
         coords_host = SkyCoord(ra=ra_host, dec=dec_host, unit=(units.deg, units.deg))
+
+        self.host_radius = download_host.get_host_radius(coords_host)
+        self.save_info()
+
 
         try:
             os.mkdir(self.host_dir)
@@ -555,7 +577,7 @@ class TDE:
 
         finite = (np.isfinite(ab_mag)) & (np.isfinite(ab_mag_err))
 
-        fig, ax = plt.subplots(figsize=(16, 8))
+        fig, ax = plt.subplots(figsize=(12, 6))
         for catalog in np.unique(catalogs[finite]):
             flag = (catalogs == catalog) & (np.isfinite(ab_mag)) & (np.isfinite(ab_mag_err))
             ax.errorbar(wl_c[flag], ab_mag[flag], yerr=ab_mag_err[flag], marker='D', fmt='o',
@@ -576,16 +598,17 @@ class TDE:
         ax.set_xticklabels(['0.1', '1', '10'])
         ymin, ymax = np.min(ab_mag) * 0.85, np.max(ab_mag) * 1.1
         ax.set_ylim(ymax, ymin)
-        ax.set_ylabel('AB mag', fontsize=14)
-        ax.set_xlabel(r'Wavelength $[\mu m]$', fontsize=14)
+        ax.set_ylabel('AB mag', fontsize=16)
+        ax.set_xlabel(r'Wavelength $[\mu m]$', fontsize=16)
         ax.set_title('Host Galaxy SED (' + self.name + ')')
         plt.legend(loc=4)
+        plt.tight_layout()
         try:
-            os.chdir(self.plot_dir)
+            os.mkdir(os.path.join(self.host_dir, 'plots'))
         except:
-            os.mkdir(self.plot_dir)
-            os.chdir(self.plot_dir)
-        plt.savefig(os.path.join(self.plot_dir, self.name + '_host_sed.png'), bbox_inches='tight', dpi=300)
+            pass
+
+        plt.savefig(os.path.join(self.host_dir, 'plots', 'host_sed_obs.pdf'), bbox_inches='tight', dpi=300)
         if show_plot:
             plt.show()
         os.chdir(self.work_dir)
@@ -620,15 +643,18 @@ class TDE:
         if self.z is None:
             self.z = np.nan
         if np.isfinite(float(self.z)):
-            print('Starting fitting ' + self.name + ' host galaxy SED')
-            print(
-                'THIS PROCESS WILL TAKE A LOT OF TIME!! try to increase the numbers of processing cores (n_cores), if possible..')
-            self.save_info()
 
-            fit_host.run_prospector(self.name, self.work_dir, np.float(self.z), withmpi=multi_processing,
-                                    n_cores=n_cores, gal_ebv=self.ebv, show_figs=show_figs,
-                                    init_theta=init_theta, n_walkers=n_walkers, n_inter=n_inter, n_burn=n_burn,
-                                    read_only=read_only)
+            if not read_only:
+                print('Starting fitting ' + self.name + ' host galaxy SED')
+                print(
+                    'THIS PROCESS WILL TAKE A LOT OF TIME!! try to increase the numbers of processing cores ('
+                    'n_cores), if possible..')
+                self.save_info()
+
+                fit_host.run_prospector(self.name, self.work_dir, np.float(self.z), withmpi=multi_processing,
+                                        n_cores=n_cores, gal_ebv=self.ebv, show_figs=show_figs,
+                                        init_theta=init_theta, n_walkers=n_walkers, n_inter=n_inter, n_burn=n_burn,
+                                        read_only=read_only)
 
             print('Creating host subtracted light curves!...')
             self.subtract_host(show_plot=show_figs)
@@ -641,7 +667,7 @@ class TDE:
         else:
             raise Exception('You need to define a redshift (z) for the source before fitting the host SED')
 
-    def plot_host_sed_fit(self, corner_plot=False):
+    def plot_host_sed_fit(self, corner_plot=False, show=True):
         """
         This function plots the host galaxy SED model.
         You should run fit_host_sed() before calling it.
@@ -656,19 +682,21 @@ class TDE:
 
         i, j = np.unravel_index(imax, result['lnprobability'].shape)
         theta_max = result['chain'][i, j, :].copy()
-        print('MAP value: {}'.format(theta_max))
         fit_plot = fit_host.plot_resulting_fit(self.name, self.work_dir)
-        fit_plot.savefig(os.path.join(self.work_dir, self.name, 'plots', self.name + '_host_fit.png'),
-                         bbox_inches='tight',
-                         dpi=300)
-        plt.show()
+        try:
+            os.mkdir(os.path.join(self.host_dir, 'plots'))
+        except:
+            pass
+        fit_plot.savefig(os.path.join(self.host_dir, 'plots', 'host_sed_model.pdf'), bbox_inches='tight', dpi=300)
+        plt.tight_layout()
+        if show:
+            plt.show()
 
         if corner_plot:
             c_plt = fit_host.corner_plot(result)
-            c_plt.savefig(os.path.join(self.work_dir, self.name, 'plots', self.name + '_cornerplot.png'),
-                          bbox_inches='tight',
-                          dpi=300)
-            plt.show()
+            c_plt.savefig(os.path.join(self.host_dir, 'plots', 'host_model_cornerplot.pdf'), bbox_inches='tight', dpi=300)
+            if show:
+                plt.show()
 
         os.chdir(self.work_dir)
 
@@ -694,22 +722,40 @@ class TDE:
         source are modified.
         '''
         from astropy.table import Table
-        t = Table({'TDE_name': np.array([str(self.name)]),
+        t = Table({'name': np.array([str(self.name)]),
                    'other_name': np.array([str(self.other_name)]),
                    'ra': np.array([str(self.ra)]),
                    'dec': np.array([str(self.dec)]),
-                   'E(B-V)': np.array([str(self.ebv)]),
                    'z': np.array([str(self.z)]),
-                   'host_name': np.array([str(self.host_name)]),
-                   'discovery_date(MJD)': np.array([str(self.discovery_date)])})
+                   'e(b-v)': np.array([str(self.ebv)]),
+                   'discovery_date(mjd)': np.array([str(self.discovery_date)]),
+                   'spec_class': np.array([str(self.spec_class)]),
+                   'M_bh': np.array([str(self.M_bh[0])]),
+                   'M_bh_p16': np.array([str(self.M_bh[1])]),
+                   'M_bh_p84': np.array([str(self.M_bh[2])]),
+                   'host_name': np.array([str(self.host_name)])})
 
         from astropy.table import Column
+
+        if self.host_radius is not None:
+            print(self.host_radius)
+            c = Column(f'{float(self.host_radius):.2f}', name='host_radius')
+            t.add_column(c, index=-1)
+
         if self.host_mass is not None:
-            c = Column(f'{self.host_mass[0]:.2f}_{{-{self.host_mass[1]:.2f}}}^{{+{self.host_mass[2]:.2f}}}', name='log_host_mass')
+            self.host_mass = tools.round_small(self.host_mass, 0.01)
+            c = Column(f'{float(self.host_mass[0]):.2f}', name='host_mass')
+            t.add_column(c, index=-1)
+            c = Column(f'{float(self.host_mass[1]):.2f}', name='host_mass_p16')
+            t.add_column(c, index=-1)
+            c = Column(f'{float(self.host_mass[2]):.2f}', name='host_mass_p84')
             t.add_column(c, index=-1)
 
         if self.host_color is not None:
-            c = Column( r"%.2f\pm%.2f" % (self.host_color[0], self.host_color[1]), name='host_color(u-r)')
+            self.host_color = tools.round_small(self.host_color, 0.01)
+            c = Column(f'{float(self.host_color[0]):.2f}', name='host_color(u-r)')
+            t.add_column(c, index=-1)
+            c = Column(f'{float(self.host_color[1]):.2f}', name='host_color_err')
             t.add_column(c, index=-1)
         t.write(self.tde_dir + '/' + str(self.name) + '_info.fits', format='fits', overwrite=True)
 
@@ -722,7 +768,7 @@ class TDE:
             self.ra = None
 
         try:
-            self.dec = (info[1].data['dec'][0])
+            self.dec = float(info[1].data['dec'][0])
         except:
             self.dec = None
 
@@ -737,7 +783,7 @@ class TDE:
             self.other_name = None
 
         try:
-            self.z = info[1].data['z'][0]
+            self.z = float(info[1].data['z'][0])
             if self.z == 'None':
                 self.z = None
         except:
@@ -751,24 +797,42 @@ class TDE:
             self.host_name = None
 
         try:
-            self.discovery_date = info[1].data['discovery_date(MJD)'][0]
+            self.discovery_date = float(info[1].data['discovery_date(MJD)'][0])
             if self.discovery_date == 'None':
                 self.discovery_date = None
         except:
             self.discovery_date = None
 
         try:
-            string_mass = info[1].data['log_host_mass']
-            self.host_mass = [float(string_mass[0][0:4]), float(string_mass[0][7:11]), float(string_mass[0][15:19])]
+            mass = float(info[1].data['host_mass'])
+            mass_p16 = float(info[1].data['host_mass_p16'])
+            mass_p84 = float(info[1].data['host_mass_p84'])
+            self.host_mass = [mass, mass_p16, mass_p84]
         except:
             self.host_mass = None
 
         try:
-            string_color = info[1].data['host_color(u-r)']
-            self.host_color = [float(string_color[0][0:4]), float(string_color[0][8:])]
+            color = float(info[1].data['host_color(u-r)'])
+            color_err = float(info[1].data['host_color_err'])
+            self.host_mass = [color, color_err]
         except:
             self.host_color = None
+
+        try:
+            self.host_radius = float(info[1].data['host_radius'])
+        except:
+            self.host_radius = None
+
         info.close()
+
+    def _get_target_id(self):
+        name_list, t_id_list, n_obs_list = reduction.get_target_id(self.name, self.ra, self.dec)
+        return name_list, t_id_list, n_obs_list
+
+    def get_host_radius(self):
+        coords_host = SkyCoord(ra=self.ra, dec=self.dec, unit=(units.deg, units.deg))
+        self.host_radius = download_host.get_host_radius(coords_host)
+        self.save_info()
 
     def get_ebv(self):
         """
@@ -813,9 +877,11 @@ class TDE:
 
     def fit_light_curve(self, n_cores=None, n_walkers=100, n_inter=1000, n_burn=500):
         if n_cores is None:
-            n_cores = os.cpu_count()/2
+            n_cores = os.cpu_count() / 2
         fit_light_curve.run_fit(self.name, self.tde_dir, float(self.z), n_cores, n_walkers, n_inter, n_burn)
 
     def plot_light_curve_models(self):
         fit_light_curve.plot_models(self.name, self.tde_dir, float(self.z))
         fit_light_curve.plot_BB_evolution(self.name, self.tde_dir)
+
+

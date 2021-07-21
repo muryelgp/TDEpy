@@ -21,7 +21,7 @@ from astropy.time import Time
 from . import tools as tools
 
 
-def do_sw_photo(sw_dir, aper_cor):
+def do_sw_photo(sw_dir, aper_cor, sigma):
     bands = ['uu', 'bb', 'vv', 'w1', 'm2', 'w2']
     os.system('ls -d 0* >> datadirs.txt')
     dirs = [line.rstrip('\n').rstrip('/') for line in open('datadirs.txt')]
@@ -41,15 +41,15 @@ def do_sw_photo(sw_dir, aper_cor):
                     os.system('rm ' + band + '.fits')
                 if aper_cor:
                     os.system('uvotsource image=sw' + str(dirs[i]) + 'u' + band + '_sk.img.gz srcreg=source.reg '
-                                                                                  'bkgreg=bkg.reg sigma=3 '
-                                                                                  'syserr=no centroid=yes '
+                                                                                  'bkgreg=bkg.reg sigma='+str(int(sigma)) +
+                                                                                  ' syserr=no centroid=yes '
                                                                                   'apercorr=CURVEOFGROWTH '
                                                                                   'clobber=yes outfile=' + band +
                               '.fits')
                 else:
                     os.system('uvotsource image=sw' + str(dirs[i]) + 'u' + band + '_sk.img.gz srcreg=source.reg '
-                                                                                  'bkgreg=bkg.reg sigma=3 '
-                                                                                  'syserr=no centroid=yes '
+                                                                                  'bkgreg=bkg.reg sigma='+str(int(sigma)) +
+                                                                                  ' syserr=no centroid=yes '
                                                                                   'clobber=yes outfile=' + band +
                               '.fits')
             else:
@@ -301,7 +301,7 @@ def load_ztfdata(ztf_name, ebv):
     ztf_r.write('mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux_dens' + '\t' + 'flux_dens_err' + '\n')
     for yy in range(len(mjd_r)):
         ztf_r.write('{:.2f}'.format(mjd_r[yy]) + '\t' + '{:.2f}'.format(mag_r[yy]) + '\t' + '{:.2f}'.format(
-            mage_r[yy]) + '\t' + str(flux_r[yy]) + '\t' + str(fluxe_r[yy]) + '\n')
+            mage_r[yy]) + '\t' + '{:.2e}'.format(flux_r[yy]) + '\t' + '{:.2e}'.format(fluxe_r[yy]) + '\n')
     ztf_r.close()
 
 
@@ -402,7 +402,7 @@ def get_target_id(name, ra, dec):
 
 def download_swift(target_id, n_obs, init, end=None):
     if end is None:
-        end = n_obs
+        end = int(n_obs)
     for i in range(init, (end + 1)):
         print('[' + str(i) + '/' + str(n_obs) + ']')
         os.system('wget -q -nv -nc -w 2 -nH --cut-dirs=2 -r --no-parent --reject "index.html*" '
