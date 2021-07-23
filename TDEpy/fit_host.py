@@ -623,7 +623,9 @@ def host_sub_lc(tde_name, path, ebv):
             host_abmage = model_ab_mag_err[host_band][0]
             # Subtracting host contribution from the light curve
             host_sub_flu = (flu - host_flux) / (10. ** (-0.4 * extcorr[band] * ebv))
-            host_sub_flue = np.sqrt(flue ** 2 + host_flux_err ** 2)
+
+
+
 
             # dealing with negative fluxes
             host_sub_abmag = np.zeros(np.shape(host_sub_flu))
@@ -633,14 +635,24 @@ def host_sub_lc(tde_name, path, ebv):
             is_pos_flux = host_sub_flu > 0
             host_sub_abmag[is_pos_flux] = tools.flux_to_mag(host_sub_flu[is_pos_flux], band_wl)
             host_sub_abmag[~is_pos_flux] = -99
-            host_sub_abmage[is_pos_flux] = tools.df_to_dmag(host_sub_flu[is_pos_flux], host_sub_flue[is_pos_flux],
-                                                            band_wl)
-            host_sub_abmage[~is_pos_flux] = -99
 
-            host_sub_flue[~is_pos_flux & (flue > 0)] = np.sqrt(
-                (host_flux_err ** 2 + flue[~is_pos_flux & (flue > 0)] ** 2))
-            host_sub_flu[~is_pos_flux] = 0
-            host_sub_flue[~is_pos_flux & (flue < 0)] = -99
+            if (band == 'sw_w1') or (band == 'sw_m2') or (band == 'sw_w2'):
+                host_sub_flue = np.sqrt(flue ** 2 + host_flux_err ** 2)
+                host_sub_abmage[is_pos_flux] = tools.df_to_dmag(host_sub_flu[is_pos_flux], host_sub_flue[is_pos_flux], band_wl)
+                host_sub_flue[~is_pos_flux & (flue > 0)] = np.sqrt(
+                    (host_flux_err ** 2 + flue[~is_pos_flux & (flue > 0)] ** 2))
+                host_sub_abmage[~is_pos_flux] = -99
+                host_sub_flu[~is_pos_flux] = 0
+                host_sub_flue[~is_pos_flux & (flue < 0)] = -99
+            elif (band == 'sw_bb') or (band == 'sw_uu') or (band == 'sw_vv'):
+                host_sub_flue = host_sub_flu * np.sqrt((flue/flu) ** 2 + (host_flux_err/host_flux) ** 2)
+                host_sub_abmage[is_pos_flux] = np.sqrt(abmage[is_pos_flux]**2 + host_abmage**2)
+                host_sub_flue[~is_pos_flux & (flue > 0)] = host_sub_flu[~is_pos_flux & (flue > 0)] * np.sqrt(
+                    ((host_flux_err/host_flux) ** 2 + (flue/flu)[~is_pos_flux & (flue > 0)] ** 2))
+                host_sub_abmage[~is_pos_flux] = -99
+                host_sub_flu[~is_pos_flux] = 0
+                host_sub_flue[~is_pos_flux & (flue < 0)] = -99
+
             sig_host[is_pos_flux] = (flu - host_flux)[is_pos_flux] / host_flux
             sig_host[~is_pos_flux] = 0.00
 

@@ -120,6 +120,7 @@ def gen_observables(tde_dir, z):
 
     for i in range(len(lum_list[5:])):
         if mjd_list[5 + i] is not None:
+            ztf_min_mjd, ztf_max_mjd = np.min(mjd_list[5 + i]), np.max( mjd_list[5 + i])
             flag = (epochs >= ztf_min_mjd) & (epochs <= ztf_max_mjd)
             sed_x_t[flag, 5 + i] = np.interp(epochs[flag], mjd_list[5 + i], lum_list[5 + i])
             sed_err_x_t[flag, 5 + i] = np.interp(epochs[flag], mjd_list[5 + i], lum_err_list[5 + i])

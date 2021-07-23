@@ -226,6 +226,8 @@ class TDE:
                     radius = [round(self.host_radius), 50]
                 else:
                     radius = [5, 50]
+            else:
+                radius = [5, 50]
 
         elif type(radius) != list:
             raise Exception('radius should be a list with science and background region radius in arcsec, e.g. [5, 50]')
@@ -814,7 +816,7 @@ class TDE:
         try:
             color = float(info[1].data['host_color(u-r)'])
             color_err = float(info[1].data['host_color_err'])
-            self.host_mass = [color, color_err]
+            self.host_color = [color, color_err]
         except:
             self.host_color = None
 
