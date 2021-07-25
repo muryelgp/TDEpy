@@ -176,7 +176,7 @@ def lnprior(theta, model_name, observables):
         t_max_L = t[np.where(sed[:, 0] == np.nanmax(sed[:, 0]))[0]][0]
         t_peak_prior = t_max_L - 100 <= t_peak <= t_max_L + 100
         sigma_prior = 1 <= sigma <= 10 ** 2
-        tau_prior = 1 <= tau <= 10**3
+        tau_prior = 1 <= tau <= 200
         T0_grid_prior = 4 <= log_T0 <= 5
         if sigma_prior and log_L_W2_peak_prior and t_peak_prior and tau_prior and T0_grid_prior:
             return 0.0
