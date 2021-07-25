@@ -157,7 +157,7 @@ def gen_observables(tde_dir, z, bands, mode):
             sed_x_t[flag, 5] = sed_x_t[flag, 6]/ratio_r_g
             sed_err_x_t[flag, 5] = sed_err_x_t[flag, 6]/ratio_r_g
 
-    for i in range(np.shape(sed_x_t)[0]):
+    for i in range(np.shape(sed_x_t)[1]):
         if np.sum(np.isfinite(sed_x_t[i, :])) == 1:
             sed_x_t[i, :] == np.nan
             sed_err_x_t[i, :] == np.nan
