@@ -149,14 +149,18 @@ def gen_observables(tde_dir, z, bands, mode):
             last_epoch = (epochs > r_min_mjd) & (epochs < r_min_mjd + 1)
             ratio_r_g = np.mean(sed_x_t[last_epoch, 6]/sed_x_t[last_epoch, 5])
             sed_x_t[flag, 6] = ratio_r_g*sed_x_t[flag, 5]
+            sed_err_x_t[flag, 6] = ratio_r_g * sed_err_x_t[flag, 5]
         if r_min_mjd < g_min_mjd:
             flag = (epochs >= r_min_mjd) & (epochs <= g_min_mjd)
             last_epoch = (epochs > g_min_mjd) & (epochs < g_min_mjd + 1)
             ratio_r_g = np.mean(sed_x_t[last_epoch, 6]/sed_x_t[last_epoch, 5])
             sed_x_t[flag, 5] = sed_x_t[flag, 6]/ratio_r_g
+            sed_err_x_t[flag, 5] = sed_err_x_t[flag, 6]/ratio_r_g
 
-
-
+    for i in range(np.shape(sed_x_t)[0]):
+        if np.sum(np.isfinite(sed_x_t[i, :])) == 1:
+            sed_x_t[i, :] == np.nan
+            sed_err_x_t[i, :] == np.nan
 
     band_wls = band_wls / (1 + z)
     return epochs, band_wls, sed_x_t, sed_err_x_t
