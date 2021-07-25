@@ -223,7 +223,8 @@ class TDE:
         if radius is None:
             if self.host_radius is not None:
                 if float(self.host_radius) > 5:
-                    radius = [round(self.host_radius), 50]
+                    src_radius = int(round(self.host_radius) + 1)
+                    radius = [src_radius, 50]
                 else:
                     radius = [5, 50]
             else:
@@ -877,10 +878,10 @@ class TDE:
         tar_handle.close()
         os.chdir(pwd)
 
-    def fit_light_curve(self, n_cores=None, n_walkers=100, n_inter=1000, n_burn=500):
+    def fit_light_curve(self, bands='All', T_interval=30, n_cores=None, n_walkers=100, n_inter=1000, n_burn=500):
         if n_cores is None:
             n_cores = os.cpu_count() / 2
-        fit_light_curve.run_fit(self.name, self.tde_dir, float(self.z), n_cores, n_walkers, n_inter, n_burn)
+        fit_light_curve.run_fit(self.name, self.tde_dir, float(self.z), bands, T_interval, n_cores, n_walkers, n_inter, n_burn)
 
     def plot_light_curve_models(self):
         fit_light_curve.plot_models(self.name, self.tde_dir, float(self.z))

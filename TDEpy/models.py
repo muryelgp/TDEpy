@@ -1,7 +1,4 @@
-import itertools
-
 import numpy as np
-import scipy
 from astropy.constants import h, c, k_B, sigma_sb
 import astropy.units as u
 
@@ -18,14 +15,14 @@ def blackbody(T, wl):
 
     return flux_wl*nu
 
-def Blackbody_evolution(t, theta, theta_err):
+def Blackbody_evolution(t, T_interval, theta, theta_err):
     log_L_BB, t_peak, sigma, t0, p, *T_grid = theta
     log_L_BB_err, t_peak_err, sigma_err, t0_err, p_err, *T_grid_err = theta_err
 
 
     # Temperature evolution
-    t_grid = t_peak + np.arange(-60, 301, 30)
-    flag_T_grid = gen_flag_T_grid(t, t_grid, T_grid)
+    t_grid = t_peak + np.arange(-60, 301, T_interval)
+    flag_T_grid = gen_flag_T_grid(t, t_grid, T_grid, T_interval)
     log_T_t = np.interp(t, t_grid[flag_T_grid], np.array(T_grid)[flag_T_grid])
     log_T_t_err = np.interp(t, t_grid[flag_T_grid], np.array(T_grid_err)[flag_T_grid])
 
@@ -69,6 +66,7 @@ def bolometric_correction(T, wl):
     K_wl = ((sigma_sb.cgs * ((10 ** T * u.K) ** 4)).cgs / (np.pi * blackbody(10 ** T, wl))).cgs.value
     return K_wl
 
+
 def L_bol(t, theta):
     log_L_BB_peak, t_peak, sigma, t0, p, *T_grid = theta
     delt_t = t - t_peak
@@ -82,7 +80,7 @@ def L_bol(t, theta):
     return model
 
 
-def Blackbody_var_T_gauss_rise_powerlaw_decay(t, wl, theta):
+def Blackbody_var_T_gauss_rise_powerlaw_decay(t, wl, T_interval, theta):
 
     log_L_BB_peak, t_peak, sigma, t0, p, *T_grid = theta
 
@@ -96,8 +94,8 @@ def Blackbody_var_T_gauss_rise_powerlaw_decay(t, wl, theta):
     after_peak = delt_t > 0
     light_curve_shape[after_peak] = ((delt_t[after_peak] + t0)/t0)**(-1*p)
 
-    t_grid = t_peak + np.arange(-60, 301, 30)
-    flag_T_grid = gen_flag_T_grid(t, t_grid, T_grid)
+    t_grid = t_peak + np.arange(-60, 301, T_interval)
+    flag_T_grid = gen_flag_T_grid(t, t_grid, T_grid, T_interval)
     T_t = np.interp(t, t_grid[flag_T_grid], np.array(T_grid)[flag_T_grid])
 
     wl_array = np.tile(wl, (len(t), 1))
@@ -110,12 +108,12 @@ def Blackbody_var_T_gauss_rise_powerlaw_decay(t, wl, theta):
     return model
 
 
-def gen_flag_T_grid(t, t_grid, T_grid):
+def gen_flag_T_grid(t, t_grid, T_grid, T_interval):
     flag_right_T_grid = np.append(
-        [np.sum((t > t_grid[i]) & (t < t_grid[i] + 30)) > 0 for i in range(len(T_grid) - 1)],
+        [np.sum((t > t_grid[i]) & (t < t_grid[i] + T_interval)) > 0 for i in range(len(T_grid) - 1)],
         False)
     flag_left_T_grid = np.concatenate(
-        ([False], [np.sum((t < t_grid[i]) & (t > t_grid[i] - 30)) > 0 for i in range(1, len(T_grid))]))
+        ([False], [np.sum((t < t_grid[i]) & (t > t_grid[i] - T_interval)) > 0 for i in range(1, len(T_grid))]))
     flag_finite = np.isfinite(T_grid)
     flag_T_grid = (flag_right_T_grid | flag_left_T_grid) & flag_finite
     return flag_T_grid
@@ -149,7 +147,7 @@ def lnprior(theta, model_name, observables):
     if model_name == 'Blackbody_var_T_gauss_rise_powerlaw_decay':
 
         log_L_peak, t_peak, sigma, t0, p, *T_grid = theta  # , p
-        t, wl, theta_median, sed, sed_err = observables
+        t, wl, T_interval, theta_median, sed, sed_err = observables
         _, t_peak_model1, sigma_model1, _, T0 = theta_median
 
         # setting flat priors
@@ -158,13 +156,14 @@ def lnprior(theta, model_name, observables):
         t0_prior = 1 <= t0 <= 300
         p_prior = 0 <= p <= 5
 
-        t_grid = t_peak + np.arange(-60, 301, 30)
-        flag_T_grid = gen_flag_T_grid(t, t_grid, T_grid)
-        T_grid_prior = (abs(np.diff(10 ** np.array(T_grid)[flag_T_grid]) / (np.diff(t_grid[flag_T_grid]) + 0.01)) < 200).all()
-        T_grid_prior = T_grid_prior & ((np.array(T_grid) < 5) & (np.array(T_grid) > 4)).all()
+        t_grid = t_peak + np.arange(-60, 301, T_interval)
+        flag_T_grid = gen_flag_T_grid(t, t_grid, T_grid, T_interval)
+        T_grid_prior = (abs(np.diff(10 ** np.array(T_grid)[flag_T_grid]) / (np.diff(t_grid[flag_T_grid]))) < 500).all()
 
+        T_grid_prior = T_grid_prior & ((np.array(T_grid) < 5) & (np.array(T_grid) > 4)).all()
+        print(T_grid_prior)
         if sigma_prior and t0_prior and t_peak_prior and p_prior and T_grid_prior:
-            return np.nansum(-0.5*(np.array(T_grid)[flag_T_grid]-T0)**2/0.1**2)
+            return 0.0 #np.nansum(-0.5*(np.array(T_grid)[flag_T_grid]-T0)**2/0.1**2)
         else:
             return -np.inf
 
@@ -188,10 +187,10 @@ def lnprior(theta, model_name, observables):
 
 def lnlike(theta, model_name, observables):
     if model_name == 'Blackbody_var_T_gauss_rise_powerlaw_decay':
-        t, wl, theta_median, sed, sed_err = observables
+        t, wl, T_interval, theta_median, sed, sed_err = observables
 
         t_peak = theta[1]
-        model = Blackbody_var_T_gauss_rise_powerlaw_decay(t, wl, theta)
+        model = Blackbody_var_T_gauss_rise_powerlaw_decay(t, wl, T_interval, theta)
         err = sed_err
         obs = sed
         flag_300_days = (t - t_peak) <= 300
