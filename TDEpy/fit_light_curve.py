@@ -344,7 +344,7 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
     ax1.set_xticks(np.arange(-50, 301, 50))
     ax1.set_xticklabels(np.arange(-50, 301, 50), fontsize=12)
     ax1.tick_params(axis='y', labelsize=12)
-    ax1.set_ylim(None, 10**(theta_median[0] + 0.5))
+    ax1.set_ylim(10**(np.log10(L_BB[-1]) - 1), 10**(theta_median[0] + 0.5))
 
 
     delt_t = t - t_peak
