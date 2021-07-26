@@ -610,7 +610,7 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
                             np.random.normal(t_peak_opt, 2),
                             np.random.normal(sigma_opt, 2),
                             np.random.normal(t0_opt, 5),
-                            np.random.normal(p_opt, 0.2)],
+                            np.random.normal(p_opt, 0.5)],
                            [Ts_opt[j] + np.random.normal(0, 0.1) for j in range(n_T)])) for i in range(nwalkers)]
 
     with Pool(int(n_cores)) as pool:
