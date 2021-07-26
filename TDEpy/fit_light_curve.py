@@ -385,8 +385,8 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
     ax2.legend(fontsize='xx-small')
     nu_list = (c.cgs / (np.arange(1300, 10000, 10) * u.Angstrom)).cgs
     A = L_BB_near_peak / ((sigma_sb.cgs * ((10 ** T_near_peak * u.K) ** 4)).cgs / np.pi).cgs.value
-    bb_sed = (A * models.blackbody(10 ** T_near_peak, (c.cgs / nu_list).to('AA').value))
-    ax2.plot(nu_list.value, bb_sed, c='blue')
+    bb_sed_mean = (A * models.blackbody(10 ** T_near_peak, (c.cgs / nu_list).to('AA').value))
+    ax2.plot(nu_list.value, bb_sed_mean, c='blue')
 
     for i in range(100):
         A = np.random.normal(L_BB_near_peak, L_BB_err_near_peak) / ((sigma_sb.cgs * ((10 ** np.random.normal(T_near_peak, T_err_near_peak) * u.K) ** 4)).cgs / np.pi).cgs.value
@@ -402,7 +402,7 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
                         fontsize=11)
     ax2.tick_params(axis='y', labelsize=12)
     ax2.set_xlim(nu_list[-1].value, 2.1e15)
-    up_lim, lo_lim = np.max(bb_sed.value), np.min(bb_sed.value)
+    up_lim, lo_lim = np.max(bb_sed_mean.value), np.min(bb_sed_mean.value)
     ax2.set_ylim(10 ** (np.log10(lo_lim) - 0.3), 10 ** (np.log10(up_lim) + 0.3))
     title = r'$t={:.0f} \pm 2$ days pos max; log $T={:.2f} \pm {:.2f} \ K$'.format(int(t_near_peak - t_peak), T_near_peak, T_err_near_peak)
     ax2.set_title(title, fontsize=12)
@@ -425,8 +425,8 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
     ax3.legend(fontsize='xx-small')
     nu_list = (c.cgs / (np.arange(1300, 10000, 10) * u.Angstrom)).cgs
     A = L_BB_near_200 / ((sigma_sb.cgs * ((10 ** T_near_200 * u.K) ** 4)).cgs / np.pi).cgs.value
-    bb_sed = (A * models.blackbody(10 ** T_near_200, (c.cgs / nu_list).to('AA').value))
-    ax3.plot(nu_list.value, bb_sed, c='blue')
+    bb_sed_mean = (A * models.blackbody(10 ** T_near_200, (c.cgs / nu_list).to('AA').value))
+    ax3.plot(nu_list.value, bb_sed_mean, c='blue')
     for i in range(100):
         A = np.random.normal(L_BB_near_200, L_BB_err_near_200) / ((sigma_sb.cgs * ((10 ** np.random.normal(T_near_200, T_err_near_200) * u.K) ** 4)).cgs / np.pi).cgs.value
         bb_sed = (A * models.blackbody(10 ** T_near_200, (c.cgs / nu_list).to('AA').value))
@@ -440,7 +440,7 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
                         fontsize=11)
     ax3.tick_params(axis='y', labelsize=12)
     ax3.set_xlim(nu_list[-1].value, 2.1e15)
-    up_lim, lo_lim = np.max(bb_sed.value), np.min(bb_sed.value)
+    up_lim, lo_lim = np.max(bb_sed_mean.value), np.min(bb_sed_mean.value)
     ax3.set_ylim(10 ** (np.log10(lo_lim) - 0.3), 10 ** (np.log10(up_lim) + 0.3))
     title = r'$t={:.0f} \pm 2$ days pos max; log $T={:.2f} \pm {:.2f} \ K$'.format(int(t_near_200 - t_peak), T_near_200, T_err_near_200)
     ax3.set_title(title, fontsize=12)
