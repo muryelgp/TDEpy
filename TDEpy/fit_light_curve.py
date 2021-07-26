@@ -540,7 +540,7 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
         sampler = emcee.EnsembleSampler(nwalkers, ndim, models.lnprob, args=(model_name, observables), pool=pool)
         sampler.run_mcmc(pos, ninter/2, progress=True, skip_initial_state_check=True)
 
-    samples = sampler.chain[:, nburn:, :].reshape((-1, ndim))
+    samples = sampler.chain[:, (nburn/2):, :].reshape((-1, ndim))
 
     L_peak, t_peak, sigma, tau, T0 = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
                                          zip(*np.percentile(samples, [16, 50, 84], axis=0)))
