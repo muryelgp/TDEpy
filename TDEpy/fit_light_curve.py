@@ -181,8 +181,13 @@ def read_model2(model_dir):
 
 def read_BB_evolution(model_dir):
     path_to_model_file = os.path.join(model_dir, 'blackbody_evolution.txt')
-    t, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err = np.loadtxt(path_to_model_file, skiprows=2, unpack=True)
-    return t, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err
+
+    try:
+        t, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err, single_band = np.loadtxt(path_to_model_file, skiprows=2, unpack=True)
+    except:
+        t, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err = np.loadtxt(path_to_model_file,
+                                                                                            skiprows=2, unpack=True)
+    return t, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err, single_band
 
 
 def plot_models(tde_name, tde_dir, z, bands, T_interval, print_name=True, show=True):
@@ -193,7 +198,13 @@ def plot_models(tde_name, tde_dir, z, bands, T_interval, print_name=True, show=T
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8))
     theta_median, p16, p84 = read_model1(modelling_dir)
-    t_model = theta_median[1] + np.arange(-50, 301, 1)
+
+    t_peak = theta_median[1]
+    first_300days = (t - t_peak) <= 300
+    if np.max(t[first_300days] - t_peak) < 300:
+        t_model = theta_median[1] + np.arange(np.min(t - t_peak) - 10, np.max(t[first_300days] - t_peak) + 5, 1)
+    else:
+        t_model = theta_median[1] + np.arange(np.min(t - t_peak) - 10, 300, 1)
 
     model = models.const_T_gauss_rise_exp_decay(t_model, band_wls, theta_median)
     for i in range(np.shape(model)[1]):
@@ -217,7 +228,7 @@ def plot_models(tde_name, tde_dir, z, bands, T_interval, print_name=True, show=T
 
     single_color = np.zeros(np.shape(t_model),  dtype=bool)
     model = models.Blackbody_var_T_gauss_rise_powerlaw_decay(t_model, single_color, band_wls, T_interval, theta_median)
-    t_peak = theta_median[1]
+
     for i in range(np.shape(model)[1]):
         y = sed_x_t[:, i]
         if np.isfinite(y).any():
@@ -234,12 +245,12 @@ def plot_models(tde_name, tde_dir, z, bands, T_interval, print_name=True, show=T
     ax1.set_yscale('log')
 
     ax2.set_yscale('log')
-    if np.max(t - t_peak) < 300:
-        ax2.set_xlim(-60, np.max(t - t_peak))
-        ax1.set_xlim(-60, np.max(t - t_peak))
+    if np.max(t[first_300days] - t_peak) < 300:
+        ax2.set_xlim(np.min(t - t_peak) - 15, np.max(t[first_300days] - t_peak) + 10)
+        ax1.set_xlim(np.min(t - t_peak) - 15, np.max(t[first_300days] - t_peak) + 10)
     else:
-        ax1.set_xlim(-60, 305)
-        ax2.set_xlim(-60, 305)
+        ax1.set_xlim(np.min(t - t_peak) - 15, 305)
+        ax2.set_xlim(np.min(t - t_peak) - 15, 305)
     ax2.set_xlabel('Days since peak')
     ax1.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$')
     ax2.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$')
@@ -254,20 +265,33 @@ def plot_models(tde_name, tde_dir, z, bands, T_interval, print_name=True, show=T
 
 def plot_BB_evolution(tde_name, tde_dir, print_name=True, show=True):
     modelling_dir = os.path.join(tde_dir, 'modelling')
-    t, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err = read_BB_evolution(modelling_dir)
+    t, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err, single_band = read_BB_evolution(modelling_dir)
+    single_band = np.array(single_band) == 1
     theta_median, p16, p84 = read_model2(modelling_dir)
     t_peak = theta_median[1]
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(8, 12))
-    ax1.errorbar(t - t_peak, log_BB, yerr=log_BB_err, marker="o", linestyle='-', color='b', linewidth=1,
-                 markeredgewidth=1, markerfacecolor='blue', markeredgecolor='black', markersize=4, elinewidth=0.7,
-                 capsize=2)
+
+
+    ax1.errorbar((t - t_peak)[~single_band], log_BB[~single_band], yerr=log_BB_err[~single_band], marker="o", linestyle='-', color='b', linewidth=1,
+                 markeredgewidth=1, markerfacecolor='blue', markeredgecolor='black', markersize=5, elinewidth=0.7,
+                 capsize=2, fillstyle='full')
+    ax1.errorbar((t - t_peak)[single_band], log_BB[single_band], yerr=log_BB_err[single_band], marker="o",
+                 linestyle='', color='b', linewidth=1,
+                 markeredgewidth=1, markerfacecolor='blue', markeredgecolor='black', markersize=5, elinewidth=0.7,
+                 capsize=2, fillstyle='none')
     ax1.set_ylabel(r'log $\rm{L_{BB} \ [erg \ s^{-1}]}$')
-    ax2.errorbar(t - t_peak, log_R, yerr=log_R_err, marker="o", linestyle='-', color='b', linewidth=1,
-                 markeredgewidth=1, markerfacecolor='blue', markeredgecolor='black', markersize=4, elinewidth=0.7,
-                 capsize=2)
+
+    ax2.errorbar((t - t_peak)[~single_band], log_R[~single_band], yerr=log_R_err[~single_band], marker="o", linestyle='-', color='b', linewidth=1,
+                 markeredgewidth=1, markerfacecolor='blue', markeredgecolor='black', markersize=5, elinewidth=0.7,
+                 capsize=2, fillstyle='full')
+    ax2.errorbar((t - t_peak)[single_band], log_R[single_band], yerr=log_R_err[single_band], marker="o",
+                 linestyle='', color='b', linewidth=1,
+                 markeredgewidth=1, markerfacecolor='blue', markeredgecolor='black', markersize=5, elinewidth=0.7,
+                 capsize=2, fillstyle='none')
     ax2.set_ylabel('log R [cm]')
-    ax3.errorbar(t - t_peak, log_T, yerr=log_T_err, marker="o", linestyle='-', color='b', linewidth=1,
-                 markeredgewidth=1, markerfacecolor='blue', markeredgecolor='black', markersize=4, elinewidth=0.7,
+
+    ax3.errorbar((t - t_peak)[~single_band], log_T[~single_band], yerr=log_T_err[~single_band], marker="o", linestyle='-', color='b', linewidth=1,
+                 markeredgewidth=1, markerfacecolor='blue', markeredgecolor='black', markersize=5, elinewidth=0.7,
                  capsize=2)
     ax3.set_ylabel('log T [K]')
     ax3.set_xlabel('Days since peak')
@@ -283,20 +307,24 @@ def plot_BB_evolution(tde_name, tde_dir, print_name=True, show=True):
 def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, print_name=True, show=True):
     modelling_dir = os.path.join(tde_dir, 'modelling')
     t, band_wls, sed_x_t, sed_err_x_t = gen_observables(tde_dir, z, bands, mode='plot')
-    t_BB, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err = read_BB_evolution(modelling_dir)
+    t_BB, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err, single_band = read_BB_evolution(modelling_dir)
     theta_median, p16, p84 = read_model2(modelling_dir)
+    single_band = np.array(single_band) == 1
 
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 4))
     label = [r'$UV~W2$', r'$UV~M2$', r'$UV~W1$', 'U', 'B', 'g', 'r']
     marker = ["o", "s", "p", "d", "*", "x", "+"]
     t_peak = theta_median[1]
     first_300days = (t - t_peak) <= 300
-    t_model = theta_median[1] + np.arange(-40, np.max(t[first_300days] - t_peak), 1)
+    if np.max(t[first_300days] - t_peak) < 300:
+        t_model = theta_median[1] + np.arange(np.min(t - t_peak) - 10, np.max(t[first_300days] - t_peak) + 5, 1)
+    else:
+        t_model = theta_median[1] + np.arange(np.min(t - t_peak) - 10, 300, 1)
     for i in range(np.shape(sed_x_t)[1]):
-        y = sed_x_t[first_300days, i] * models.bolometric_correction(log_T, band_wls[i])
-        y_err = sed_err_x_t[first_300days, i] / sed_x_t[first_300days, i] * y
+        y = sed_x_t[first_300days, i][~single_band] * models.bolometric_correction(log_T[~single_band], band_wls[i])
+        y_err = sed_err_x_t[first_300days, i][~single_band] / sed_x_t[first_300days, i][~single_band] * y
         flag = np.isfinite(y)
-        x = t[first_300days] - t_peak
+        x = (t[first_300days] - t_peak)[~single_band]
         ax1.errorbar(x[flag], y[flag], yerr=y_err[flag], marker=marker[i], ecolor='black', linestyle='', mfc='None',
                      mec='black', linewidth=1,
                      markeredgewidth=0.5, markersize=7, elinewidth=0.7, capsize=0)
@@ -317,6 +345,8 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
     ax1.set_xticks(np.arange(-50, 301, 50))
     ax1.set_xticklabels(np.arange(-50, 301, 50), fontsize=12)
     ax1.tick_params(axis='y', labelsize=12)
+    ax1.set_ylim(None, 10**(theta_median[0] + 0.5))
+
 
     delt_t = t - t_peak
     near_peak = np.where(abs(delt_t) == np.nanmin(abs(delt_t)))
@@ -324,20 +354,25 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
     flag_peak = abs(t - t_near_peak) <= 2
     flag_peak_BB = abs(t_BB - t_near_peak) <= 2
     T_near_peak = np.mean(log_T[flag_peak_BB])
-    L_BB_near_peak = 10 ** theta_median[0]
+    T_err_near_peak = np.mean(log_T_err[flag_peak_BB])
+    L_BB_near_peak = 10 ** np.mean(log_BB[flag_peak_BB])
+    L_BB_err_near_peak = 10 ** np.mean(0.432*(log_BB_err/log_BB)[flag_peak_BB])
 
-    rand = np.random.uniform(150, 250)
+    rand = np.random.uniform(100, 250)
     near_200 = np.where(abs(delt_t - rand) == np.nanmin(abs(delt_t - rand)))
     t_near_200 = t[near_200]
     flag_200 = abs(t - t_near_200) <= 2
     flag_200_BB = abs(t_BB - t_near_200) <= 2
     T_near_200 = np.mean(log_T[flag_200_BB])
     L_BB_near_200 = 10 ** np.mean(log_BB[flag_200_BB])
+    T_err_near_200 = np.mean(log_T_err[flag_200_BB])
+    L_BB_err_near_200 = 10 ** np.mean(0.432 * (log_BB_err / log_BB)[flag_200_BB])
+
 
     for i in range(np.shape(sed_x_t)[1]):
         y = sed_x_t[flag_peak, i]
-        y_200 = sed_x_t[flag_200, i]
-        if np.isfinite(y).any() or np.isfinite(y_200).any():
+
+        if np.isfinite(y).any():
             y_err = sed_err_x_t[flag_peak, i]
             flag = np.isfinite(y)
             wl = band_wls[i] * u.Angstrom
@@ -346,12 +381,18 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
 
             ax2.errorbar(nu, y[flag], yerr=y_err[flag], marker=marker[i], ecolor='black', linestyle='', mfc='None',
                          mec='black', linewidth=1,
-                         markeredgewidth=0.6, markersize=7, elinewidth=0.7, capsize=0, label=label[i])
-
+                         markeredgewidth=0.7, markersize=8, elinewidth=0.7, capsize=0, label=label[i])
+    ax2.legend(fontsize='xx-small')
     nu_list = (c.cgs / (np.arange(1300, 10000, 10) * u.Angstrom)).cgs
     A = L_BB_near_peak / ((sigma_sb.cgs * ((10 ** T_near_peak * u.K) ** 4)).cgs / np.pi).cgs.value
     bb_sed = (A * models.blackbody(10 ** T_near_peak, (c.cgs / nu_list).to('AA').value))
-    ax2.plot(nu_list.value, bb_sed, ls='--', c='blue')
+    ax2.plot(nu_list.value, bb_sed, c='blue')
+
+    for i in range(100):
+        A = np.random.normal(L_BB_near_peak, L_BB_err_near_peak) / ((sigma_sb.cgs * ((10 ** np.random.normal(T_near_peak, T_err_near_peak) * u.K) ** 4)).cgs / np.pi).cgs.value
+        bb_sed = (A * models.blackbody(10 ** T_near_peak, (c.cgs / nu_list).to('AA').value))
+        ax2.plot(nu_list.value, bb_sed, c='blue', alpha=0.05)
+
     ax2.set_yscale('log')
     ax2.set_xscale('log')
     ax2.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$', fontsize=14)
@@ -363,26 +404,33 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
     ax2.set_xlim(nu_list[-1].value, 2.1e15)
     up_lim, lo_lim = np.max(bb_sed.value), np.min(bb_sed.value)
     ax2.set_ylim(10 ** (np.log10(lo_lim) - 0.3), 10 ** (np.log10(up_lim) + 0.3))
-    title = r'$t={:.0f} \pm 2$ days post max; $T={:.0f} \  K$'.format(int(t_near_peak - t_peak), 10 ** T_near_peak)
+    title = r'$t={:.0f} \pm 2$ days pos max; log $T={:.2f} \pm {:.2f} \ K$'.format(int(t_near_peak - t_peak), T_near_peak, T_err_near_peak)
     ax2.set_title(title, fontsize=12)
     ax2.legend(fontsize='xx-small', loc=4)
 
     for i in range(np.shape(sed_x_t)[1]):
-        y = sed_x_t[flag_200, i]
-        y_err = sed_err_x_t[flag_200, i]
-        flag = np.isfinite(y)
-        wl = band_wls[i] * u.Angstrom
-        nu = np.zeros(np.shape(y[flag]))
-        nu[:] = c.cgs / wl.cgs
+        y_200 = sed_x_t[flag_200, i]
+        if np.isfinite(y_200).any():
+            y = sed_x_t[flag_200, i]
+            y_err = sed_err_x_t[flag_200, i]
+            flag = np.isfinite(y)
+            wl = band_wls[i] * u.Angstrom
+            nu = np.zeros(np.shape(y[flag]))
+            nu[:] = c.cgs / wl.cgs
 
-        ax3.errorbar(nu, y[flag], yerr=y_err[flag], marker=marker[i], ecolor='black', linestyle='', mfc='None',
-                     mec='black', linewidth=1,
-                     markeredgewidth=0.6, markersize=7, elinewidth=0.7, capsize=0)
+            ax3.errorbar(nu, y[flag], yerr=y_err[flag], marker=marker[i], ecolor='black', linestyle='', mfc='None',
+                         mec='black', linewidth=1,
+                         markeredgewidth=0.7, markersize=8, elinewidth=0.7, capsize=0, label=label[i])
 
+    ax3.legend(fontsize='xx-small')
     nu_list = (c.cgs / (np.arange(1300, 10000, 10) * u.Angstrom)).cgs
     A = L_BB_near_200 / ((sigma_sb.cgs * ((10 ** T_near_200 * u.K) ** 4)).cgs / np.pi).cgs.value
     bb_sed = (A * models.blackbody(10 ** T_near_200, (c.cgs / nu_list).to('AA').value))
-    ax3.plot(nu_list.value, bb_sed, ls='--', c='blue')
+    ax3.plot(nu_list.value, bb_sed, c='blue')
+    for i in range(100):
+        A = np.random.normal(L_BB_near_200, L_BB_err_near_200) / ((sigma_sb.cgs * ((10 ** np.random.normal(T_near_200, T_err_near_200) * u.K) ** 4)).cgs / np.pi).cgs.value
+        bb_sed = (A * models.blackbody(10 ** T_near_200, (c.cgs / nu_list).to('AA').value))
+        ax3.plot(nu_list.value, bb_sed, c='blue', alpha=0.05)
     ax3.set_yscale('log')
     ax3.set_xscale('log')
     ax3.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$', fontsize=14)
@@ -394,12 +442,18 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
     ax3.set_xlim(nu_list[-1].value, 2.1e15)
     up_lim, lo_lim = np.max(bb_sed.value), np.min(bb_sed.value)
     ax3.set_ylim(10 ** (np.log10(lo_lim) - 0.3), 10 ** (np.log10(up_lim) + 0.3))
-    title = r'$t={:.0f} \pm 2$ days pos max; $T={:.0f} \ K$'.format(int(t_near_200 - t_peak), 10 ** T_near_200)
+    title = r'$t={:.0f} \pm 2$ days pos max; log $T={:.2f} \pm {:.2f} \ K$'.format(int(t_near_200 - t_peak), T_near_200, T_err_near_200)
     ax3.set_title(title, fontsize=12)
     up_lim = np.max([ax2.get_ylim(), ax3.get_ylim()])
     lo_lim = np.min([ax2.get_ylim(), ax3.get_ylim()])
     ax2.set_ylim(lo_lim, up_lim)
     ax3.set_ylim(lo_lim, up_lim)
+    if np.max(t[first_300days] - t_peak) < 300:
+        ax1.set_xlim(np.min(t - t_peak) - 15, np.max(t[first_300days] - t_peak) + 10)
+    else:
+        ax1.set_xlim(np.min(t - t_peak) - 15, 305)
+
+
     plt.tight_layout()
     if print_name:
         ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=14,
@@ -543,7 +597,7 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
 
     theta_init = np.concatenate(([log_L_BB_init, t_peak_init, sigma_init, t0_init, p_init], [T0[0] for j in range(n_T)]))
     nll = lambda *args: -models.lnlike(*args)
-    bounds = np.concatenate(([(log_L_BB_init - 0.5, log_L_BB_init + 0.5), (t_peak_init - 3, t_peak_init + 3), (sigma_init - 5, sigma_init + 5), (1, 1000), (0, 5)],
+    bounds = np.concatenate(([(log_L_BB_init - 0.5, log_L_BB_init + 0.5), (t_peak_init - 3, t_peak_init + 3), (sigma_init - 5, sigma_init + 5), (1, 1000), (0, 3)],
     [(4, 5) for i in range(n_T)]))
     result = op.minimize(nll, theta_init, args=(model_name, observables), bounds=bounds,
                          method='Powell')  # Some rough initial guesses
@@ -636,13 +690,15 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
     model_file.write('MJD' +
                      '\t' + 'log_L_BB' + '\t' + 'log_L_BB_err' +
                      '\t' + 'log_R' + '\t' + 'log_R_err' +
-                     '\t' + 'log_T' + '\t' + 'log_T_err' + '\n')
+                     '\t' + 'log_T' + '\t' + 'log_T_err' + '\t' + 'single_band_flag' +  '\n')
     flag_300_days = (t - t_peak[0]) < 300
     for yy in range(len(t[flag_300_days])):
         model_file.write('{:.2f}'.format(t[yy]) +
                          '\t' + '{:.2f}'.format(log_BB[yy]) + '\t' + '{:.2f}'.format(log_BB_err[yy]) +
                          '\t' + '{:.2f}'.format(log_R[yy]) + '\t' + '{:.2f}'.format(log_R_err[yy]) +
-                         '\t' + '{:.2f}'.format(log_T[yy]) + '\t' + '{:.2f}'.format(log_T_err[yy]) + '\n')
+                         '\t' + '{:.2f}'.format(log_T[yy]) + '\t' + '{:.2f}'.format(log_T_err[yy]) + '\t' +
+                         str(int(single_color[yy])) + '\n')
+
 
     model_file.close()
 
