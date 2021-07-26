@@ -340,7 +340,7 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
     ax1.legend(fontsize='x-small', loc=1)
     ax1.set_yscale('log')
     # ax1.set_xlim(-60, 305)
-    ax1.set_ylabel('Bolometric Luminosity [erg s$^{-1}$]', fontsize=12)
+    ax1.set_ylabel('Blackbody Luminosity [erg s$^{-1}$]', fontsize=12)
     ax1.set_xlabel('Days since peak', fontsize=12)
     ax1.set_xticks(np.arange(-50, 301, 50))
     ax1.set_xticklabels(np.arange(-50, 301, 50), fontsize=12)
