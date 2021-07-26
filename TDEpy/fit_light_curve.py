@@ -143,6 +143,11 @@ def gen_observables(tde_dir, z, bands, mode):
             sed_x_t[:, i] = np.NaN
             sed_err_x_t[:, i] = np.NaN
 
+
+
+
+
+    '''
     if (mode == 'fit') and (np.isfinite(flux_dens_r).any()) and (np.isfinite(flux_dens_g).any()):
         if r_min_mjd > g_min_mjd:
             flag = (epochs >= g_min_mjd) & (epochs <= r_min_mjd)
@@ -156,11 +161,7 @@ def gen_observables(tde_dir, z, bands, mode):
             ratio_r_g = np.mean(sed_x_t[last_epoch, 6]/sed_x_t[last_epoch, 5])
             sed_x_t[flag, 5] = sed_x_t[flag, 6]/ratio_r_g
             sed_err_x_t[flag, 5] = sed_err_x_t[flag, 6]/ratio_r_g
-
-    for i in range(len(epochs)):
-        if np.sum(np.isfinite(sed_x_t[i, :])) == 1:
-            sed_x_t[i, :] == np.nan
-            sed_err_x_t[i, :] == np.nan
+    '''
 
     band_wls = band_wls / (1 + z)
     return epochs, band_wls, sed_x_t, sed_err_x_t
@@ -213,7 +214,9 @@ def plot_models(tde_name, tde_dir, z, bands, T_interval, print_name=True, show=T
             ax1.plot(t_model[flag_after100] - theta_median[1], model_i[flag_after100], color=color[i], ls='--')
 
     theta_median, p16, p84 = read_model2(modelling_dir)
-    model = models.Blackbody_var_T_gauss_rise_powerlaw_decay(t_model, band_wls, T_interval, theta_median)
+
+    single_color = np.zeros(np.shape(t_model),  dtype=bool)
+    model = models.Blackbody_var_T_gauss_rise_powerlaw_decay(t_model, single_color, band_wls, T_interval, theta_median)
     t_peak = theta_median[1]
     for i in range(np.shape(model)[1]):
         y = sed_x_t[:, i]
@@ -456,6 +459,9 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
 
     model_name = 'const_T_gauss_rise_exp_decay'
     observables = [t, band_wls, sed_x_t, sed_err_x_t]
+
+
+
     L_W2_peak_init = np.nanmax(sed_x_t[:, 0])
     t_peak_init = t[np.where(sed_x_t == np.nanmax(sed_x_t[:, 0]))[0]][0]
     log_L_peak_init, t_peak_init, sigma_init, tau_init, T0_init = np.log10(
@@ -542,7 +548,7 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
     result = op.minimize(nll, theta_init, args=(model_name, observables), bounds=bounds,
                          method='Powell')  # Some rough initial guesses
     log_L_BB_opt, t_peak_opt, sigma_opt, t0_opt, p_opt, *Ts_opt = result["x"]  # will be used to initialise the walkers
-
+    print(result["x"])
 
 
     # Posterior emcee sampling
@@ -562,7 +568,7 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
 
     samples_redim = np.zeros((np.shape(samples)[0], 6))
     samples_redim[:, 0:5] = samples[:, 0:5]
-    samples_redim[:, 5] = samples[:, int(60/T_interval)]
+    samples_redim[:, 5] = samples[:, int(60/T_interval) + 5]
 
     L_BB_peak, t_peak, sigma, t0, p, log_T_peak = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
                                                               zip(*np.percentile(samples_redim, [16, 50, 84], axis=0)))
@@ -622,8 +628,8 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
     theta_err_p16 = np.concatenate(([L_BB_peak[2], t_peak[2], sigma[2], t0[2], p[2]], T_t_p16))
     theta_err_p84 = np.concatenate(([L_BB_peak[1], t_peak[1], sigma[1], t0[1], p[1]], T_t_p84))
     theta_err = np.min([theta_err_p16, theta_err_p84], axis=0)
-
-    log_T, log_T_err, log_BB, log_BB_err, log_R, log_R_err = models.Blackbody_evolution(t, T_interval, theta_median, theta_err)
+    single_color = np.array([np.sum(np.isfinite(sed_x_t[i, :])) == 1 for i in range(len(t))])
+    log_T, log_T_err, log_BB, log_BB_err, log_R, log_R_err = models.Blackbody_evolution(t, single_color, T_interval, theta_median, theta_err)
 
     model_file = open(os.path.join(modelling_dir, 'blackbody_evolution.txt'), 'w')
     model_file.write('# Blackbody Evolution:\n')
