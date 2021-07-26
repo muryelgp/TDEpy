@@ -598,7 +598,7 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
     theta_init = np.concatenate(([log_L_BB_init, t_peak_init, sigma_init, t0_init, p_init], [T0[0] for j in range(n_T)]))
     nll = lambda *args: -models.lnlike(*args)
     bounds = np.concatenate(([(log_L_BB_init - 0.5, log_L_BB_init + 0.5), (t_peak_init - 3, t_peak_init + 3), (sigma_init - 5, sigma_init + 5), (1, 1000), (0, 3)],
-    [(4, 5) for i in range(n_T)]))
+    [(T0[0] + dt*300, T0[0] + dt*300) for dt in np.arange(-60, 301, T_interval)]))
     result = op.minimize(nll, theta_init, args=(model_name, observables), bounds=bounds,
                          method='Powell')  # Some rough initial guesses
     log_L_BB_opt, t_peak_opt, sigma_opt, t0_opt, p_opt, *Ts_opt = result["x"]  # will be used to initialise the walkers
