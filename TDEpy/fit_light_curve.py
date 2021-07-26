@@ -538,7 +538,7 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
 
     with Pool(int(n_cores)) as pool:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, models.lnprob, args=(model_name, observables), pool=pool)
-        sampler.run_mcmc(pos, ninter, progress=True, skip_initial_state_check=True)
+        sampler.run_mcmc(pos, ninter/2, progress=True, skip_initial_state_check=True)
 
     samples = sampler.chain[:, nburn:, :].reshape((-1, ndim))
 
