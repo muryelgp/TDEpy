@@ -168,7 +168,7 @@ def lnprior(theta, model_name, observables):
         #print(T_grid_prior, np.diff(t_grid[flag_T_grid]), np.diff(10 ** np.array(T_grid)[flag_T_grid]))
 
         if sigma_prior and t0_prior and t_peak_prior and p_prior and T_grid_prior:
-            return 0.0 #np.nansum(-0.5*(np.array(T_grid)[flag_T_grid]-T0)**2/0.1**2)
+            return np.nansum(-0.5*(np.array(T_grid)[flag_T_grid]-T0)**2/0.1**2)
         else:
             return -np.inf
 
