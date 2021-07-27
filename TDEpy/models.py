@@ -22,11 +22,10 @@ def Blackbody_evolution(t, single_color, T_interval, theta, theta_err):
 
     # Temperature evolution
     t_grid = t_peak + np.arange(-60, 301, T_interval)
-    flag_T_grid = gen_flag_T_grid(t, t_grid, T_grid, T_interval)
+    flag_T_grid = gen_flag_T_grid(t, single_color, t_grid, T_grid, T_interval)
     log_T_t = np.interp(t, t_grid[flag_T_grid], np.array(T_grid)[flag_T_grid])
     log_T_t = np.interp(t, t[~single_color], log_T_t[~single_color])
     log_T_t_err = np.interp(t, t_grid[flag_T_grid], np.array(T_grid_err)[flag_T_grid])
-    log_T_t_err = np.interp(t, t[~single_color], log_T_t_err[~single_color])
 
     # BB Luminosity Evolution
     log_L_BB_sample = np.tile(np.random.normal(log_L_BB, log_L_BB_err, 100), (len(t), 1)).transpose()
@@ -96,8 +95,9 @@ def Blackbody_var_T_gauss_rise_powerlaw_decay(t, single_color, wl, T_interval, t
     after_peak = delt_t > 0
     light_curve_shape[after_peak] = ((delt_t[after_peak] + t0)/t0)**(-1*p)
 
+
     t_grid = t_peak + np.arange(-60, 301, T_interval)
-    flag_T_grid = gen_flag_T_grid(t, t_grid, T_grid, T_interval)
+    flag_T_grid = gen_flag_T_grid(t, single_color, t_grid, T_grid, T_interval)
     T_t = np.interp(t, t_grid[flag_T_grid], np.array(T_grid)[flag_T_grid])
     T_t = np.interp(t, t[np.invert(single_color)], T_t[np.invert(single_color)])
 
@@ -112,12 +112,12 @@ def Blackbody_var_T_gauss_rise_powerlaw_decay(t, single_color, wl, T_interval, t
     return model
 
 
-def gen_flag_T_grid(t, t_grid, T_grid, T_interval):
+def gen_flag_T_grid(t, single_band, t_grid, T_grid, T_interval):
     flag_right_T_grid = np.append(
-        [np.sum((t > t_grid[i]) & (t < t_grid[i] + T_interval)) > 0 for i in range(len(T_grid) - 1)],
+        [np.sum((t[~single_band] > t_grid[i]) & (t[~single_band] < t_grid[i] + T_interval)) > 0 for i in range(len(T_grid) - 1)],
         False)
     flag_left_T_grid = np.concatenate(
-        ([False], [np.sum((t < t_grid[i]) & (t > t_grid[i] - T_interval)) > 0 for i in range(1, len(T_grid))]))
+        ([False], [np.sum((t[~single_band] < t_grid[i]) & (t[~single_band] > t_grid[i] - T_interval)) > 0 for i in range(1, len(T_grid))]))
     flag_finite = np.isfinite(T_grid)
     flag_T_grid = (flag_right_T_grid | flag_left_T_grid) & flag_finite
     return flag_T_grid
@@ -160,8 +160,9 @@ def lnprior(theta, model_name, observables):
         t0_prior = 1 <= t0 <= 300
         p_prior = 0 <= p <= 5
 
+        single_color = np.array([np.sum(np.isfinite(sed[i, :])) == 1 for i in range(len(t))])
         t_grid = t_peak + np.arange(-60, 301, T_interval)
-        flag_T_grid = gen_flag_T_grid(t, t_grid, T_grid, T_interval)
+        flag_T_grid = gen_flag_T_grid(t, single_color, t_grid, T_grid, T_interval)
         T_grid_prior = (abs(np.diff(10 ** np.array(T_grid)[flag_T_grid]) / (np.diff(t_grid[flag_T_grid]))) < 1000)[1:].all()
         T_grid_prior = T_grid_prior and ((np.array(T_grid)[flag_T_grid] < 5) & (np.array(T_grid)[flag_T_grid] > 4)).all()
         #print(T_grid_prior, np.diff(t_grid[flag_T_grid]), np.diff(10 ** np.array(T_grid)[flag_T_grid]))

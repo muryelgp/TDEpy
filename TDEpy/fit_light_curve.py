@@ -663,7 +663,8 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
     T_t_p16 = tools.round_small(T_t_p16, 0.01)
     T_t_p84 = tools.round_small(T_t_p84, 0.01)
     t_grid = t_peak[0] + np.arange(-60, 301, T_interval)
-    flag_T_grid = models.gen_flag_T_grid(t, t_grid, T_t, T_interval)
+    single_color = np.array([np.sum(np.isfinite(sed_x_t[i, :])) == 1 for i in range(len(t))])
+    flag_T_grid = models.gen_flag_T_grid(t, single_color, t_grid, T_t, T_interval)
     T_t[~flag_T_grid] = np.nan
     T_t_p16[~flag_T_grid] = np.nan
     T_t_p84[~flag_T_grid] = np.nan
@@ -682,7 +683,7 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
     theta_err_p16 = np.concatenate(([L_BB_peak[2], t_peak[2], sigma[2], t0[2], p[2]], T_t_p16))
     theta_err_p84 = np.concatenate(([L_BB_peak[1], t_peak[1], sigma[1], t0[1], p[1]], T_t_p84))
     theta_err = np.min([theta_err_p16, theta_err_p84], axis=0)
-    single_color = np.array([np.sum(np.isfinite(sed_x_t[i, :])) == 1 for i in range(len(t))])
+
     log_T, log_T_err, log_BB, log_BB_err, log_R, log_R_err = models.Blackbody_evolution(t, single_color, T_interval, theta_median, theta_err)
 
     model_file = open(os.path.join(modelling_dir, 'blackbody_evolution.txt'), 'w')
