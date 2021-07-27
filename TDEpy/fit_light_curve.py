@@ -603,7 +603,7 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
                          method='Powell')  # Some rough initial guesses
     log_L_BB_opt, t_peak_opt, sigma_opt, t0_opt, p_opt, *Ts_opt = result["x"]  # will be used to initialise the walkers
     print(result["x"])
-
+    Ts_opt[int(60/T_interval)] = 4.25
 
     # Posterior emcee sampling
     ndim, nwalkers = int(5+n_T), nwalkers
