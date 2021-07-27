@@ -537,7 +537,7 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
 
     with Pool(int(n_cores)) as pool:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, models.lnprob, args=(model_name, observables), pool=pool)
-        sampler.run_mcmc(pos, ninter/2, progress=True, skip_initial_state_check=True)
+        sampler.run_mcmc(pos, int(ninter/2), progress=True, skip_initial_state_check=True)
 
     samples = sampler.chain[:, int(nburn/2):, :].reshape((-1, ndim))
 
@@ -606,11 +606,11 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
 
     # Posterior emcee sampling
     ndim, nwalkers = int(5+n_T), nwalkers
-    pos = [np.concatenate(([np.random.normal(log_L_BB_opt, 0.5),
+    pos = [np.concatenate(([np.random.normal(log_L_BB_opt, 0.2),
                             np.random.normal(t_peak_opt, 2),
                             np.random.normal(sigma_opt, 2),
                             np.random.normal(t0_opt, 5),
-                            np.random.normal(p_opt, 0.5)],
+                            np.random.normal(p_opt, 0.2)],
                            [Ts_opt[j] + np.random.normal(0, 0.1) for j in range(n_T)])) for i in range(nwalkers)]
 
     with Pool(int(n_cores)) as pool:
