@@ -603,7 +603,7 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
                          method='Powell')  # Some rough initial guesses
     log_L_BB_opt, t_peak_opt, sigma_opt, t0_opt, p_opt, *Ts_opt = result["x"]  # will be used to initialise the walkers
     print(result["x"])
-    Ts_opt[int(60/T_interval)] = 4.25
+
 
     # Posterior emcee sampling
     ndim, nwalkers = int(5+n_T), nwalkers
@@ -612,7 +612,7 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
                             np.random.normal(sigma_opt, 2),
                             np.random.normal(t0_opt, 5),
                             np.random.normal(p_opt, 0.2)],
-                           [Ts_opt[j] + np.random.normal(0, 0.1) for j in range(n_T)])) for i in range(nwalkers)]
+                           [Ts_opt[j] + np.random.normal(0, 0.2) for j in range(n_T)])) for i in range(nwalkers)]
 
     with Pool(int(n_cores)) as pool:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, models.lnprob, args=(model_name, observables), pool=pool)
