@@ -132,10 +132,10 @@ def gen_observables(tde_dir, z, bands, mode):
             sed_err_x_t[flag, 5 + i] = np.interp(epochs[flag], mjd_list[5 + i], lum_err_list[5 + i])
 
             #Eliminating B and U bands were there is ztf
-            sed_x_t[flag, 3] = np.NaN
-            sed_err_x_t[flag, 3] = np.NaN
-            sed_x_t[flag, 4] = np.NaN
-            sed_err_x_t[flag, 4] = np.NaN
+            #sed_x_t[flag, 3] = np.NaN
+            #sed_err_x_t[flag, 3] = np.NaN
+            #sed_x_t[flag, 4] = np.NaN
+            #sed_err_x_t[flag, 4] = np.NaN
 
     for band in all_bands:
         if band not in bands:
@@ -190,7 +190,7 @@ def read_BB_evolution(model_dir):
     return t, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err, single_band
 
 
-def plot_models(tde_name, tde_dir, z, bands, T_interval, print_name=True, show=True):
+def plot_models(tde_name, tde_dir, z, bands, print_name=True, show=True):
     t, band_wls, sed_x_t, sed_err_x_t = gen_observables(tde_dir, z, bands, mode='fit')
     modelling_dir = os.path.join(tde_dir, 'modelling')
     color = ['magenta', 'darkviolet', 'navy', 'dodgerblue', 'cyan', 'green', 'red']
@@ -198,6 +198,7 @@ def plot_models(tde_name, tde_dir, z, bands, T_interval, print_name=True, show=T
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8))
     theta_median, p16, p84 = read_model1(modelling_dir)
+
 
     t_peak = theta_median[1]
     first_300days = (t - t_peak) <= 300
@@ -225,7 +226,7 @@ def plot_models(tde_name, tde_dir, z, bands, T_interval, print_name=True, show=T
             ax1.plot(t_model[flag_after100] - theta_median[1], model_i[flag_after100], color=color[i], ls='--')
 
     theta_median, p16, p84 = read_model2(modelling_dir)
-
+    T_interval = int(np.diff(np.linspace(-60, 300, (len(theta_median) - 5)))[0])
     single_color = np.zeros(np.shape(t_model),  dtype=bool)
     model = models.Blackbody_var_T_gauss_rise_powerlaw_decay(t_model, single_color, band_wls, T_interval, theta_median)
 

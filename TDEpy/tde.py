@@ -883,8 +883,19 @@ class TDE:
             n_cores = os.cpu_count() / 2
         fit_light_curve.run_fit(self.name, self.tde_dir, float(self.z), bands, T_interval, n_cores, n_walkers, n_inter, n_burn)
 
-    def plot_light_curve_models(self):
-        fit_light_curve.plot_models(self.name, self.tde_dir, float(self.z))
+    def plot_light_curve_models(self, bands='All'):
+        all_bands = ['sw_w2', 'sw_m2', 'sw_w1', 'sw_uu', 'sw_bb', 'ztf_g', 'ztf_r']
+        # loading observables
+        if bands == 'All':
+            bands = all_bands
+        else:
+            for band in bands:
+                if band in all_bands:
+                    pass
+                else:
+                    raise Exception(
+                        "your 'bands' list should contain bands between these ones: 'sw_w2', 'sw_m2', 'sw_w1', 'sw_uu', 'sw_bb', 'ztf_g', 'ztf_r'")
+        fit_light_curve.plot_models(self.name, self.tde_dir, float(self.z), bands)
         fit_light_curve.plot_BB_evolution(self.name, self.tde_dir)
 
 
