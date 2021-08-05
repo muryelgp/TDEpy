@@ -66,7 +66,7 @@ def gen_observables(tde_dir, z, bands, mode):
     for band in [mjd_w2, mjd_m2, mjd_w1, mjd_U, mjd_B]:
         if np.isfinite(band).any():
             real_band_list.append(band)
-    mjd_sw = np.mean(np.array(real_band_list, dtype=np.float), axis=0)
+    mjd_sw = np.nanmean(np.array(real_band_list, dtype=np.float), axis=0)
     sw_max_mjd = (np.nanmax(mjd_sw))
     sw_min_mjd = (np.nanmin(mjd_sw))
 
