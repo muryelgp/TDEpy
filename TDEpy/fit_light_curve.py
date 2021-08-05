@@ -62,7 +62,7 @@ def gen_observables(tde_dir, z, bands, mode):
         mjd_r, flux_dens_r, flux_dens_err_r = np.array([np.nan]), np.array([np.nan]), np.array([np.nan])
 
     # Working the epochs for later interpolation
-    mjd_sw = np.nanmean([mjd_w2, mjd_m2, mjd_w1, mjd_U, mjd_B], axis=0)
+    mjd_sw = np.nanmean([mjd_w2, mjd_m2, mjd_w1, mjd_U, mjd_B], axis=0, dtype=object)
     sw_max_mjd = (np.nanmax(mjd_sw))
     sw_min_mjd = (np.nanmin(mjd_sw))
 
