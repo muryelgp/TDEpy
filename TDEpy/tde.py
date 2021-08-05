@@ -888,7 +888,7 @@ class TDE:
         tar_handle.close()
         os.chdir(pwd)
 
-    def fit_light_curve(self, pre_peak=True, bands='All', T_interval=30, n_cores=None, n_walkers=100, n_inter=1000, n_burn=500):
+    def fit_light_curve(self, pre_peak=True, bands='All', T_interval=30, n_cores=None, n_walkers=100, n_inter=2000, n_burn=1500):
         if n_cores is None:
             n_cores = os.cpu_count() / 2
         fit_light_curve.run_fit(self.name, self.tde_dir, float(self.z), pre_peak, bands, T_interval, n_cores, n_walkers, n_inter, n_burn)

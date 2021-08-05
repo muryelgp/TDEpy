@@ -499,7 +499,7 @@ def plot_corner(tde_dir, fig_name, theta_median, sample, labels, show=True):
         plt.show()
 
 
-def run_fit(tde_name, tde_dir, z, pre_peak=True, bands='All', T_interval=30, n_cores=None, nwalkers=100, ninter=1000, nburn=500):
+def run_fit(tde_name, tde_dir, z, pre_peak=True, bands='All', T_interval=30, n_cores=None, nwalkers=100, ninter=2000, nburn=1500):
     if n_cores is None:
         n_cores = os.cpu_count() / 2
 
