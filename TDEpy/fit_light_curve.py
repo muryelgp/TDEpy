@@ -351,7 +351,7 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
     for i in range(100):
         theta = sampler.chain[randint(nwalkers), nburn + randint(ninter - nburn), :]
         if ~np.isfinite(theta_median[2]):
-            theta = np.concatenate((np.array([theta[0], theta[1], np.nan]), np.array(theta[2:])))
+            theta = np.concatenate((np.array([theta[0], t[0], np.nan]), np.array(theta[1:])))
         L_BB = models.L_bol(t_model, theta)
         ax1.plot(t_model - t_peak, L_BB, c='blue', alpha=0.05)
     ax1.legend(fontsize='x-small', loc=1)
@@ -772,21 +772,19 @@ def run_fit(tde_name, tde_dir, z, pre_peak=True, bands='All', T_interval=30, n_c
         observables = [t, band_wls, T_interval, theta_median, sed_x_t, sed_err_x_t]
 
         L_BB_init = (10 ** L_peak[0]) * models.bolometric_correction(T0[0], band_wls[0])
-        log_L_BB_init, t_peak_init, t0_init, p_init = np.log10(L_BB_init), theta_median[1] - 30, theta_median[2], 5. / 3.
-        theta_init = np.concatenate(([log_L_BB_init, t_peak_init, t0_init, p_init], [T0[0] for j in range(n_T)]))
+        log_L_BB_init, t0_init, p_init = np.log10(L_BB_init), theta_median[2], 5. / 3.
+        theta_init = np.concatenate(([log_L_BB_init, t0_init, p_init], [T0[0] for j in range(n_T)]))
 
         nll = lambda *args: -models.lnlike(*args)
-        bounds = np.concatenate(([(log_L_BB_init - 0.5, log_L_BB_init + 0.5), (theta_median[1] - 60, theta_median[1] - 10),
-                                   (1, 1000), (0, 3)], [(T0[0] - 0.2, T0[0] + 0.2) for i in range(n_T)]))
+        bounds = np.concatenate(([(log_L_BB_init - 0.5, log_L_BB_init + 0.5), (1, 1000), (0, 3)], [(T0[0] - 0.2, T0[0] + 0.2) for i in range(n_T)]))
 
         result = op.minimize(nll, theta_init, args=(model_name, observables), bounds=bounds,
                              method='Powell')  # Some rough initial guesses
-        log_L_BB_opt, t_peak_opt, t0_opt, p_opt, *Ts_opt = result["x"]  # will be used to initialise the walkers
+        log_L_BB_opt, t0_opt, p_opt, *Ts_opt = result["x"]  # will be used to initialise the walkers
 
         # Posterior emcee sampling
-        ndim, nwalkers = int(4 + n_T), nwalkers
+        ndim, nwalkers = int(3 + n_T), nwalkers
         pos = [np.concatenate(([np.random.normal(log_L_BB_opt, 0.2),
-                                np.random.normal(t_peak_opt, 2),
                                 np.random.normal(t0_opt, 5),
                                 np.random.normal(p_opt, 0.2)],
                                [Ts_opt[j] + np.random.normal(0, 0.2) for j in range(n_T)])) for i in range(nwalkers)]
@@ -797,17 +795,17 @@ def run_fit(tde_name, tde_dir, z, pre_peak=True, bands='All', T_interval=30, n_c
 
         samples = sampler.chain[:, nburn:, :].reshape((-1, ndim))
 
-        samples_redim = np.zeros((np.shape(samples)[0], 5))
-        samples_redim[:, 0:4] = samples[:, 0:4]
-        samples_redim[:, 4] = samples[:, int(60 / T_interval) + 4]
+        samples_redim = np.zeros((np.shape(samples)[0], 4))
+        samples_redim[:, 0:3] = samples[:, 0:3]
+        samples_redim[:, 3] = samples[:, int(60 / T_interval) + 3]
 
-        L_BB_peak, t_peak, t0, p, log_T_peak = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
+        L_BB_peak, t0, p, log_T_peak = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
                                                           zip(*np.percentile(samples_redim, [16, 50, 84], axis=0)))
 
-        _, _, _, _, *T_t = np.nanpercentile(samples, 50, axis=0)
-        _, _, _, _, *T_t_p16 = map(lambda v: v[1] - v[0],
+        _, _, _, *T_t = np.nanpercentile(samples, 50, axis=0)
+        _, _, _, *T_t_p16 = map(lambda v: v[1] - v[0],
                                       zip(*np.nanpercentile(samples, [16, 50], axis=0)))
-        _, _, _, _, *T_t_p84 = map(lambda v: v[1] - v[0],
+        _, _, _, *T_t_p84 = map(lambda v: v[1] - v[0],
                                       zip(*np.nanpercentile(samples, [50, 84], axis=0)))
 
         model_file = open(os.path.join(modelling_dir, 'light_curve_model.txt'), 'a')
@@ -869,7 +867,7 @@ def run_fit(tde_name, tde_dir, z, pre_peak=True, bands='All', T_interval=30, n_c
                          '\t' + 'log_L_BB' + '\t' + 'log_L_BB_err' +
                          '\t' + 'log_R' + '\t' + 'log_R_err' +
                          '\t' + 'log_T' + '\t' + 'log_T_err' + '\t' + 'single_band_flag' + '\n')
-        flag_300_days = (t - t_peak[0]) < 300
+        flag_300_days = (t - t[0]) < 300
         for yy in range(len(t[flag_300_days])):
             model_file.write('{:.2f}'.format(t[yy]) +
                              '\t' + '{:.2f}'.format(log_BB[yy]) + '\t' + '{:.2f}'.format(log_BB_err[yy]) +
@@ -878,8 +876,8 @@ def run_fit(tde_name, tde_dir, z, pre_peak=True, bands='All', T_interval=30, n_c
                              str(int(single_color[yy])) + '\n')
         model_file.close()
 
-        theta_median_redim = [L_BB_peak[0], t_peak[0], t0[0], p[0], log_T_peak[0]]
-        labels = [r"log $L_{BB\,peak}$", r'$t_{peak}$', r'$t_0$', r'$p$', r"log $T_{peak}$"]
+        theta_median_redim = [L_BB_peak[0], t0[0], p[0], log_T_peak[0]]
+        labels = [r"log $L_{BB\,peak}$", r'$t_0$', r'$p$', r"log $T_{peak}$"]
 
         fig_name = 'corner_plot_model2.pdf'
         plot_corner(tde_dir, fig_name, theta_median_redim, samples_redim, labels, show=True)

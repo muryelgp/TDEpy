@@ -121,10 +121,10 @@ def Blackbody_var_T_gauss_rise_powerlaw_decay(t, single_color, wl, T_interval, t
 
 
 def Blackbody_var_T_powerlaw_decay(t, single_color, wl, T_interval, theta):
-    log_L_BB_peak, t_peak, t0, p, *T_grid = theta
+    log_L_BB_peak, t0, p, *T_grid = theta
 
     t_array = np.tile(t, (len(wl), 1)).transpose()
-    delt_t = t_array - t_peak
+    delt_t = t_array - t[0]
     light_curve_shape = ((delt_t + t0)/t0)**(-1*p)
 
     t_grid = t[0] + np.arange(-60, 301, T_interval)
@@ -211,7 +211,7 @@ def lnprior(theta, model_name, observables):
         single_color = np.array([np.sum(np.isfinite(sed[i, :])) == 1 for i in range(len(t))])
         t_grid = t_peak + np.arange(-60, 301, T_interval)
         flag_T_grid = gen_flag_T_grid(t, single_color, t_grid, T_grid, T_interval)
-        T_grid_prior = (abs(np.diff(10 ** np.array(T_grid)[flag_T_grid]) / (np.diff(t_grid[flag_T_grid]))) < 1000)[1:].all()
+        T_grid_prior = (abs(np.diff(10 ** np.array(T_grid)[flag_T_grid]) / (np.diff(t_grid[flag_T_grid]))) < 300)[1:].all()
         T_grid_prior = T_grid_prior and ((np.array(T_grid)[flag_T_grid] < 5) & (np.array(T_grid)[flag_T_grid] > 4)).all()
         #print(T_grid_prior, np.diff(t_grid[flag_T_grid]), np.diff(10 ** np.array(T_grid)[flag_T_grid]))
 
@@ -222,24 +222,23 @@ def lnprior(theta, model_name, observables):
 
     if model_name == 'Blackbody_var_T_powerlaw_decay':
 
-        log_L_peak, t_peak, t0, p, *T_grid = theta  # , p
+        log_L_peak, t0, p, *T_grid = theta  # , p
         t, wl, T_interval, theta_median, sed, sed_err = observables
         _, _, _, T0 = theta_median
 
         # setting flat priors
-        t_peak_prior = t[0] - 60 <= t_peak <= t[0]
         t0_prior = 1 <= t0 <= 300
         p_prior = 0 <= p <= 5
 
         single_color = np.array([np.sum(np.isfinite(sed[i, :])) == 1 for i in range(len(t))])
-        t_grid = t_peak + np.arange(-60, 301, T_interval)
+        t_grid = t[0] + np.arange(-60, 301, T_interval)
         flag_T_grid = gen_flag_T_grid(t, single_color, t_grid, T_grid, T_interval)
-        T_grid_prior = (abs(np.diff(10 ** np.array(T_grid)[flag_T_grid]) / (np.diff(t_grid[flag_T_grid]))) < 1000)[
+        T_grid_prior = (abs(np.diff(10 ** np.array(T_grid)[flag_T_grid]) / (np.diff(t_grid[flag_T_grid]))) < 300)[
                        1:].all()
         T_grid_prior = T_grid_prior and (
                     (np.array(T_grid)[flag_T_grid] < 5) & (np.array(T_grid)[flag_T_grid] > 4)).all()
         # print(T_grid_prior, np.diff(t_grid[flag_T_grid]), np.diff(10 ** np.array(T_grid)[flag_T_grid]))
-        if t0_prior and t_peak_prior and p_prior and T_grid_prior:
+        if t0_prior and p_prior and T_grid_prior:
             return 0.0
         else:
             return -np.inf
