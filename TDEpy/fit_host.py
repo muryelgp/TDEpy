@@ -173,7 +173,7 @@ def build_sps(zcontinuous=1):
     return sps
 
 
-def plot_resulting_fit(tde_name, path):
+def plot_resulting_fit(tde_name, path, title=True):
     tde_dir = os.path.join(path, tde_name)
     host_dir = os.path.join(tde_dir, 'host')
 
@@ -244,7 +244,8 @@ def plot_resulting_fit(tde_name, path):
     ax.set_ylim(ymax, ymin)
     ax.set_ylabel('AB mag', fontsize=16)
     ax.set_xlabel(r'Wavelength $[\mu m]$', fontsize=16)
-    ax.set_title('Host Galaxy SED Fit (' + tde_name + ')')
+    if title:
+        ax.set_title('Host Galaxy SED Fit (' + tde_name + ')')
     plt.legend(loc=4)
     plt.tight_layout()
 
@@ -326,6 +327,43 @@ def get_host_properties(result, host_dir, ebv):
 
     return list_mass, list_color
 
+def color_mass(mass_list, color_list):
+    from scipy.ndimage import gaussian_filter
+    import matplotlib
+
+    _, sdss_mass, _, _, sdss_color = np.loadtxt(pkg_resources.resource_filename("TDEpy", 'data/sdss_cor_M.txt'), unpack=True, skiprows=1)
+    fig, ax = plt.subplots(figsize=(8, 6))
+    h, xx, yy = np.histogram2d(sdss_mass, sdss_color, range=[[7.6, 11.3], [0.70, 3.05]], bins=15, density=True)
+    xx, yy = np.meshgrid(xx, yy)
+
+    xx = xx[:-1, :-1] #+ np.mean(np.diff(xx))
+    yy = yy[:-1, :-1] #+ np.mean(np.diff(yy))
+    #h = gaussian_filter(h, sigma=0.1)
+    cvals = np.array([0, 1 - 0.95, 1 - 0.86, 1 - 0.5, 1 - 0.38, 1])
+    colors = ['whitesmoke', 'silver', "darkgrey", "gray", "grey", "dimgrey"]
+    norm = plt.Normalize(min(cvals), max(cvals))
+    tuples = list(zip(map(norm, cvals), colors))
+    cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)
+
+
+
+    cm = ax.contourf(xx, yy, h.T, cmap=cmap, levels=[0, 1 - 0.95, 1 - 0.86, 1 - 0.65, 1 - 0.38, 1], norm=norm)
+    ax.contour(xx, yy, h.T, colors='dimgrey', levels=[1 - 0.95, 1 - 0.86, 1 - 0.65, 1 - 0.38, 1], norm=norm)
+
+    mass_gv = np.arange(7.6, 11.3, 0.1)
+    gv_up = -0.4 + 0.25 * mass_gv
+    gv_lo = gv_up - 0.2
+
+    ax.plot(mass_gv, gv_up, ls='--', c='green')
+    ax.plot(mass_gv, gv_lo, ls='--', c='green')
+    ax.errorbar(mass_list[0], color_list[0], yerr=color_list[1], xerr=np.array([mass_list[1], mass_list[2]]).reshape(2, 1), c='red', marker='o')
+    #a.plot(ma)
+    ax.set_xlim(7.6, 11.05)
+    ax.set_ylim(0.70, 2.8)
+    ax.set_ylabel(r'$^{0.0}u-r$ color')
+    ax.set_xlabel(r'log($M_{\star}/M_{\odot}$)', )
+
+    return fig
 
 def corner_plot(result):
     imax = np.argmax(result['lnprobability'])
@@ -376,7 +414,7 @@ def corner_plot(result):
     # cornerfig = reader.subcorner(result, thin=5,
     #                             fig=plt.subplots(5, 5, figsize=(27, 27))[0], range=bounds)
 
-    labels = [r'log $M_{*}/M_{\odot}$', r'log $Z/Z_{\odot}$', r'$\rm{A_{V}}$', r'log $t$', r'log $\tau_{\rm{sfh}}$']
+    labels = [r'log $M_{*}/M_{\odot}$', r'log $Z/Z_{\odot}$', r'$\rm{A_{V}}$', r'$t_{\rm{age}}$', r'log $\tau_{\rm{sfh}}$']
     cornerfig = corner.corner(data,
                               labels=labels,
                               quantiles=[0.16, 0.5, 0.84],

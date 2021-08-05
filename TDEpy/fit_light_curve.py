@@ -247,11 +247,11 @@ def plot_models(tde_name, tde_dir, z, bands, print_name=True, show=True):
 
     ax2.set_yscale('log')
     if np.max(t[first_300days] - t_peak) < 300:
-        ax2.set_xlim(np.min(t - t_peak) - 15, np.max(t[first_300days] - t_peak) + 10)
-        ax1.set_xlim(np.min(t - t_peak) - 15, np.max(t[first_300days] - t_peak) + 10)
+        ax2.set_xlim(np.min(t - t_peak) - 10, np.max(t[first_300days] - t_peak) + 10)
+        ax1.set_xlim(np.min(t - t_peak) - 10, np.max(t[first_300days] - t_peak) + 10)
     else:
-        ax1.set_xlim(np.min(t - t_peak) - 15, 305)
-        ax2.set_xlim(np.min(t - t_peak) - 15, 305)
+        ax1.set_xlim(np.min(t - t_peak) - 10, 305)
+        ax2.set_xlim(np.min(t - t_peak) - 10, 305)
     ax2.set_xlabel('Days since peak')
     ax1.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$')
     ax2.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$')
@@ -259,7 +259,7 @@ def plot_models(tde_name, tde_dir, z, bands, print_name=True, show=True):
     if print_name:
         ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=16,
                  transform=ax1.transAxes)
-    plt.savefig(os.path.join(tde_dir, 'modelling', 'plots', 'model_light_curves.png'), bbox_inches='tight')
+    plt.savefig(os.path.join(tde_dir, 'modelling', 'plots', 'model_light_curves.pdf'), bbox_inches='tight')
     if show:
         plt.show()
 
@@ -300,7 +300,7 @@ def plot_BB_evolution(tde_name, tde_dir, print_name=True, show=True):
     if print_name:
         ax1.text(0.1, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=14,
                  transform=ax1.transAxes)
-    plt.savefig(os.path.join(tde_dir, 'modelling', 'plots', 'Blackbody_evolution.png'), bbox_inches='tight')
+    plt.savefig(os.path.join(tde_dir, 'modelling', 'plots', 'Blackbody_evolution.pdf'), bbox_inches='tight')
     if show:
         plt.show()
 
@@ -318,9 +318,16 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
     t_peak = theta_median[1]
     first_300days = (t - t_peak) <= 300
     if np.max(t[first_300days] - t_peak) < 300:
-        t_model = theta_median[1] + np.arange(np.min(t - t_peak) - 10, np.max(t[first_300days] - t_peak) + 5, 1)
+        if ~np.isfinite(theta_median[2]):
+            t_model = theta_median[1] + np.arange(0, np.max(t[first_300days] - t_peak) + 5, 1)
+        else:
+            t_model = theta_median[1] + np.arange(np.min(t - t_peak) - 10, np.max(t[first_300days] - t_peak) + 5, 1)
     else:
-        t_model = theta_median[1] + np.arange(np.min(t - t_peak) - 10, 300, 1)
+        if ~np.isfinite(theta_median[2]):
+            t_model = theta_median[1] + np.arange(0, 300, 1)
+        else:
+            t_model = theta_median[1] + np.arange(np.min(t - t_peak) - 10, 300, 1)
+
     for i in range(np.shape(sed_x_t)[1]):
         y = sed_x_t[first_300days, i][~single_band] * models.bolometric_correction(log_T[~single_band], band_wls[i])
         y_err = sed_err_x_t[first_300days, i][~single_band] / sed_x_t[first_300days, i][~single_band] * y
@@ -329,13 +336,17 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
         ax1.errorbar(x[flag], y[flag], yerr=y_err[flag], marker=marker[i], ecolor='black', linestyle='', mfc='None',
                      mec='black', linewidth=1,
                      markeredgewidth=0.5, markersize=7, elinewidth=0.7, capsize=0)
-
-    string = r'$\sigma={:.1f}  \ p={:.1f}  \ t_0={:.1f}$'.format(theta_median[2], theta_median[4], theta_median[3])
+    if ~np.isfinite(theta_median[2]):
+        string = r'$p={:.1f}  \ t_0={:.1f}$'.format(theta_median[4], theta_median[3])
+    else:
+        string = r'$\sigma={:.1f}  \ p={:.1f}  \ t_0={:.1f}$'.format(theta_median[2], theta_median[4], theta_median[3])
     L_BB = models.L_bol(t_model, theta_median)
     ax1.plot(t_model - t_peak, L_BB, c='blue', alpha=1, label=string)
     randint = np.random.randint
     for i in range(100):
         theta = sampler.chain[randint(nwalkers), nburn + randint(ninter - nburn), :]
+        if ~np.isfinite(theta_median[2]):
+            theta = np.concatenate((np.array([theta[0], theta[1], np.nan]), np.array(theta[2:])))
         L_BB = models.L_bol(t_model, theta)
         ax1.plot(t_model - t_peak, L_BB, c='blue', alpha=0.05)
     ax1.legend(fontsize='x-small', loc=1)
@@ -449,16 +460,16 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
     ax2.set_ylim(lo_lim, up_lim)
     ax3.set_ylim(lo_lim, up_lim)
     if np.max(t[first_300days] - t_peak) < 300:
-        ax1.set_xlim(np.min(t - t_peak) - 15, np.max(t[first_300days] - t_peak) + 10)
+        ax1.set_xlim(np.min(t - t_peak) - 10, np.max(t[first_300days] - t_peak) + 10)
     else:
-        ax1.set_xlim(np.min(t - t_peak) - 15, 305)
+        ax1.set_xlim(np.min(t - t_peak) - 10, 305)
 
 
     plt.tight_layout()
     if print_name:
         ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=14,
                  transform=ax1.transAxes)
-    plt.savefig(os.path.join(tde_dir, 'modelling', 'plots', 'SED_evolution.png'), bbox_inches='tight')
+    plt.savefig(os.path.join(tde_dir, 'modelling', 'plots', 'SED_evolution.pdf'), bbox_inches='tight')
     if show:
         plt.show()
 
@@ -483,7 +494,7 @@ def plot_corner(tde_dir, fig_name, theta_median, sample, labels, show=True):
         plt.show()
 
 
-def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwalkers=100, ninter=1000, nburn=500):
+def run_fit(tde_name, tde_dir, z, pre_peak=True, bands='All', T_interval=30, n_cores=None, nwalkers=100, ninter=1000, nburn=500):
     if n_cores is None:
         n_cores = os.cpu_count() / 2
 
@@ -510,41 +521,67 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
     t, band_wls, sed_x_t, sed_err_x_t = gen_observables(tde_dir, z, bands, mode='fit')
 
     # Fitting Model 1 -> Constant temperature Blackbody with Gaussian rise and exponential decay
+    if pre_peak:
+        model_name = 'const_T_gauss_rise_exp_decay'
+        observables = [t, band_wls, sed_x_t, sed_err_x_t]
 
-    model_name = 'const_T_gauss_rise_exp_decay'
-    observables = [t, band_wls, sed_x_t, sed_err_x_t]
+        L_W2_peak_init = np.nanmax(sed_x_t[:, 0])
+        t_peak_init = t[np.where(sed_x_t == np.nanmax(sed_x_t[:, 0]))[0]][0]
+        log_L_peak_init, t_peak_init, sigma_init, tau_init, T0_init = np.log10(
+            L_W2_peak_init), t_peak_init, 20, 30, np.log10(25000)
 
+        theta_init = [log_L_peak_init, t_peak_init, sigma_init, tau_init, T0_init]
+        nll = lambda *args: -models.lnlike(*args)
+        bounds = [(log_L_peak_init - 2, log_L_peak_init + 2), (t_peak_init - 100, t_peak_init + 100), (1, 100), (1, 200), (4, 5)]
+        result = op.minimize(nll, theta_init, args=(model_name, observables), bounds=bounds, method='Powell')
+        log_L_peak_opt, t_peak_opt, sigma_opt, tau_opt, T0_opt = result["x"]  # will be used to initialise the walkers
 
+        ndim, nwalkers = 5, nwalkers
+        pos = [[np.random.normal(log_L_peak_opt, 1),
+                np.random.normal(t_peak_opt, 30),
+                np.random.normal(sigma_opt, 10),
+                np.random.normal(tau_opt, 30),
+                np.random.normal(T0_opt, 0.2)]
+               for i in range(nwalkers)]
 
-    L_W2_peak_init = np.nanmax(sed_x_t[:, 0])
-    t_peak_init = t[np.where(sed_x_t == np.nanmax(sed_x_t[:, 0]))[0]][0]
-    log_L_peak_init, t_peak_init, sigma_init, tau_init, T0_init = np.log10(
-        L_W2_peak_init), t_peak_init, 20, 30, np.log10(25000)
+        with Pool(int(n_cores)) as pool:
+            sampler = emcee.EnsembleSampler(nwalkers, ndim, models.lnprob, args=(model_name, observables), pool=pool)
+            sampler.run_mcmc(pos, int(ninter/2), progress=True, skip_initial_state_check=True)
 
-    theta_init = [log_L_peak_init, t_peak_init, sigma_init, tau_init, T0_init]
-    nll = lambda *args: -models.lnlike(*args)
-    bounds = [
-    (log_L_peak_init - 2, log_L_peak_init + 2), (t_peak_init - 100, t_peak_init + 100), (1, 100), (1, 200), (4, 5)]
-    result = op.minimize(nll, theta_init, args=(model_name, observables), bounds=bounds, method='Powell')
-    log_L_peak_opt, t_peak_opt, sigma_opt, tau_opt, T0_opt = result["x"]  # will be used to initialise the walkers
-    print(result["x"])
-    ndim, nwalkers = 5, nwalkers
-    pos = [[np.random.normal(log_L_peak_opt, 1),
-            np.random.normal(t_peak_opt, 30),
-            np.random.normal(sigma_opt, 10),
-            np.random.normal(tau_opt, 30),
-            np.random.normal(T0_opt, 0.2)]
-           for i in range(nwalkers)]
+        samples = sampler.chain[:, int(nburn/2):, :].reshape((-1, ndim))
+        L_peak, t_peak, sigma, tau, T0 = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
+                                             zip(*np.percentile(samples, [16, 50, 84], axis=0)))
+        theta_median = [L_peak[0], t_peak[0], sigma[0], tau[0], T0[0]]
 
-    with Pool(int(n_cores)) as pool:
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, models.lnprob, args=(model_name, observables), pool=pool)
-        sampler.run_mcmc(pos, int(ninter/2), progress=True, skip_initial_state_check=True)
+    if not pre_peak:
+        model_name = 'const_T_exp_decay'
+        observables = [t, band_wls, sed_x_t, sed_err_x_t]
 
-    samples = sampler.chain[:, int(nburn/2):, :].reshape((-1, ndim))
+        L_W2_peak_init = np.nanmax(sed_x_t[:, 0])
+        log_L_peak_init, tau_init, T0_init = np.log10(L_W2_peak_init), 30, np.log10(25000)
 
-    L_peak, t_peak, sigma, tau, T0 = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
-                                         zip(*np.percentile(samples, [16, 50, 84], axis=0)))
-    theta_median = [L_peak[0], t_peak[0], sigma[0], tau[0], T0[0]]
+        theta_init = [log_L_peak_init, tau_init, T0_init]
+        nll = lambda *args: -models.lnlike(*args)
+        bounds = [(log_L_peak_init - 2, log_L_peak_init + 2), (1, 200), (4, 5)]
+        result = op.minimize(nll, theta_init, args=(model_name, observables), bounds=bounds, method='Powell')
+        log_L_peak_opt, tau_opt, T0_opt = result["x"]  # will be used to initialise the walkers
+        print(result["x"])
+        ndim, nwalkers = 3, nwalkers
+        pos = [[np.random.normal(log_L_peak_opt, 1),
+                np.random.normal(tau_opt, 30),
+                np.random.normal(T0_opt, 0.2)]
+               for i in range(nwalkers)]
+
+        with Pool(int(n_cores)) as pool:
+            sampler = emcee.EnsembleSampler(nwalkers, ndim, models.lnprob, args=(model_name, observables), pool=pool)
+            sampler.run_mcmc(pos, int(ninter / 2), progress=True)
+
+        samples = sampler.chain[:, int(nburn / 2):, :].reshape((-1, ndim))
+        L_peak, tau, T0 = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
+                                             zip(*np.percentile(samples, [16, 50, 84], axis=0)))
+        sigma, t_peak = [np.NaN, np.NaN, np.NaN], [t[0], np.NaN, np.NaN]
+        theta_median = [L_peak[0], tau[0], T0[0]]
+
 
     # Saving Model 1 results
     try:
@@ -559,13 +596,21 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
     model_file.write('log_L_W2' + '\t' + '{:.2f}'.format(L_peak[0]) + '\t' + '{:.2f}'.format(L_peak[2]) + '\t' +
                      '{:.2f}'.format(L_peak[1]) + '\n')
 
-    t_peak = tools.round_small(t_peak, 0.1)
-    model_file.write('t_peak   ' + '\t' + '{:.1f}'.format(t_peak[0]) + '\t' + '{:.1f}'.format(t_peak[2]) + '\t' +
-                     '{:.1f}'.format(t_peak[1]) + '\n')
+    if pre_peak:
+        t_peak = tools.round_small(t_peak, 0.1)
+        model_file.write('t_peak   ' + '\t' + '{:.1f}'.format(t_peak[0]) + '\t' + '{:.1f}'.format(t_peak[2]) + '\t' +
+                         '{:.1f}'.format(t_peak[1]) + '\n')
+    if not pre_peak:
+        model_file.write('t_peak   ' + '\t' + '{:.1f}'.format(t[0]) + '\t' + '{:.1f}'.format(np.NaN) + '\t' +
+                         '{:.1f}'.format(np.NaN) + '\n')
 
-    sigma = tools.round_small(sigma, 0.1)
-    model_file.write('sigma    ' + '\t' + '{:.1f}'.format(sigma[0]) + '\t' + '{:.1f}'.format(sigma[2]) + '\t' +
-                     '{:.1f}'.format(sigma[1]) + '\n')
+    if pre_peak:
+        sigma = tools.round_small(sigma, 0.1)
+        model_file.write('sigma    ' + '\t' + '{:.1f}'.format(sigma[0]) + '\t' + '{:.1f}'.format(sigma[2]) + '\t' +
+                        '{:.1f}'.format(sigma[1]) + '\n')
+    if not pre_peak:
+        model_file.write('sigma    ' + '\t' + '{:.1f}'.format(np.NaN) + '\t' + '{:.1f}'.format(np.NaN) + '\t' +
+                         '{:.1f}'.format(np.NaN) + '\n')
 
     tau = tools.round_small(tau, 0.1)
     model_file.write('tau     ' + '\t' + '{:.1f}'.format(tau[0]) + '\t' + '{:.1f}'.format(tau[2]) + '\t' +
@@ -575,139 +620,264 @@ def run_fit(tde_name, tde_dir, z, bands='All', T_interval=30, n_cores=None, nwal
     model_file.write('log_T0   ' + '\t' + '{:.2f}'.format(T0[0]) + '\t' + '{:.2f}'.format(T0[2]) + '\t' +
                      '{:.2f}'.format(T0[1]) + '\n')
     model_file.close()
-    labels = [r"$L_{W2\,peak}$", r'$t_{peak}$', r'$\sigma$', r'$\tau$', r'T$_0$']
+
 
     plot_dir = os.path.join(modelling_dir, 'plots')
     try:
         os.mkdir(plot_dir)
     except:
         pass
-    fig_name = 'corner_plot_model1'
-    plot_corner(tde_dir, fig_name, theta_median, samples, labels, show=True)
+    fig_name = 'corner_plot_model1.pdf'
+    if pre_peak:
+        labels = [r"$L_{W2\,peak}$", r'$t_{peak}$', r'$\sigma$', r'$\tau$', r'T$_0$']
+        plot_corner(tde_dir, fig_name, theta_median, samples, labels, show=True)
+    if not pre_peak:
+        labels = [r"$L_{W2\,peak}$", r'$\tau$', r'T$_0$']
+        plot_corner(tde_dir, fig_name, theta_median, samples, labels, show=True)
+        theta_median = [L_peak[0], t[0], np.NaN, tau[0], T0[0]]
 
     # Fitting Model 2 -> Blackbody variable temperature with Gaussian rise and power-law decay
-    model_name = 'Blackbody_var_T_gauss_rise_powerlaw_decay'
 
-    n_T = len(np.arange(-60, 301, T_interval))
+    if pre_peak:
+        model_name = 'Blackbody_var_T_gauss_rise_powerlaw_decay'
 
-    observables = [t, band_wls, T_interval, theta_median, sed_x_t, sed_err_x_t]
+        n_T = len(np.arange(-60, 301, T_interval))
+        observables = [t, band_wls, T_interval, theta_median, sed_x_t, sed_err_x_t]
 
-    L_BB_init = (10 ** L_peak[0]) * models.bolometric_correction(T0[0], band_wls[0])
-    log_L_BB_init, t_peak_init, sigma_init, t0_init, p_init = np.log10(L_BB_init), t_peak[0], sigma[0], 50, 5. / 3.
+        L_BB_init = (10 ** L_peak[0]) * models.bolometric_correction(T0[0], band_wls[0])
+        log_L_BB_init, t_peak_init, sigma_init, t0_init, p_init = np.log10(L_BB_init), theta_median[1], theta_median[2], 50, 5. / 3.
+        theta_init = np.concatenate(([log_L_BB_init, t_peak_init, sigma_init, t0_init, p_init], [T0[0] for j in range(n_T)]))
 
-    theta_init = np.concatenate(([log_L_BB_init, t_peak_init, sigma_init, t0_init, p_init], [T0[0] for j in range(n_T)]))
-    nll = lambda *args: -models.lnlike(*args)
-    bounds = np.concatenate(([(log_L_BB_init - 0.5, log_L_BB_init + 0.5), (t_peak_init - 3, t_peak_init + 3), (sigma_init - 5, sigma_init + 5), (1, 1000), (0, 3)],
-    [(4, 5) for i in range(n_T)]))
-    result = op.minimize(nll, theta_init, args=(model_name, observables), bounds=bounds,
-                         method='Powell')  # Some rough initial guesses
-    log_L_BB_opt, t_peak_opt, sigma_opt, t0_opt, p_opt, *Ts_opt = result["x"]  # will be used to initialise the walkers
-    print(result["x"])
+        nll = lambda *args: -models.lnlike(*args)
+        bounds = np.concatenate(([(log_L_BB_init - 0.5, log_L_BB_init + 0.5), (theta_init[1] - 15, theta_init[1] + 15), (sigma_init - 5, sigma_init + 5), (1, 1000), (0, 3)],
+        [(T0[0] - 0.2, T0[0] + 0.2) for i in range(n_T)]))
+        result = op.minimize(nll, theta_init, args=(model_name, observables), bounds=bounds, method='Powell')  # Some rough initial guesses
+        log_L_BB_opt, t_peak_opt, sigma_opt, t0_opt, p_opt, *Ts_opt = result["x"]  # will be used to initialise the walkers
+
+        # Posterior emcee sampling
+        ndim, nwalkers = int(5+n_T), nwalkers
+        pos = [np.concatenate(([np.random.normal(log_L_BB_opt, 0.2),
+                                np.random.normal(t_peak_opt, 2),
+                                np.random.normal(sigma_opt, 2),
+                                np.random.normal(t0_opt, 5),
+                                np.random.normal(p_opt, 0.2)],
+                               [Ts_opt[j] + np.random.normal(0, 0.2) for j in range(n_T)])) for i in range(nwalkers)]
+
+        with Pool(int(n_cores)) as pool:
+            sampler = emcee.EnsembleSampler(nwalkers, ndim, models.lnprob, args=(model_name, observables), pool=pool)
+            sampler.run_mcmc(pos, ninter, progress=True, skip_initial_state_check=True)
+
+        samples = sampler.chain[:, nburn:, :].reshape((-1, ndim))
+
+        samples_redim = np.zeros((np.shape(samples)[0], 6))
+        samples_redim[:, 0:5] = samples[:, 0:5]
+        samples_redim[:, 5] = samples[:, int(60/T_interval) + 5]
 
 
-    # Posterior emcee sampling
-    ndim, nwalkers = int(5+n_T), nwalkers
-    pos = [np.concatenate(([np.random.normal(log_L_BB_opt, 0.2),
-                            np.random.normal(t_peak_opt, 2),
-                            np.random.normal(sigma_opt, 2),
-                            np.random.normal(t0_opt, 5),
-                            np.random.normal(p_opt, 0.2)],
-                           [Ts_opt[j] + np.random.normal(0, 0.2) for j in range(n_T)])) for i in range(nwalkers)]
+        L_BB_peak, t_peak, sigma, t0, p, log_T_peak = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
+                                                                  zip(*np.percentile(samples_redim, [16, 50, 84], axis=0)))
 
-    with Pool(int(n_cores)) as pool:
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, models.lnprob, args=(model_name, observables), pool=pool)
-        sampler.run_mcmc(pos, ninter, progress=True, skip_initial_state_check=True)
+        _, _, _, _, _, *T_t = np.nanpercentile(samples, 50, axis=0)
+        _, _, _, _, _, *T_t_p16 = map(lambda v: v[1] - v[0],
+                                      zip(*np.nanpercentile(samples, [16, 50], axis=0)))
+        _, _, _, _, _, *T_t_p84 = map(lambda v: v[1] - v[0],
+                                      zip(*np.nanpercentile(samples, [50, 84], axis=0)))
 
-    samples = sampler.chain[:, nburn:, :].reshape((-1, ndim))
+        model_file = open(os.path.join(modelling_dir, 'light_curve_model.txt'), 'a')
+        model_file.write('\n')
+        model_file.write('# Model 2: Evolving Blackbody with Gaussian rise and power-law decay\n')
+        model_file.write('# Parameter' + '\t' + 'median' + '\t' + 'err_p16' + '\t' + 'err_p84' + '\n')
 
-    samples_redim = np.zeros((np.shape(samples)[0], 6))
-    samples_redim[:, 0:5] = samples[:, 0:5]
-    samples_redim[:, 5] = samples[:, int(60/T_interval) + 5]
+        L_BB_peak = tools.round_small(L_BB_peak, 0.01)
+        model_file.write('log_L_BB' + '\t' + '{:.2f}'.format(L_BB_peak[0]) + '\t' + '{:.2f}'.format(L_BB_peak[2]) + '\t' +
+                         '{:.2f}'.format(L_BB_peak[1]) + '\n')
 
-    L_BB_peak, t_peak, sigma, t0, p, log_T_peak = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
-                                                              zip(*np.percentile(samples_redim, [16, 50, 84], axis=0)))
+        t_peak = tools.round_small(t_peak, 0.1)
+        model_file.write('t_peak  ' + '\t' + '{:.1f}'.format(t_peak[0]) + '\t' + '{:.1f}'.format(t_peak[2]) + '\t' +
+                         '{:.1f}'.format(t_peak[1]) + '\n')
 
-    _, _, _, _, _, *T_t = np.nanpercentile(samples, 50, axis=0)
-    _, _, _, _, _, *T_t_p16 = map(lambda v: v[1] - v[0],
-                                  zip(*np.nanpercentile(samples, [16, 50], axis=0)))
-    _, _, _, _, _, *T_t_p84 = map(lambda v: v[1] - v[0],
-                                  zip(*np.nanpercentile(samples, [50, 84], axis=0)))
+        sigma = tools.round_small(sigma, 0.1)
+        model_file.write('sigma   ' + '\t' + '{:.1f}'.format(sigma[0]) + '\t' + '{:.1f}'.format(sigma[2]) + '\t' +
+                         '{:.1f}'.format(sigma[1]) + '\n')
 
-    model_file = open(os.path.join(modelling_dir, 'light_curve_model.txt'), 'a')
-    model_file.write('\n')
-    model_file.write('# Model 2: Evolving Blackbody with Gaussian rise and power-law decay\n')
-    model_file.write('# Parameter' + '\t' + 'median' + '\t' + 'err_p16' + '\t' + 'err_p84' + '\n')
+        t0 = tools.round_small(t0, 0.1)
+        model_file.write('t0      ' + '\t' + '{:.1f}'.format(t0[0]) + '\t' + '{:.1f}'.format(t0[2]) + '\t' +
+                         '{:.1f}'.format(t0[1]) + '\n')
 
-    L_BB_peak = tools.round_small(L_BB_peak, 0.01)
-    model_file.write('log_L_BB' + '\t' + '{:.2f}'.format(L_BB_peak[0]) + '\t' + '{:.2f}'.format(L_BB_peak[2]) + '\t' +
-                     '{:.2f}'.format(L_BB_peak[1]) + '\n')
+        p = tools.round_small(p, 0.1)
+        model_file.write('p       ' + '\t' + '{:.1f}'.format(p[0]) + '\t' + '{:.1f}'.format(p[2]) + '\t' +
+                         '{:.1f}'.format(p[1]) + '\n')
 
-    t_peak = tools.round_small(t_peak, 0.1)
-    model_file.write('t_peak  ' + '\t' + '{:.1f}'.format(t_peak[0]) + '\t' + '{:.1f}'.format(t_peak[2]) + '\t' +
-                     '{:.1f}'.format(t_peak[1]) + '\n')
+        T_t, T_t_p16, T_t_p84 = np.array(T_t), np.array(T_t_p16), np.array(T_t_p84)
 
-    sigma = tools.round_small(sigma, 0.1)
-    model_file.write('sigma   ' + '\t' + '{:.1f}'.format(sigma[0]) + '\t' + '{:.1f}'.format(sigma[2]) + '\t' +
-                     '{:.1f}'.format(sigma[1]) + '\n')
+        T_t_p16 = tools.round_small(T_t_p16, 0.01)
+        T_t_p84 = tools.round_small(T_t_p84, 0.01)
+        t_grid = t_peak[0] + np.arange(-60, 301, T_interval)
+        single_color = np.array([np.sum(np.isfinite(sed_x_t[i, :])) == 1 for i in range(len(t))])
+        flag_T_grid = models.gen_flag_T_grid(t, single_color, t_grid, T_t, T_interval)
+        T_t[~flag_T_grid] = np.nan
+        T_t_p16[~flag_T_grid] = np.nan
+        T_t_p84[~flag_T_grid] = np.nan
+        delt_t = [str(np.arange(-60, 301, T_interval)[i]) for i in range(n_T)]
+        delt_t[int(60/T_interval)] = 'peak'
 
-    t0 = tools.round_small(t0, 0.1)
-    model_file.write('t0      ' + '\t' + '{:.1f}'.format(t0[0]) + '\t' + '{:.1f}'.format(t0[2]) + '\t' +
-                     '{:.1f}'.format(t0[1]) + '\n')
+        for i in range(n_T):
+            T_i = np.array([T_t[i], T_t_p16[i], T_t_p84[i]])
+            T_i = tools.round_small(T_i, 0.01)
+            model_file.write(
+                'T(' + str(delt_t[i]) + ')' + '\t' + '{:.2f}'.format(T_i[0]) + '\t' + '{:.2f}'.format(T_i[2]) + '\t' +
+                '{:.2f}'.format(T_i[1]) + '\n')
+        model_file.close()
 
-    p = tools.round_small(p, 0.1)
-    model_file.write('p       ' + '\t' + '{:.1f}'.format(p[0]) + '\t' + '{:.1f}'.format(p[2]) + '\t' +
-                     '{:.1f}'.format(p[1]) + '\n')
+        theta_median = np.concatenate(([L_BB_peak[0], t_peak[0], sigma[0], t0[0], p[0]], T_t))
+        theta_err_p16 = np.concatenate(([L_BB_peak[2], t_peak[2], sigma[2], t0[2], p[2]], T_t_p16))
+        theta_err_p84 = np.concatenate(([L_BB_peak[1], t_peak[1], sigma[1], t0[1], p[1]], T_t_p84))
+        theta_err = np.min([theta_err_p16, theta_err_p84], axis=0)
 
-    T_t, T_t_p16, T_t_p84 = np.array(T_t), np.array(T_t_p16), np.array(T_t_p84)
+        log_T, log_T_err, log_BB, log_BB_err, log_R, log_R_err = models.Blackbody_evolution(t, single_color, T_interval, theta_median, theta_err)
 
-    T_t_p16 = tools.round_small(T_t_p16, 0.01)
-    T_t_p84 = tools.round_small(T_t_p84, 0.01)
-    t_grid = t_peak[0] + np.arange(-60, 301, T_interval)
-    single_color = np.array([np.sum(np.isfinite(sed_x_t[i, :])) == 1 for i in range(len(t))])
-    flag_T_grid = models.gen_flag_T_grid(t, single_color, t_grid, T_t, T_interval)
-    T_t[~flag_T_grid] = np.nan
-    T_t_p16[~flag_T_grid] = np.nan
-    T_t_p84[~flag_T_grid] = np.nan
-    delt_t = [str(np.arange(-60, 301, T_interval)[i]) for i in range(n_T)]
-    delt_t[int(60/T_interval)] = 'peak'
+        model_file = open(os.path.join(modelling_dir, 'blackbody_evolution.txt'), 'w')
+        model_file.write('# Blackbody Evolution:\n')
+        model_file.write('MJD' +
+                         '\t' + 'log_L_BB' + '\t' + 'log_L_BB_err' +
+                         '\t' + 'log_R' + '\t' + 'log_R_err' +
+                         '\t' + 'log_T' + '\t' + 'log_T_err' + '\t' + 'single_band_flag' +  '\n')
+        flag_300_days = (t - t_peak[0]) < 300
+        for yy in range(len(t[flag_300_days])):
+            model_file.write('{:.2f}'.format(t[yy]) +
+                             '\t' + '{:.2f}'.format(log_BB[yy]) + '\t' + '{:.2f}'.format(log_BB_err[yy]) +
+                             '\t' + '{:.2f}'.format(log_R[yy]) + '\t' + '{:.2f}'.format(log_R_err[yy]) +
+                             '\t' + '{:.2f}'.format(log_T[yy]) + '\t' + '{:.2f}'.format(log_T_err[yy]) + '\t' +
+                             str(int(single_color[yy])) + '\n')
+        model_file.close()
 
-    for i in range(n_T):
-        T_i = np.array([T_t[i], T_t_p16[i], T_t_p84[i]])
-        T_i = tools.round_small(T_i, 0.01)
+        theta_median_redim = [L_BB_peak[0], t_peak[0], sigma[0], t0[0], p[0], log_T_peak[0]]
+        labels = [r"log $L_{BB\,peak}$", r'$t_{peak}$', r'$\sigma$', r'$t_0$', r'$p$', r"log $T_{peak}$"]
+
+        fig_name = 'corner_plot_model2'
+        plot_corner(tde_dir, fig_name, theta_median_redim, samples_redim, labels, show=True)
+        plot_models(tde_name, tde_dir, z, bands, T_interval, show=True)
+        plot_BB_evolution(tde_name, tde_dir, show=True)
+        plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, show=True)
+
+    if not pre_peak:
+        model_name = 'Blackbody_var_T_powerlaw_decay'
+        theta_median = [L_peak[0], t[0], tau[0], T0[0]]
+        n_T = len(np.arange(-60, 301, T_interval))
+        observables = [t, band_wls, T_interval, theta_median, sed_x_t, sed_err_x_t]
+
+        L_BB_init = (10 ** L_peak[0]) * models.bolometric_correction(T0[0], band_wls[0])
+        log_L_BB_init, t_peak_init, t0_init, p_init = np.log10(L_BB_init), theta_median[1] - 30, theta_median[2], 5. / 3.
+        theta_init = np.concatenate(([log_L_BB_init, t_peak_init, t0_init, p_init], [T0[0] for j in range(n_T)]))
+
+        nll = lambda *args: -models.lnlike(*args)
+        bounds = np.concatenate(([(log_L_BB_init - 0.5, log_L_BB_init + 0.5), (theta_median[1] - 60, theta_median[1] - 10),
+                                   (1, 1000), (0, 3)], [(T0[0] - 0.2, T0[0] + 0.2) for i in range(n_T)]))
+
+        result = op.minimize(nll, theta_init, args=(model_name, observables), bounds=bounds,
+                             method='Powell')  # Some rough initial guesses
+        log_L_BB_opt, t_peak_opt, t0_opt, p_opt, *Ts_opt = result["x"]  # will be used to initialise the walkers
+
+        # Posterior emcee sampling
+        ndim, nwalkers = int(4 + n_T), nwalkers
+        pos = [np.concatenate(([np.random.normal(log_L_BB_opt, 0.2),
+                                np.random.normal(t_peak_opt, 2),
+                                np.random.normal(t0_opt, 5),
+                                np.random.normal(p_opt, 0.2)],
+                               [Ts_opt[j] + np.random.normal(0, 0.2) for j in range(n_T)])) for i in range(nwalkers)]
+
+        with Pool(int(n_cores)) as pool:
+            sampler = emcee.EnsembleSampler(nwalkers, ndim, models.lnprob, args=(model_name, observables), pool=pool)
+            sampler.run_mcmc(pos, ninter, progress=True, skip_initial_state_check=True)
+
+        samples = sampler.chain[:, nburn:, :].reshape((-1, ndim))
+
+        samples_redim = np.zeros((np.shape(samples)[0], 5))
+        samples_redim[:, 0:4] = samples[:, 0:4]
+        samples_redim[:, 4] = samples[:, int(60 / T_interval) + 4]
+
+        L_BB_peak, t_peak, t0, p, log_T_peak = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
+                                                          zip(*np.percentile(samples_redim, [16, 50, 84], axis=0)))
+
+        _, _, _, _, *T_t = np.nanpercentile(samples, 50, axis=0)
+        _, _, _, _, *T_t_p16 = map(lambda v: v[1] - v[0],
+                                      zip(*np.nanpercentile(samples, [16, 50], axis=0)))
+        _, _, _, _, *T_t_p84 = map(lambda v: v[1] - v[0],
+                                      zip(*np.nanpercentile(samples, [50, 84], axis=0)))
+
+        model_file = open(os.path.join(modelling_dir, 'light_curve_model.txt'), 'a')
+        model_file.write('\n')
+        model_file.write('# Model 2: Evolving Blackbody with Gaussian rise and power-law decay\n')
+        model_file.write('# Parameter' + '\t' + 'median' + '\t' + 'err_p16' + '\t' + 'err_p84' + '\n')
+
+        L_BB_peak = tools.round_small(L_BB_peak, 0.01)
         model_file.write(
-            'T(' + str(delt_t[i]) + ')' + '\t' + '{:.2f}'.format(T_i[0]) + '\t' + '{:.2f}'.format(T_i[2]) + '\t' +
-            '{:.2f}'.format(T_i[1]) + '\n')
-    model_file.close()
+            'log_L_BB' + '\t' + '{:.2f}'.format(L_BB_peak[0]) + '\t' + '{:.2f}'.format(L_BB_peak[2]) + '\t' +
+            '{:.2f}'.format(L_BB_peak[1]) + '\n')
 
-    theta_median = np.concatenate(([L_BB_peak[0], t_peak[0], sigma[0], t0[0], p[0]], T_t))
-    theta_err_p16 = np.concatenate(([L_BB_peak[2], t_peak[2], sigma[2], t0[2], p[2]], T_t_p16))
-    theta_err_p84 = np.concatenate(([L_BB_peak[1], t_peak[1], sigma[1], t0[1], p[1]], T_t_p84))
-    theta_err = np.min([theta_err_p16, theta_err_p84], axis=0)
+        model_file.write('t_peak  ' + '\t' + '{:.1f}'.format(t[0]) + '\t' + '{:.1f}'.format(np.nan) + '\t' +
+                         '{:.1f}'.format(np.nan) + '\n')
 
-    log_T, log_T_err, log_BB, log_BB_err, log_R, log_R_err = models.Blackbody_evolution(t, single_color, T_interval, theta_median, theta_err)
+        model_file.write('sigma   ' + '\t' + '{:.1f}'.format(np.nan) + '\t' + '{:.1f}'.format(np.nan) + '\t' +
+                         '{:.1f}'.format(np.nan) + '\n')
 
-    model_file = open(os.path.join(modelling_dir, 'blackbody_evolution.txt'), 'w')
-    model_file.write('# Blackbody Evolution:\n')
-    model_file.write('MJD' +
-                     '\t' + 'log_L_BB' + '\t' + 'log_L_BB_err' +
-                     '\t' + 'log_R' + '\t' + 'log_R_err' +
-                     '\t' + 'log_T' + '\t' + 'log_T_err' + '\t' + 'single_band_flag' +  '\n')
-    flag_300_days = (t - t_peak[0]) < 300
-    for yy in range(len(t[flag_300_days])):
-        model_file.write('{:.2f}'.format(t[yy]) +
-                         '\t' + '{:.2f}'.format(log_BB[yy]) + '\t' + '{:.2f}'.format(log_BB_err[yy]) +
-                         '\t' + '{:.2f}'.format(log_R[yy]) + '\t' + '{:.2f}'.format(log_R_err[yy]) +
-                         '\t' + '{:.2f}'.format(log_T[yy]) + '\t' + '{:.2f}'.format(log_T_err[yy]) + '\t' +
-                         str(int(single_color[yy])) + '\n')
+        t0 = tools.round_small(t0, 0.1)
+        model_file.write('t0      ' + '\t' + '{:.1f}'.format(t0[0]) + '\t' + '{:.1f}'.format(t0[2]) + '\t' +
+                         '{:.1f}'.format(t0[1]) + '\n')
 
+        p = tools.round_small(p, 0.1)
+        model_file.write('p       ' + '\t' + '{:.1f}'.format(p[0]) + '\t' + '{:.1f}'.format(p[2]) + '\t' +
+                         '{:.1f}'.format(p[1]) + '\n')
 
-    model_file.close()
+        T_t, T_t_p16, T_t_p84 = np.array(T_t), np.array(T_t_p16), np.array(T_t_p84)
 
-    theta_median_redim = [L_BB_peak[0], t_peak[0], sigma[0], t0[0], p[0], log_T_peak[0]]
-    labels = [r"log $L_{BB\,peak}$", r'$t_{peak}$', r'$\sigma$', r'$t_0$', r'$p$', r"log $T_{peak}$"]
+        T_t_p16 = tools.round_small(T_t_p16, 0.01)
+        T_t_p84 = tools.round_small(T_t_p84, 0.01)
+        t_grid = t[0] + np.arange(-60, 301, T_interval)
+        single_color = np.array([np.sum(np.isfinite(sed_x_t[i, :])) == 1 for i in range(len(t))])
+        flag_T_grid = models.gen_flag_T_grid(t, single_color, t_grid, T_t, T_interval)
+        T_t[~flag_T_grid] = np.nan
+        T_t_p16[~flag_T_grid] = np.nan
+        T_t_p84[~flag_T_grid] = np.nan
+        delt_t = [str(np.arange(-60, 301, T_interval)[i]) for i in range(n_T)]
+        delt_t[int(60 / T_interval)] = 'peak'
 
-    fig_name = 'corner_plot_model2'
-    plot_corner(tde_dir, fig_name, theta_median_redim, samples_redim, labels, show=True)
-    plot_models(tde_name, tde_dir, z, bands, T_interval, show=True)
-    plot_BB_evolution(tde_name, tde_dir, show=True)
-    plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, show=True)
+        for i in range(n_T):
+            T_i = np.array([T_t[i], T_t_p16[i], T_t_p84[i]])
+            T_i = tools.round_small(T_i, 0.01)
+            model_file.write(
+                'T(' + str(delt_t[i]) + ')' + '\t' + '{:.2f}'.format(T_i[0]) + '\t' + '{:.2f}'.format(T_i[2]) + '\t' +
+                '{:.2f}'.format(T_i[1]) + '\n')
+        model_file.close()
+
+        theta_median = np.concatenate(([L_BB_peak[0], t[0], np.nan, t0[0], p[0]], T_t))
+        theta_err_p16 = np.concatenate(([L_BB_peak[2], np.nan, np.nan, t0[2], p[2]], T_t_p16))
+        theta_err_p84 = np.concatenate(([L_BB_peak[1], np.nan, np.nan, t0[1], p[1]], T_t_p84))
+        theta_err = np.min([theta_err_p16, theta_err_p84], axis=0)
+
+        log_T, log_T_err, log_BB, log_BB_err, log_R, log_R_err = models.Blackbody_evolution(t, single_color, T_interval,
+                                                                                            theta_median, theta_err)
+
+        model_file = open(os.path.join(modelling_dir, 'blackbody_evolution.txt'), 'w')
+        model_file.write('# Blackbody Evolution:\n')
+        model_file.write('MJD' +
+                         '\t' + 'log_L_BB' + '\t' + 'log_L_BB_err' +
+                         '\t' + 'log_R' + '\t' + 'log_R_err' +
+                         '\t' + 'log_T' + '\t' + 'log_T_err' + '\t' + 'single_band_flag' + '\n')
+        flag_300_days = (t - t_peak[0]) < 300
+        for yy in range(len(t[flag_300_days])):
+            model_file.write('{:.2f}'.format(t[yy]) +
+                             '\t' + '{:.2f}'.format(log_BB[yy]) + '\t' + '{:.2f}'.format(log_BB_err[yy]) +
+                             '\t' + '{:.2f}'.format(log_R[yy]) + '\t' + '{:.2f}'.format(log_R_err[yy]) +
+                             '\t' + '{:.2f}'.format(log_T[yy]) + '\t' + '{:.2f}'.format(log_T_err[yy]) + '\t' +
+                             str(int(single_color[yy])) + '\n')
+        model_file.close()
+
+        theta_median_redim = [L_BB_peak[0], t_peak[0], t0[0], p[0], log_T_peak[0]]
+        labels = [r"log $L_{BB\,peak}$", r'$t_{peak}$', r'$t_0$', r'$p$', r"log $T_{peak}$"]
+
+        fig_name = 'corner_plot_model2.pdf'
+        plot_corner(tde_dir, fig_name, theta_median_redim, samples_redim, labels, show=True)
+        plot_models(tde_name, tde_dir, z, bands, T_interval, show=True)
+        plot_BB_evolution(tde_name, tde_dir, show=True)
+        plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, show=True)

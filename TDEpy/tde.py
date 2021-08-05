@@ -670,7 +670,7 @@ class TDE:
         else:
             raise Exception('You need to define a redshift (z) for the source before fitting the host SED')
 
-    def plot_host_sed_fit(self, corner_plot=False, show=True):
+    def plot_host_sed_fit(self, corner_plot=False, color_mass=False, show=True, title=True):
         """
         This function plots the host galaxy SED model.
         You should run fit_host_sed() before calling it.
@@ -685,7 +685,7 @@ class TDE:
 
         i, j = np.unravel_index(imax, result['lnprobability'].shape)
         theta_max = result['chain'][i, j, :].copy()
-        fit_plot = fit_host.plot_resulting_fit(self.name, self.work_dir)
+        fit_plot = fit_host.plot_resulting_fit(self.name, self.work_dir, title=title)
         try:
             os.mkdir(os.path.join(self.host_dir, 'plots'))
         except:
@@ -701,7 +701,17 @@ class TDE:
             if show:
                 plt.show()
 
+        if color_mass:
+            color_mass_plt = fit_host.color_mass(self.host_mass, self.host_color)
+            color_mass_plt.savefig(os.path.join(self.host_dir, 'plots', 'color_mass_diagram.pdf'), bbox_inches='tight',
+                          dpi=300)
+            if show:
+                plt.show()
+
         os.chdir(self.work_dir)
+
+
+
 
     def subtract_host(self, show_plot=True):
         '''
@@ -878,10 +888,10 @@ class TDE:
         tar_handle.close()
         os.chdir(pwd)
 
-    def fit_light_curve(self, bands='All', T_interval=30, n_cores=None, n_walkers=100, n_inter=1000, n_burn=500):
+    def fit_light_curve(self, pre_peak=True, bands='All', T_interval=30, n_cores=None, n_walkers=100, n_inter=1000, n_burn=500):
         if n_cores is None:
             n_cores = os.cpu_count() / 2
-        fit_light_curve.run_fit(self.name, self.tde_dir, float(self.z), bands, T_interval, n_cores, n_walkers, n_inter, n_burn)
+        fit_light_curve.run_fit(self.name, self.tde_dir, float(self.z), pre_peak, bands, T_interval, n_cores, n_walkers, n_inter, n_burn)
 
     def plot_light_curve_models(self, bands='All'):
         all_bands = ['sw_w2', 'sw_m2', 'sw_w1', 'sw_uu', 'sw_bb', 'ztf_g', 'ztf_r']
@@ -897,5 +907,7 @@ class TDE:
                         "your 'bands' list should contain bands between these ones: 'sw_w2', 'sw_m2', 'sw_w1', 'sw_uu', 'sw_bb', 'ztf_g', 'ztf_r'")
         fit_light_curve.plot_models(self.name, self.tde_dir, float(self.z), bands)
         fit_light_curve.plot_BB_evolution(self.name, self.tde_dir)
+        #plots.plot_SED_evolution(self.name, self.tde_dir, float(self.z))
+
 
 
