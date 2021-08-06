@@ -220,7 +220,7 @@ def create_reg(ra, dec, radius, dir, show_regions):
     with open(dir + '/' + 'bkg.reg', "w") as text_file:
         text_file.write('fk5;circle(%.6f, %.6f, %.1f") # color=green' % (
             bkg_coords.ra.deg, bkg_coords.dec.deg, np.round(radius[1], 1)))
-    fig, ax = plt.figure(), plt.subplot(projection=w, figsize=(8, 8))
+    fig, ax = plt.figure(figsize=(8, 8)), plt.subplot(projection=w)
     plot = ax.imshow(img, vmin=0, vmax=8 * (median_bkg + std_bkg), origin='lower')
     plt.colorbar(plot, ax=ax)
     c_b = plt.Circle((bkg_coords.ra.deg, bkg_coords.dec.deg), radius[1]/3600, color='red', fill=False, transform=ax.get_transform('icrs'))

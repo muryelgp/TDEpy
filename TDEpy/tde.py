@@ -296,7 +296,8 @@ class TDE:
         if host_sub:
             if not os.path.exists(os.path.join(self.host_dir, 'host_phot_model.txt')):
                 raise Exception('You need to download and fit the host SED first!')
-
+            if self.z is None:
+                raise Exception('A redshift (z) needs to be inserted for this source')
         plots.plot_light_curve(self, host_sub, show, title)
 
     def download_host_data(self, mir='Model', nir='default/Petro', opt='Kron/Petro', uv='5'):
@@ -519,6 +520,9 @@ class TDE:
                 plt.show()
 
         if color_mass:
+            if (self.host_mass is None) or (self.host_color is None):
+                self.host_mass, self.host_color = fit_host.get_host_properties(result, self.host_dir, self.ebv)
+                self.save_info()
             color_mass_plt = plots.color_mass(self.host_mass, self.host_color)
             color_mass_plt.savefig(os.path.join(self.plot_dir, 'host', 'color_mass_diagram.pdf'), bbox_inches='tight',
                                    dpi=300)
@@ -564,7 +568,6 @@ class TDE:
         from astropy.table import Column
 
         if self.host_radius is not None:
-            print(self.host_radius)
             c = Column(f'{float(self.host_radius):.2f}', name='host_radius')
             t.add_column(c, index=-1)
 

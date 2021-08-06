@@ -51,26 +51,28 @@ def plot_light_curve(tde, host_sub, show, title=True):
                     mjd_max = np.max(mjd[flag])
                 if np.min(mjd[flag]) < mjd_min:
                     mjd_min = np.min(mjd[flag])
-
-        host_bands, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
-            np.loadtxt(os.path.join(tde.host_dir, 'host_phot_model.txt'),
-                       dtype={'names': (
-                           'band', 'wl_0', 'ab_mag', 'ab_mag_err',
-                           'flux_dens', 'flux_dens_err', 'catalog'),
-                           'formats': (
-                               'U5', np.float, np.float, np.float,
-                               np.float, np.float, 'U10')},
-                       unpack=True, skiprows=1)
-        for band in bands_plotted:
-            delt_mjd = (mjd_max - mjd_min) * 0.1
-            if band[0] == 's':
-                band_host_flag = host_bands == band_dic[band]
-                ax.errorbar(mjd_max + delt_mjd, model_ab_mag[band_host_flag][0],
-                            yerr=model_ab_mag_err[band_host_flag][0],
-                            marker="*", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
-                            markeredgecolor='black', markersize=15, elinewidth=0.7, capsize=0)
-        ax.set_ylabel('AB mag', fontsize=20)
-        ax.invert_yaxis()
+        try:
+            host_bands, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
+                np.loadtxt(os.path.join(tde.host_dir, 'host_phot_model.txt'),
+                           dtype={'names': (
+                               'band', 'wl_0', 'ab_mag', 'ab_mag_err',
+                               'flux_dens', 'flux_dens_err', 'catalog'),
+                               'formats': (
+                                   'U5', np.float, np.float, np.float,
+                                   np.float, np.float, 'U10')},
+                           unpack=True, skiprows=1)
+            for band in bands_plotted:
+                delt_mjd = (mjd_max - mjd_min) * 0.1
+                if band[0] == 's':
+                    band_host_flag = host_bands == band_dic[band]
+                    ax.errorbar(mjd_max + delt_mjd, model_ab_mag[band_host_flag][0],
+                                yerr=model_ab_mag_err[band_host_flag][0],
+                                marker="*", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
+                                markeredgecolor='black', markersize=15, elinewidth=0.7, capsize=0)
+            ax.set_ylabel('AB mag', fontsize=20)
+            ax.invert_yaxis()
+        except:
+            pass
 
     elif host_sub:
         cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
@@ -86,10 +88,12 @@ def plot_light_curve(tde, host_sub, show, title=True):
                                                                                      unpack=True)
                 except:
                     continue
-                ax.errorbar(mjd, 4 * np.pi * (dist.value ** 2) * flux * wl_dic[band],
-                            yerr=4 * np.pi * (dist.value ** 2) * fluxe * wl_dic[band], marker="o", linestyle='',
-                            color=color_dic[band], linewidth=1, markeredgewidth=0.5, markeredgecolor='black',
-                            markersize=8, elinewidth=0.7, capsize=0, label=legend_dic[band])
+                flag = (abmag > 0) & (abmage < 1)
+                if np.sum(flag) > 0:
+                    ax.errorbar(mjd[flag], 4 * np.pi * (dist.value ** 2) * flux[flag] * wl_dic[band],
+                                yerr=4 * np.pi * (dist.value ** 2) * fluxe[flag] * wl_dic[band], marker="o", linestyle='',
+                                color=color_dic[band], linewidth=1, markeredgewidth=0.5, markeredgecolor='black',
+                                markersize=8, elinewidth=0.7, capsize=0, label=legend_dic[band])
 
             elif band[0] == 'z':
                 if os.path.exists(os.path.join(tde.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')):
