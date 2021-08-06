@@ -264,10 +264,6 @@ def run_fit(tde, pre_peak=True, bands='All', T_interval=30, n_cores=None, n_walk
 
 
     # Saving Model 1 results
-    try:
-        os.mkdir(os.path.join(tde_dir, 'modelling', 'plots'))
-    except:
-        pass
     model_file = open(os.path.join(modelling_dir, 'light_curve_model.txt'), 'w')
     model_file.write('# Model 1: Constant Temperature Blackbody with Gaussian rise and exponential decay\n')
     model_file.write('# Parameter' + '\t' + 'median' + '\t' + 'err_p16' + '\t' + 'err_p84' + '\n')
