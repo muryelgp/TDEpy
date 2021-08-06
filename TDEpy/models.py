@@ -15,6 +15,7 @@ def blackbody(T, wl):
 
     return flux_wl*nu
 
+
 def Blackbody_evolution(t, single_color, T_interval, theta, theta_err):
     log_L_BB, t_peak, sigma, t0, p, *T_grid = theta
     log_L_BB_err, t_peak_err, sigma_err, t0_err, p_err, *T_grid_err = theta_err
@@ -142,11 +143,8 @@ def Blackbody_var_T_powerlaw_decay(t, single_color, wl, T_interval, theta):
 
 
 def gen_flag_T_grid(t, single_band, t_grid, T_grid, T_interval):
-    flag_right_T_grid = np.append(
-        [np.sum((t[~single_band] >= t_grid[i]) & (t[~single_band] < t_grid[i] + T_interval)) > 0 for i in range(len(T_grid) - 1)],
-        False)
-    flag_left_T_grid = np.concatenate(
-        ([False], [np.sum((t[~single_band] < t_grid[i]) & (t[~single_band] > t_grid[i] - T_interval)) > 0 for i in range(1, len(T_grid))]))
+    flag_left_T_grid = np.concatenate(([np.sum((t[~single_band] >= t_grid[i]) & (t[~single_band] < t_grid[i] + T_interval)) > 0 for i in range(len(T_grid) - 1)], [False]))
+    flag_right_T_grid = np.concatenate(([False], [np.sum((t[~single_band][t[~single_band] < t_grid[-1]][-1] > t_grid[i]) & (t[~single_band][t[~single_band] < t_grid[-1]][-1] <= t_grid[i] + T_interval)) > 0 for i in range(len(T_grid) - 1)]))
     flag_finite = np.isfinite(T_grid)
     flag_T_grid = (flag_right_T_grid | flag_left_T_grid) & flag_finite
     return flag_T_grid

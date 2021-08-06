@@ -7,10 +7,9 @@ from prospect.fitting import fit_model
 from prospect.fitting import lnprobfn
 import prospect.io.read_results as reader
 from prospect.sources import CSPSpecBasis
-from prospect.models.templates import TemplateLibrary, describe
 import pkg_resources
 from . import tools as tools
-import corner
+from multiprocessing import Pool
 
 # re-defining plotting defaults
 
@@ -173,85 +172,6 @@ def build_sps(zcontinuous=1):
     return sps
 
 
-def plot_resulting_fit(tde_name, path, title=True):
-    tde_dir = os.path.join(path, tde_name)
-    host_dir = os.path.join(tde_dir, 'host')
-
-    fig, ax = plt.subplots(figsize=(12, 6))
-
-    band, obs_wl_c, obs_ab_mag, obs_ab_mag_err, catalogs, apertures = \
-        np.loadtxt(os.path.join(host_dir, 'host_phot_obs.txt'),
-                   dtype={'names': (
-                       'band', 'wl_0', 'ab_mag', 'ab_mag_err',
-                       'catalog', 'aperture'),
-                       'formats': (
-                           'U5', np.float, np.float, np.float,
-                           'U10', 'U10')},
-                   unpack=True, skiprows=2)
-
-    band, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
-        np.loadtxt(os.path.join(host_dir, 'host_phot_model.txt'),
-                   dtype={'names': (
-                       'band', 'wl_0', 'ab_mag', 'ab_mag_err',
-                       'flux_dens', 'flux_dens_err', 'catalog'),
-                       'formats': (
-                           'U5', np.float, np.float, np.float,
-                           np.float, np.float, 'U10')},
-                   unpack=True, skiprows=1)
-
-    n_bands = int(np.where(band == 'V')[0])
-    band_flag = [i < n_bands for i in range(len(model_wl_c))]
-
-    spec_wl_0, spec_ab_mag, spec_ab_mag_p16, spec_ab_mag_p84, spec_flux, spec_flux_p16, spec_flux_p84 = np.loadtxt(
-        os.path.join(host_dir, 'host_spec_model.txt'),
-        dtype={'names': (
-            'wl_0', 'ab_mag', 'spec_ab_mag_p16', 'spec_ab_mag_p16'
-                                                 'flux_dens', 'spec_flux_p16', 'spec_ab_mag_p84', 'tde/host'),
-            'formats': (
-                np.float, np.float, np.float,
-                np.float, np.float, np.float, np.float, np.float)},
-        unpack=True, skiprows=1)
-
-    ax.plot(spec_wl_0, spec_ab_mag, label='Model spectrum (MAP)',
-            lw=0.7, color='green', alpha=0.8)
-    ax.fill_between(spec_wl_0, spec_ab_mag_p16, spec_ab_mag_p84, alpha=.3, color='green', label='Posterior')
-    ax.errorbar(model_wl_c[band_flag], model_ab_mag[band_flag], yerr=model_ab_mag_err[band_flag],
-                label='Model photometry (MAP)',
-                marker='s', markersize=8, alpha=0.85, ls='', lw=3, ecolor='green', capsize=5,
-                markerfacecolor='none', markeredgecolor='green',
-                markeredgewidth=3)
-
-    is_up_lim = ~np.isfinite(obs_ab_mag_err)
-    ax.errorbar(obs_wl_c[~is_up_lim], obs_ab_mag[~is_up_lim], yerr=obs_ab_mag_err[~is_up_lim],
-                label='Observed photometry', ecolor='red',
-                marker='o', markersize=8, ls='', lw=3, alpha=0.85, capsize=5,
-                markerfacecolor='none', markeredgecolor='red',
-                markeredgewidth=3)
-    ax.invert_yaxis()
-    ax.errorbar(obs_wl_c[is_up_lim], obs_ab_mag[is_up_lim], yerr=0.5,
-                lolims=np.ones(np.shape(obs_ab_mag_err[is_up_lim]), dtype=bool),
-                marker='o', fmt='o', ecolor='red', alpha=0.85, lw=3, markeredgecolor='red',
-                markerfacecolor='none', markersize=8, elinewidth=2, capsize=6, capthick=3,
-                markeredgewidth=3)
-
-    temp = np.interp(np.linspace(700, 300000, 10000), spec_wl_0, spec_ab_mag)
-    ymin, ymax = temp.min() * 0.85, temp.max() * 1.1
-
-    plt.xscale('log')
-    ax.set_xlim(700, 300000)
-    ax.set_xticks([1e3, 1e4, 1e5])
-    ax.set_xticklabels(['0.1', '1', '10'])
-    ax.set_ylim(ymax, ymin)
-    ax.set_ylabel('AB mag', fontsize=16)
-    ax.set_xlabel(r'Wavelength $[\mu m]$', fontsize=16)
-    if title:
-        ax.set_title('Host Galaxy SED Fit (' + tde_name + ')')
-    plt.legend(loc=4)
-    plt.tight_layout()
-
-    return fig
-
-
 def get_host_properties(result, host_dir, ebv):
     try:
         parnames = np.array(result['theta_labels'], dtype='U20')
@@ -326,101 +246,6 @@ def get_host_properties(result, host_dir, ebv):
     list_color = [u_r_ext_cor, u_r_err]
 
     return list_mass, list_color
-
-def color_mass(mass_list, color_list):
-    from scipy.ndimage import gaussian_filter
-    import matplotlib
-
-    _, sdss_mass, _, _, sdss_color = np.loadtxt(pkg_resources.resource_filename("TDEpy", 'data/sdss_cor_M.txt'), unpack=True, skiprows=1)
-    fig, ax = plt.subplots(figsize=(8, 6))
-    h, xx, yy = np.histogram2d(sdss_mass, sdss_color, range=[[7.6, 11.3], [0.70, 3.05]], bins=15, density=True)
-    xx, yy = np.meshgrid(xx, yy)
-
-    xx = xx[:-1, :-1] #+ np.mean(np.diff(xx))
-    yy = yy[:-1, :-1] #+ np.mean(np.diff(yy))
-    #h = gaussian_filter(h, sigma=0.1)
-    cvals = np.array([0, 1 - 0.95, 1 - 0.86, 1 - 0.5, 1 - 0.38, 1])
-    colors = ['whitesmoke', 'silver', "darkgrey", "gray", "grey", "dimgrey"]
-    norm = plt.Normalize(min(cvals), max(cvals))
-    tuples = list(zip(map(norm, cvals), colors))
-    cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)
-
-
-
-    cm = ax.contourf(xx, yy, h.T, cmap=cmap, levels=[0, 1 - 0.95, 1 - 0.86, 1 - 0.65, 1 - 0.38, 1], norm=norm)
-    ax.contour(xx, yy, h.T, colors='dimgrey', levels=[1 - 0.95, 1 - 0.86, 1 - 0.65, 1 - 0.38, 1], norm=norm)
-
-    mass_gv = np.arange(7.6, 11.3, 0.1)
-    gv_up = -0.4 + 0.25 * mass_gv
-    gv_lo = gv_up - 0.2
-
-    ax.plot(mass_gv, gv_up, ls='--', c='green')
-    ax.plot(mass_gv, gv_lo, ls='--', c='green')
-    ax.errorbar(mass_list[0], color_list[0], yerr=color_list[1], xerr=np.array([mass_list[1], mass_list[2]]).reshape(2, 1), c='red', marker='o')
-    #a.plot(ma)
-    ax.set_xlim(7.6, 11.05)
-    ax.set_ylim(0.70, 2.8)
-    ax.set_ylabel(r'$^{0.0}u-r$ color')
-    ax.set_xlabel(r'log($M_{\star}/M_{\odot}$)', )
-
-    return fig
-
-def corner_plot(result):
-    imax = np.argmax(result['lnprobability'])
-
-    i, j = np.unravel_index(imax, result['lnprobability'].shape)
-    theta_max = result['chain'][i, j, :].copy()
-
-    try:
-        parnames = np.array(result['theta_labels'], dtype='U20')
-    except KeyError:
-        parnames = np.array(result['model'].theta_labels())
-    ind_show = slice(None)
-    thin = 5
-    chains = slice(None)
-    start = 0
-    # Get the arrays we need (trace, wghts)
-    trace = result['chain'][..., ind_show]
-    if trace.ndim == 2:
-        trace = trace[None, :]
-    trace = trace[chains, start::thin, :]
-    wghts = result.get('weights', None)
-    if wghts is not None:
-        wghts = wghts[start::thin]
-    samples = trace.reshape(trace.shape[0] * trace.shape[1], trace.shape[2])
-    logify = ["mass", "tau"]
-    # logify some parameters
-    xx = samples.copy()
-    for p in logify:
-        if p in parnames:
-            idx = parnames.tolist().index(p)
-            xx[:, idx] = np.log10(xx[:, idx])
-            parnames[idx] = "log({})".format(parnames[idx])
-    bounds = []
-    data = np.zeros(np.shape(xx))
-    for i, x in enumerate(xx):
-        a, b, c, d, e = x
-        data[i, :] = a, b, c, d, e
-
-    theta_max = [np.log10(theta_max[0]), theta_max[1], theta_max[2], theta_max[3], np.log10(theta_max[4])]
-
-    for i in range(np.shape(xx)[1]):
-
-        sig1 = abs(theta_max[i] - np.percentile((data[:, i]), 16))
-        sig2 = abs(np.percentile((data[:, i]), 84) - theta_max[i])
-        mean_dist = np.max([sig1, sig2])
-        bounds.append((theta_max[i] - 3 * mean_dist, theta_max[i] + 3 * mean_dist))
-
-    # cornerfig = reader.subcorner(result, thin=5,
-    #                             fig=plt.subplots(5, 5, figsize=(27, 27))[0], range=bounds)
-
-    labels = [r'log $M_{*}/M_{\odot}$', r'log $Z/Z_{\odot}$', r'$\rm{A_{V}}$', r'$t_{\rm{age}}$', r'log $\tau_{\rm{sfh}}$']
-    cornerfig = corner.corner(data,
-                              labels=labels,
-                              quantiles=[0.16, 0.5, 0.84],
-                              show_titles=True, title_kwargs={"fontsize": 12}, range=bounds)
-
-    return cornerfig
 
 
 def gen_post_filters(result, model, obs, sps, nwalkers, n_burn, niter, i):
@@ -557,23 +382,6 @@ def save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, 
         mspec, mphot, mextra = model.mean_model(theta, obs, sps=sps)
         err_phot[i, :] = mphot
         err_spec[i, :] = mspec
-
-    '''
-    # Tried to implement multiprocessing, it is taking more time than the for loop (?), get back to it later!
-    from multiprocessing import Pool
-    pool = Pool(int(n_cores))
-    func = partial(gen_post_filters, result, model, obs, sps, nwalkers, n_burn, niter)
-    starttime = time.time()
-    chunksize, extra = divmod(int(1e4), n_cores * 16)
-    if extra:
-        chunksize += 1
-    result = pool.imap(func, range(0, int(1e4)), chunksize=chunksize)
-    for i, res in enumerate(result):
-        #print(i)
-        err_phot[i, :], err_spec[i, :] = res
-    endtime = time.time()
-    print(f"Time taken {endtime - starttime} seconds")
-    '''
 
     # Saving modelled photometry
     err_phot_mag = np.log10(err_phot) / -0.4
@@ -731,31 +539,20 @@ def configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn, gal_ebv
     return obs, sps, model, run_params
 
 
-def run_prospector(tde_name, path, z, withmpi, n_cores, gal_ebv, show_figs=True, init_theta=None, n_walkers=None,
-                   n_inter=None, n_burn=None, read_only=False):
-    os.chdir(os.path.join(path, tde_name, 'host'))
+def run_prospector(tde, n_cores=None, n_walkers=100, n_inter=2000, n_burn=1500, init_theta=None, show=True, read_only=False):
+    tde_name, path, z, gal_ebv = tde.name, tde.work_dir, float(tde.z), tde.ebv
+    os.chdir(os.path.join(tde.host_dir))
 
     if init_theta is None:
         init_theta = [1e10, -1.0, 6, 2]
 
-    if n_walkers is None:
-        n_walkers = 100
-
-    if n_inter is None:
-        n_inter = 1000
-
-    if n_burn is None:
-        n_burn = [500]
-
     obs, sps, model, run_params = configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn, gal_ebv)
 
-    if not withmpi:
-        n_cores = 1
 
     if not read_only:
         print("Initial guess: {}".format(model.initial_theta))
         print('Sampling the the SPS grid..')
-        if withmpi & ('logzsol' in model.free_params):
+        if  ('logzsol' in model.free_params):
             dummy_obs = dict(filters=None, wavelength=None)
 
             logzsol_prior = model.config_dict["logzsol"]['prior']
@@ -769,16 +566,11 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, gal_ebv, show_figs=True,
         from functools import partial
         lnprobfn_fixed = partial(lnprobfn, sps=sps)
         print('Starting posterior emcee sampling..')
-        if withmpi:
-            from multiprocessing import Pool
-            from multiprocessing import cpu_count
 
-            with Pool(int(n_cores)) as pool:
-                nprocs = n_cores
-                output = fit_model(obs, model, sps, pool=pool, queue_size=nprocs, lnprobfn=lnprobfn_fixed,
-                                   **run_params)
-        else:
-            output = fit_model(obs, model, sps, lnprobfn=lnprobfn_fixed, **run_params)
+        with Pool(int(n_cores)) as pool:
+            nprocs = n_cores
+            output = fit_model(obs, model, sps, pool=pool, queue_size=nprocs, lnprobfn=lnprobfn_fixed,
+                               **run_params)
 
         # output = fit_model(obs, model, sps, lnprobfn=lnprobfn, **run_params)
         print('done emcee in {0}s'.format(output["sampling"][1]))
@@ -806,19 +598,4 @@ def run_prospector(tde_name, path, z, withmpi, n_cores, gal_ebv, show_figs=True,
     save_results(result, model, obs, sps, theta_max, tde_name, path, n_walkers, n_inter, n_burn, n_cores)
 
     print('MAP value: {}'.format(theta_max))
-    fit_plot = plot_resulting_fit(tde_name, path)
-
-    try:
-        os.mkdir(os.path.join(path, tde_name, 'plots'))
-    except:
-        pass
-
-    fit_plot.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_host_fit.png'), bbox_inches='tight', dpi=300)
-    if show_figs:
-        plt.show()
-    corner_fig = corner_plot(result)
-    corner_fig.savefig(os.path.join(path, tde_name, 'plots', tde_name + '_cornerplot.png'), bbox_inches='tight',
-                       dpi=300)
-    if show_figs:
-        plt.show()
     os.chdir(path)

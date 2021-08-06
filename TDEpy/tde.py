@@ -20,6 +20,7 @@ from . import reduction as reduction
 from . import download_host as download_host
 from . import fit_light_curve as fit_light_curve
 from . import tools as tools
+from . import plots as plots
 
 warnings.simplefilter('ignore', category=AstropyWarning)
 
@@ -29,7 +30,6 @@ class TDE:
     def __init__(self, tde_name: str, path: str):
 
         # Checking for names incompatibilities
-
 
         if (str(tde_name)[0:2] == 'AT') or (str(tde_name)[0:2] == 'at'):
             at_name = str(tde_name)[2:]
@@ -47,6 +47,7 @@ class TDE:
         self.sw_dir = os.path.join(self.tde_dir, 'swift')
         self.host_dir = os.path.join(self.tde_dir, 'host')
         self.phot_dir = os.path.join(self.tde_dir, 'photometry')
+        self.plot_dir = os.path.join(self.tde_dir, 'plots')
         self.other_name, self.ra, self.dec, self.target_id, self.n_sw_obs, self.ebv, self.z, self.host_name, self.discovery_date = \
             None, None, None, None, None, None, None, None, None
         self.M_bh = [None, None, None]
@@ -143,7 +144,6 @@ class TDE:
         if self.is_tns & (target_id is None) & (n_obs is None):
             # Creating/entering Swift dir
 
-
             name_list, target_id_list, n_obs_list = reduction.get_target_id(self.name, self.ra, self.dec)
             for i in range(len(target_id_list)):
                 try:
@@ -185,8 +185,7 @@ class TDE:
 
         os.chdir(self.work_dir)
 
-    def uvot_photometry(self, radius=None, coords=None, write_to_file=True, show_light_curve=True, aper_cor=False,
-                      sigma=3, show_regions=True):
+    def uvot_photometry(self, radius=None, coords=None, aper_cor=False, sigma=3, show=True):
         """
         This function does the photometry on the Swift observations:
 
@@ -207,16 +206,13 @@ class TDE:
              ra and dec should be in degrees, and z can be None if it is not known. The ra and dec values will be one
              that will be used to create the region files, so they should be precisely centered on the source.
 
-        write_to_file : Boolean
-            Whether to create files with the resulting photometry data. Default is True.
-
-        show_light_curve : Boolean
-            Whether to show the light curve plot or not. Default is True.
-
         aper_cor: Boolean
             Whether to apply aperture correction or not. See 'uvotsource' documentation for details. Default is False.
 
-        show_regions:
+        sigma: int
+            minimum significance level to be passed to 'uvotsource' task.
+
+        show: Boolean
             Whether to show or not the .reg file figures. Deafault is True.
         """
 
@@ -257,34 +253,31 @@ class TDE:
 
         if (not os.path.exists('source.reg')) & (not os.path.exists('bkg.reg')):
             # Creating and plotting the .reg (science and background) files using the Ra and Dec
-            reduction.create_reg(self.ra, self.dec, radius, self.sw_dir, show_regions)
+            reduction.create_reg(self.ra, self.dec, radius, self.sw_dir, show)
         elif (os.path.exists('source.reg')) & (os.path.exists('bkg.reg')):
             src = open('source.reg', 'r').readline()
             r = int(np.float(src[int(src.find(')') - 4):int(src.find(')') - 1)]))
             if r != radius[0]:
-                reduction.create_reg(self.ra, self.dec, radius, self.sw_dir, show_regions)
+                reduction.create_reg(self.ra, self.dec, radius, self.sw_dir, show)
             else:
                 pass
         else:
-            reduction.create_reg(self.ra, self.dec, radius, self.sw_dir, show_regions)
+            reduction.create_reg(self.ra, self.dec, radius, self.sw_dir, show)
 
         # Doing photometry in the Swift data
         reduction.do_sw_photo(self.sw_dir, aper_cor, sigma)
 
         # saving to files
-        if write_to_file:
-            reduction.write_files(self.tde_dir, self.sw_dir, self.ebv)
-        else:
-            pass
+        reduction.write_files(self.tde_dir, self.sw_dir, self.ebv)
 
         # Leaving Swift dir
         os.chdir(self.tde_dir)
 
-        self.plot_light_curve(write_plot=True, show_plot=show_light_curve)
+        self.plot_light_curve(show=show)
         # returning to the working path
         os.chdir(self.work_dir)
 
-    def plot_light_curve(self, host_sub=False, bands=None, write_plot=True, show_plot=True, plot_host_mag=False):
+    def plot_light_curve(self, host_sub=False, show=True, title=True):
         """
         This function plots the TDEs light curves.
 
@@ -293,146 +286,18 @@ class TDE:
         host_sub : Boolean
             Whether the host galaxy contribution should be discounted. Default is False.
 
-        bands : list
-            Which bands should be plotted. The default is all the Swift bands. The available bands are:
-            'sw_w2', 'sw_m2', 'sw_w1', 'sw_uu', 'sw_bb', 'sw_vv', 'ztf_g' and 'ztf_r'.
-
-        write_plot : Boolean
-            Whether to create the write the figure a file. Default is True.
-
-        show_plot : Boolean
+        show : Boolean
             Whether to show the light curve plot or not. Default is True.
 
-        plot_host_mag:
-            In construction!
+        title : Boolean
+            Whether to show the tde.name in the title of the plot.
         """
 
-        # Creating color and legend dictionaries for each band
-        color_dic = dict(sw_uu='dodgerblue', sw_bb='cyan', sw_vv='gold', sw_w1='navy', sw_m2='darkviolet',
-                         sw_w2='magenta', ztf_g='green', ztf_r='red')
-        legend_dic = dict(sw_uu='$U$', sw_bb='$B$', sw_vv='$V$', sw_w1=r'$UV~W1$', sw_m2=r'$UV~M2$',
-                          sw_w2=r'$UV~W2$', ztf_g='g', ztf_r='r')
-
-        band_dic = dict(sw_uu='U', sw_bb='B', sw_vv='V', sw_w1='UVW1', sw_m2='UVM2',
-                        sw_w2='UVW2', ztf_g='g', ztf_r='r')
-        bands_plotted = []
         if host_sub:
-            host_bands, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
-                np.loadtxt(os.path.join(self.host_dir, 'host_phot_model.txt'),
-                           dtype={'names': (
-                               'band', 'wl_0', 'ab_mag', 'ab_mag_err',
-                               'flux_dens', 'flux_dens_err', 'catalog'),
-                               'formats': (
-                                   'U5', np.float, np.float, np.float,
-                                   np.float, np.float, 'U10')},
-                           unpack=True, skiprows=1)
+            if not os.path.exists(os.path.join(self.host_dir, 'host_phot_model.txt')):
+                raise Exception('You need to download and fit the host SED first!')
 
-        if not host_sub:
-            if bands is None:
-                bands = ['sw_uu', 'sw_bb', 'sw_vv', 'sw_w1', 'sw_m2', 'sw_w2']
-        elif host_sub:
-            if bands is None:
-                bands = ['sw_uu', 'sw_bb', 'sw_vv', 'sw_w1', 'sw_m2', 'sw_w2', 'ztf_r', 'ztf_g']
-
-        mjd_max = 0
-        mjd_min = 1e10
-        fig, ax = plt.subplots(figsize=(12, 7))
-        for band in bands:
-            # Loading and plotting Swift data
-            if band[0] == 's':
-                if host_sub:
-                    try:
-                        data_path = os.path.join(self.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')
-                        obsid, mjd, abmag, abmage, flu, flue, signal_host = np.loadtxt(data_path, skiprows=2,
-                                                                                       unpack=True)
-
-                    except:
-                        continue
-                else:
-                    try:
-                        data_path = os.path.join(self.tde_dir, 'photometry', 'obs', str(band) + '.txt')
-                        obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=2,
-                                                                          unpack=True)
-                    except:
-                        continue
-
-                flag = (abmag > 0) & (abmage < 1)
-                if np.sum(flag) > 0:
-                    ax.errorbar(mjd[flag], abmag[flag], yerr=abmage[flag], marker="o", linestyle='',
-                                color=color_dic[band],
-                                linewidth=1, markeredgewidth=0.5, markeredgecolor='black', markersize=8, elinewidth=0.7,
-                                capsize=0,
-                                label=legend_dic[band])
-                    bands_plotted.append(band)
-                    if np.max(mjd[flag]) > mjd_max:
-                        mjd_max = np.max(mjd[flag])
-                    if np.min(mjd[flag]) < mjd_min:
-                        mjd_min = np.min(mjd[flag])
-
-
-            # Loading and plotting ZTF data, only if it is present and host_sub=True
-            elif band[0] == 'z':
-                if os.path.exists(os.path.join(self.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')):
-                    mjd, abmag, abmage, flux, fluxe = np.loadtxt(
-                        os.path.join(self.tde_dir, 'photometry', 'host_sub', str(band) + '.txt'), skiprows=2,
-                        unpack=True)
-                    ax.errorbar(mjd, abmag, yerr=abmage, marker="o", linestyle='',
-                                color=color_dic[band],
-                                linewidth=1, markeredgewidth=0.5, markeredgecolor='black', markersize=8, elinewidth=0.7,
-                                capsize=0,
-                                label=legend_dic[band])
-                    bands_plotted.append(band)
-                    if np.max(mjd) > mjd_max:
-                        mjd_max = np.max(mjd)
-                    if np.min(mjd) < mjd_min:
-                        mjd_min = np.min(mjd)
-                else:
-                    pass
-            else:
-                break
-
-        if plot_host_mag:
-            # Plotting host mag
-            for band in bands_plotted:
-                # Loading and plotting Swift data
-                delt_mjd = (mjd_max - mjd_min) * 0.1
-                if host_sub:
-                    if band[0] == 's':
-                        band_host_flag = host_bands == band_dic[band]
-                        ax.errorbar(mjd_max + delt_mjd, model_ab_mag[band_host_flag][0],
-                                    yerr=model_ab_mag_err[band_host_flag][0],
-                                    marker="*", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
-                                    markeredgecolor='black', markersize=15, elinewidth=0.7, capsize=0)
-                    elif band[0] == 'z':
-                        band_host_flag = host_bands == band_dic[band]
-                        ax.errorbar(mjd_max + delt_mjd, model_ab_mag[band_host_flag][0],
-                                    yerr=model_ab_mag_err[band_host_flag][0],
-                                    marker="*", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
-                                    markeredgecolor='black', markersize=15, elinewidth=0.7, capsize=0)
-
-        ax.set_xlabel('MJD', fontsize=16)
-        ax.set_ylabel('AB mag', fontsize=16)
-        ax.invert_yaxis()
-        if host_sub:
-            title = self.name
-            fig_name = 'host_sub_light_curve.'
-        else:
-            title = self.name
-            fig_name = 'light_curve.'
-        ax.set_title(title)
-        plt.tight_layout()
-        if len(bands_plotted) > 3:
-            plt.legend(ncol=2)
-        else:
-            plt.legend(ncol=1)
-        if write_plot:
-            try:
-                os.mkdir(os.path.join(self.phot_dir, 'plots'))
-            except:
-                pass
-            plt.savefig(os.path.join(self.phot_dir, 'plots', fig_name + '.pdf'), bbox_inches='tight')
-        if show_plot:
-            plt.show()
+        plots.plot_light_curve(self, host_sub, show, title)
 
     def download_host_data(self, mir='Model', nir='default/Petro', opt='Kron/Petro', uv='5'):
         """
@@ -501,7 +366,6 @@ class TDE:
         self.host_radius = download_host.get_host_radius(coords_host)
         self.save_info()
 
-
         try:
             os.mkdir(self.host_dir)
             os.chdir(self.host_dir)
@@ -558,90 +422,44 @@ class TDE:
         self.plot_host_sed()
         os.chdir(self.work_dir)
 
-    def plot_host_sed(self, show_plot=True):
+    def plot_host_sed(self, show=True):
         """
         This function plots the host galaxy SED.
         You should run download_host_data() first.
+
+         Parameters
+        ----------------
+
+        show : Boolean
+            Whether to show the light curve plot or not. Default is True.
         """
-        try:
-            band, wl_c, ab_mag, ab_mag_err, catalogs, apertures = np.loadtxt(
-                os.path.join(self.host_dir, 'host_phot_obs.txt'),
-                dtype={'names': (
-                    'band', 'wl_0', 'ab_mag', 'ab_mag_err',
-                    'catalog', 'aperture'),
-                    'formats': (
-                        'U5', np.float, np.float, np.float, 'U10', 'U10')},
-                unpack=True, skiprows=2)
-        except:
-            raise Exception('We should run download_host_data() before trying to plot it.')
-
-        color_dic = {"WISE": "maroon", "UKIDSS": "coral", "2MASS": 'red', 'PAN-STARRS': 'green', 'DES': 'lime',
-                     'SkyMapper': 'greenyellow', 'SDSS': 'blue', 'GALEX': 'darkviolet', 'Swift/UVOT': 'darkviolet'}
-
-        finite = (np.isfinite(ab_mag)) & (np.isfinite(ab_mag_err))
-
-        fig, ax = plt.subplots(figsize=(12, 6))
-        for catalog in np.unique(catalogs[finite]):
-            flag = (catalogs == catalog) & (np.isfinite(ab_mag)) & (np.isfinite(ab_mag_err))
-            ax.errorbar(wl_c[flag], ab_mag[flag], yerr=ab_mag_err[flag], marker='D', fmt='o',
-                        color=color_dic[catalog],
-                        linewidth=3, markeredgecolor='black', markersize=8, elinewidth=3, capsize=5, capthick=3,
-                        markeredgewidth=1, label=catalog)
-        ax.invert_yaxis()
-        for catalog in np.unique(catalogs[~finite]):
-            flag = (catalogs == catalog) & (~np.isfinite(ab_mag_err))
-            ax.errorbar(wl_c[flag], ab_mag[flag], yerr=0.5, lolims=np.ones(np.shape(ab_mag[flag]), dtype=bool),
-                        marker='D', fmt='o', color=color_dic[catalog],
-                        markeredgecolor='black', markersize=8, elinewidth=2, capsize=6, capthick=3,
-                        markeredgewidth=1, label=catalog)
-
-        plt.xscale('log')
-        ax.set_xlim(700, 300000)
-        ax.set_xticks([1e3, 1e4, 1e5])
-        ax.set_xticklabels(['0.1', '1', '10'])
-        ymin, ymax = np.min(ab_mag) * 0.85, np.max(ab_mag) * 1.1
-        ax.set_ylim(ymax, ymin)
-        ax.set_ylabel('AB mag', fontsize=16)
-        ax.set_xlabel(r'Wavelength $[\mu m]$', fontsize=16)
-        ax.set_title('Host Galaxy SED (' + self.name + ')')
-        plt.legend(loc=4)
-        plt.tight_layout()
-        try:
-            os.mkdir(os.path.join(self.host_dir, 'plots'))
-        except:
-            pass
-
-        plt.savefig(os.path.join(self.host_dir, 'plots', 'host_sed_obs.pdf'), bbox_inches='tight', dpi=300)
-        if show_plot:
-            plt.show()
+        plots.plot_host_sed(self, show)
         os.chdir(self.work_dir)
 
-    def fit_host_sed(self, n_cores, show_figs=True, multi_processing=True, init_theta=None, n_walkers=None,
-                     n_inter=None, n_burn=None, read_only=False):
+    def fit_host_sed(self, n_cores=None, n_walkers=100, n_inter=2000, n_burn=1500, init_theta=None, show=True,
+                     read_only=False):
         """
         This function fit the host SED using Prospector software (https://github.com/bd-j/prospector/),
          saves modelled host data, and the host subtracted light curves:
 
         n_cores: integer
-            The number of CPU cores the run in parallel.
-
-        show_figs: Boolean
-            Whether to show or not the plots while running. Default is True.
-
-        multi_processing: Boolean
-            Whether multiprocessing will be used. True is the default and the advise, otherwise it will take several hours to run.
-
-        init_theta: list
-            The initial values for the fit. The format is: [mass, log_z, age, tau]. The defualt is [1e10, -1.0, 6, 0.5].
+            The number of CPU cores to run in parallel.
 
         n_walkers: integer
             Number os walkers for emcee posterior sampling. Default is 100.
 
         n_inter: integer
-            Number of interactions for emcee sampling. Default is 1000.
+            Number of interactions for emcee sampling. Default is 2000.
 
-        n_burn: list
-            In which interactions the emcee burns will be done. Default is [500].
+        n_burn: integer
+            In which interactions the emcee burns will be done. Default is 1500.
+
+        show: Boolean
+            Whether to show or not the plots while running. Default is True.
+
+        init_theta: list
+            The initial values for the fit. The format is: [mass, log_z, age, tau]. The defualt is [1e10, -1.0, 6, 0.5].
+
         """
         if self.z is None:
             self.z = np.nan
@@ -653,14 +471,13 @@ class TDE:
                     'THIS PROCESS WILL TAKE A LOT OF TIME!! try to increase the numbers of processing cores ('
                     'n_cores), if possible..')
                 self.save_info()
-
-                fit_host.run_prospector(self.name, self.work_dir, np.float(self.z), withmpi=multi_processing,
-                                        n_cores=n_cores, gal_ebv=self.ebv, show_figs=show_figs,
-                                        init_theta=init_theta, n_walkers=n_walkers, n_inter=n_inter, n_burn=n_burn,
-                                        read_only=read_only)
-
+                if n_cores is None:
+                    n_cores = os.cpu_count() / 2
+                fit_host.run_prospector(self, n_cores=n_cores, n_walkers=n_walkers, n_inter=n_inter, n_burn=n_burn,
+                                        init_theta=init_theta, show=show, read_only=read_only)
+                self.plot_host_sed_fit(corner_plot=True, color_mass=True)
             print('Creating host subtracted light curves!...')
-            self.subtract_host(show_plot=show_figs)
+            self.subtract_host(show=show)
             os.chdir(self.host_dir)
 
             result, obs, _ = fit_host.reader.results_from("prospector_result.h5", dangerous=False)
@@ -675,56 +492,52 @@ class TDE:
         This function plots the host galaxy SED model.
         You should run fit_host_sed() before calling it.
 
+        show: Boolean
+            Whether to show the plots.
+
+        title : Boolean
+            Whether to show the tde.name in the title of the plot.
+
         corner_plot: Boolean
-            Whether to show posterior sampling corner plot too. Default is False.
+            Whether to plot posterior sampling corner plot too. Default is False.
+
+        color_mass: Boolean
+            Whether to plot the color-massdiagram. Default is False.
         """
         os.chdir(self.host_dir)
-
         result, obs, _ = fit_host.reader.results_from("prospector_result.h5", dangerous=False)
-        imax = np.argmax(result['lnprobability'])
-
-        i, j = np.unravel_index(imax, result['lnprobability'].shape)
-        theta_max = result['chain'][i, j, :].copy()
-        fit_plot = fit_host.plot_resulting_fit(self.name, self.work_dir, title=title)
-        try:
-            os.mkdir(os.path.join(self.host_dir, 'plots'))
-        except:
-            pass
-        fit_plot.savefig(os.path.join(self.host_dir, 'plots', 'host_sed_model.pdf'), bbox_inches='tight', dpi=300)
-        plt.tight_layout()
+        fit_plot = plots.plot_host_sed_fit(self, title=title)
+        fit_plot.savefig(os.path.join(self.plot_dir, 'host', 'host_sed_model.pdf'), bbox_inches='tight', dpi=300)
         if show:
             plt.show()
 
         if corner_plot:
-            c_plt = fit_host.corner_plot(result)
-            c_plt.savefig(os.path.join(self.host_dir, 'plots', 'host_model_cornerplot.pdf'), bbox_inches='tight', dpi=300)
-            if show:
-                plt.show()
-
-        if color_mass:
-            color_mass_plt = fit_host.color_mass(self.host_mass, self.host_color)
-            color_mass_plt.savefig(os.path.join(self.host_dir, 'plots', 'color_mass_diagram.pdf'), bbox_inches='tight',
+            c_plt = plots.host_corner_plot(result)
+            c_plt.savefig(os.path.join(self.plot_dir, 'host', 'host_model_cornerplot.pdf'), bbox_inches='tight',
                           dpi=300)
             if show:
                 plt.show()
 
+        if color_mass:
+            color_mass_plt = plots.color_mass(self.host_mass, self.host_color)
+            color_mass_plt.savefig(os.path.join(self.plot_dir, 'host', 'color_mass_diagram.pdf'), bbox_inches='tight',
+                                   dpi=300)
+
         os.chdir(self.work_dir)
 
-
-
-
-    def subtract_host(self, show_plot=True):
-        '''
-        This function creates adn plot the host subtracted light curves.
+    def subtract_host(self, show=True):
+        """
+        This function creates and plot the host subtracted light curves.
         You should run fit_host_sed() before calling it.
 
-        show_plot: Boolean
-            Whether to show the host subtract light curves.
-        '''
+        show: Boolean
+            Whether to show the host subtract light curves plot.
+        """
 
         if os.path.exists(os.path.join(self.host_dir, 'host_phot_model.txt')):
             fit_host.host_sub_lc(self.name, self.work_dir, self.ebv)
-            self.plot_light_curve(host_sub=True, show_plot=show_plot)
+            self.plot_light_curve(host_sub=True, show=show)
+            self.plot_light_curve(host_sub=False, show=False)
         else:
             raise FileExistsError(
                 "'host_phot_model.txt' not found in host folder, please run the prospector host SED fitting first, i.e. fit_host_sed()")
@@ -888,10 +701,11 @@ class TDE:
         tar_handle.close()
         os.chdir(pwd)
 
-    def fit_light_curve(self, pre_peak=True, bands='All', T_interval=30, n_cores=None, n_walkers=100, n_inter=2000, n_burn=1500):
+    def fit_light_curve(self, pre_peak=True, bands='All', T_interval=30, n_cores=None, n_walkers=100, n_inter=2000,
+                        n_burn=1500, show=True):
         if n_cores is None:
             n_cores = os.cpu_count() / 2
-        fit_light_curve.run_fit(self.name, self.tde_dir, float(self.z), pre_peak, bands, T_interval, n_cores, n_walkers, n_inter, n_burn)
+        fit_light_curve.run_fit(self, pre_peak=pre_peak, bands=bands, T_interval=T_interval, n_cores=n_cores, n_walkers=n_walkers, n_inter=n_inter, n_burn=n_burn, show=show)
 
     def plot_light_curve_models(self, bands='All'):
         all_bands = ['sw_w2', 'sw_m2', 'sw_w1', 'sw_uu', 'sw_bb', 'ztf_g', 'ztf_r']
@@ -904,10 +718,6 @@ class TDE:
                     pass
                 else:
                     raise Exception(
-                        "your 'bands' list should contain bands between these ones: 'sw_w2', 'sw_m2', 'sw_w1', 'sw_uu', 'sw_bb', 'ztf_g', 'ztf_r'")
-        fit_light_curve.plot_models(self.name, self.tde_dir, float(self.z), bands)
-        fit_light_curve.plot_BB_evolution(self.name, self.tde_dir)
-        #plots.plot_SED_evolution(self.name, self.tde_dir, float(self.z))
-
-
-
+                        "your 'bands' list should contain bands among these ones: 'sw_w2', 'sw_m2', 'sw_w1', 'sw_uu', 'sw_bb', 'ztf_g', 'ztf_r'")
+        plots.plot_models(self.name, self.tde_dir, float(self.z), bands)
+        plots.plot_BB_evolution(self.name, self.tde_dir)
