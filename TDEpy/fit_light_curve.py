@@ -332,12 +332,12 @@ def run_fit(tde, pre_peak=True, bands='All', T_interval=30, n_cores=None, n_walk
 
         # Posterior emcee sampling
         ndim, nwalkers = int(5+n_T), n_walkers
-        pos = [np.concatenate(([np.random.normal(log_L_BB_opt, 0.2),
+        pos = [np.concatenate(([np.random.normal(log_L_BB_opt, 0.1),
                                 np.random.normal(t_peak_opt, 2),
                                 np.random.normal(sigma_opt, 2),
-                                np.random.normal(t0_opt, 5),
-                                np.random.normal(p_opt, 0.2)],
-                               [Ts_opt[j] + np.random.normal(0, 0.2) for j in range(n_T)])) for i in range(n_walkers)]
+                                np.random.normal(t0_opt, 2),
+                                np.random.normal(p_opt, 0.1)],
+                               [Ts_opt[j] + np.random.normal(0, 0.1) for j in range(n_T)])) for i in range(n_walkers)]
 
         with Pool(int(n_cores)) as pool:
             sampler = emcee.EnsembleSampler(n_walkers, ndim, models.lnprob, args=(model_name, observables), pool=pool)
@@ -455,10 +455,10 @@ def run_fit(tde, pre_peak=True, bands='All', T_interval=30, n_cores=None, n_walk
 
         # Posterior emcee sampling
         ndim, nwalkers = int(3 + n_T), n_walkers
-        pos = [np.concatenate(([np.random.normal(log_L_BB_opt, 0.2),
-                                np.random.normal(t0_opt, 5),
-                                np.random.normal(p_opt, 0.2)],
-                               [Ts_opt[j] + np.random.normal(0, 0.2) for j in range(n_T)])) for i in range(nwalkers)]
+        pos = [np.concatenate(([np.random.normal(log_L_BB_opt, 0.1),
+                                np.random.normal(t0_opt, 2),
+                                np.random.normal(p_opt, 0.1)],
+                               [Ts_opt[j] + np.random.normal(0, 0.1) for j in range(n_T)])) for i in range(nwalkers)]
 
         with Pool(int(n_cores)) as pool:
             sampler = emcee.EnsembleSampler(nwalkers, ndim, models.lnprob, args=(model_name, observables), pool=pool)
