@@ -573,6 +573,137 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
     ax1.tick_params(axis='y', labelsize=12)
     ax1.set_ylim(10 ** (np.log10(L_BB[-1]) - 1), 10 ** (theta_median[0] + 0.5))
 
+    #redimensioning sed_x_t
+    sed_x_t = sed_x_t[first_300days, :]
+    sed_err_x_t = sed_err_x_t[first_300days, :]
+
+
+    # Picking good epoch of good SED near peak
+    first_50days = (t_BB - t_peak) <= 50
+    n_obs_peak_max = np.max(np.sum(np.isfinite(sed_x_t[first_50days, :]), axis=1))
+    where_has_max = np.sum(np.isfinite(sed_x_t[first_50days, :]), axis=1) == n_obs_peak_max
+    distance_to_peak = abs(t_BB[first_50days][where_has_max] - t_peak)
+    flag_peak = distance_to_peak <= np.min(distance_to_peak) + 2
+
+    T_near_peak = np.mean(log_T[first_50days][where_has_max][flag_peak])
+    T_err_near_peak = np.mean(log_T_err[first_50days][where_has_max][flag_peak])
+    L_BB_near_peak = 10 ** np.mean(log_BB[first_50days][where_has_max][flag_peak])
+    L_BB_err_near_peak = 10 ** np.mean(0.432 * (log_BB_err / log_BB)[first_50days][where_has_max][flag_peak])
+    t_near_peak = np.mean(t_BB[first_50days][where_has_max][flag_peak])
+
+    for i in range(np.shape(sed_x_t)[1]):
+        y = sed_x_t[first_50days, i][where_has_max][flag_peak]
+
+        if np.isfinite(y).any():
+            y_err = sed_err_x_t[first_50days, i][where_has_max][flag_peak]
+            flag = np.isfinite(y)
+            wl = band_wls[i] * u.Angstrom
+            nu = np.zeros(np.shape(y[flag]))
+            nu[:] = c.cgs / wl.cgs
+
+            ax2.errorbar(nu, y[flag], yerr=y_err[flag], marker=marker[i], ecolor='black', linestyle='', mfc='None',
+                         mec='black', linewidth=1,
+                         markeredgewidth=0.7, markersize=8, elinewidth=0.7, capsize=0, label=label[i])
+    ax2.legend(fontsize='xx-small')
+    nu_list = (c.cgs / (np.arange(1300, 10000, 10) * u.Angstrom)).cgs
+    A = L_BB_near_peak / ((sigma_sb.cgs * ((10 ** T_near_peak * u.K) ** 4)).cgs / np.pi).cgs.value
+    bb_sed_mean = (A * models.blackbody(10 ** T_near_peak, (c.cgs / nu_list).to('AA').value))
+    ax2.plot(nu_list.value, bb_sed_mean, c='blue')
+
+    for i in range(100):
+        A = np.random.normal(L_BB_near_peak, L_BB_err_near_peak) / ((sigma_sb.cgs * (
+                (10 ** np.random.normal(T_near_peak, T_err_near_peak) * u.K) ** 4)).cgs / np.pi).cgs.value
+        bb_sed = (A * models.blackbody(10 ** T_near_peak, (c.cgs / nu_list).to('AA').value))
+        ax2.plot(nu_list.value, bb_sed, c='blue', alpha=0.05)
+
+    ax2.set_yscale('log')
+    ax2.set_xscale('log')
+    ax2.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$', fontsize=14)
+    ax2.set_xlabel('Rest-frame frequency (Hz)', fontsize=12)
+    ax2.set_xticks([4e14, 6e14, 1e15, 2e15])
+    ax2.set_xticklabels([r'$4\times10^{14}$', r'$6\times10^{14}$', r'$1\times10^{15}$', r'$2\times10^{15}$'],
+                        fontsize=11)
+    ax2.tick_params(axis='y', labelsize=12)
+    ax2.set_xlim(nu_list[-1].value, 2.1e15)
+    up_lim, lo_lim = np.max(bb_sed_mean.value), np.min(bb_sed_mean.value)
+    ax2.set_ylim(10 ** (np.log10(lo_lim) - 0.5), 10 ** (np.log10(up_lim) + 0.7))
+    title = r'$t={:.0f} \pm 2$ days pos max; log $T={:.2f} \pm {:.2f} \ K$'.format(int(t_near_peak - t_peak), T_near_peak, T_err_near_peak)
+    ax2.set_title(title, fontsize=12)
+    ax2.legend(fontsize='xx-small', loc=4)
+
+
+    # Picking good epoch of good SED near 200 days
+    last_days = (t_BB - t_peak) > 50
+    n_obs_200_max = np.max(np.sum(np.isfinite(sed_x_t[last_days, :]), axis=1))
+    where_has_max = np.where(np.sum(np.isfinite(sed_x_t[last_days, :]), axis=1) == n_obs_200_max)
+    distance_to_200 = abs(t_BB[last_days][where_has_max] - (t_peak + 150))
+    flag_200 = distance_to_200 <= np.min(distance_to_200) + 2
+
+    T_near_200 = np.mean(log_T[last_days][where_has_max][flag_200])
+    T_err_near_200 = np.mean(log_T_err[last_days][where_has_max][flag_200])
+    L_BB_near_200 = 10 ** np.mean(log_BB[last_days][where_has_max][flag_200])
+    L_BB_err_near_200 = 10 ** np.mean(0.432 * (log_BB_err / log_BB)[last_days][where_has_max][flag_200])
+    t_near_200 = np.mean(t_BB[last_days][where_has_max][flag_200])
+
+    for i in range(np.shape(sed_x_t)[1]):
+        y_200 = sed_x_t[last_days, i][where_has_max][flag_200]
+        if np.isfinite(y_200).any():
+            y = y_200
+            y_err = sed_err_x_t[last_days, i][where_has_max][flag_200]
+            flag = np.isfinite(y)
+            wl = band_wls[i] * u.Angstrom
+            nu = np.zeros(np.shape(y[flag]))
+            nu[:] = c.cgs / wl.cgs
+
+            ax3.errorbar(nu, y[flag], yerr=y_err[flag], marker=marker[i], ecolor='black', linestyle='', mfc='None',
+                         mec='black', linewidth=1,
+                         markeredgewidth=0.7, markersize=8, elinewidth=0.7, capsize=0, label=label[i])
+
+    ax3.legend(fontsize='xx-small')
+    nu_list = (c.cgs / (np.arange(1300, 10000, 10) * u.Angstrom)).cgs
+    A = L_BB_near_200 / ((sigma_sb.cgs * ((10 ** T_near_200 * u.K) ** 4)).cgs / np.pi).cgs.value
+    bb_sed_mean = (A * models.blackbody(10 ** T_near_200, (c.cgs / nu_list).to('AA').value))
+    ax3.plot(nu_list.value, bb_sed_mean, c='blue')
+    for i in range(100):
+        A = np.random.normal(L_BB_near_200, L_BB_err_near_200) / ((sigma_sb.cgs * (
+                (10 ** np.random.normal(T_near_200, T_err_near_200) * u.K) ** 4)).cgs / np.pi).cgs.value
+        bb_sed = (A * models.blackbody(10 ** T_near_200, (c.cgs / nu_list).to('AA').value))
+        ax3.plot(nu_list.value, bb_sed, c='blue', alpha=0.05)
+    ax3.set_yscale('log')
+    ax3.set_xscale('log')
+    ax3.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$', fontsize=14)
+    ax3.set_xlabel('Rest-frame frequency (Hz)', fontsize=12)
+    ax3.set_xticks([4e14, 6e14, 1e15, 2e15])
+    ax3.set_xticklabels([r'$4\times10^{14}$', r'$6\times10^{14}$', r'$1\times10^{15}$', r'$2\times10^{15}$'],
+                        fontsize=11)
+    ax3.tick_params(axis='y', labelsize=12)
+    ax3.set_xlim(nu_list[-1].value, 2.1e15)
+    up_lim, lo_lim = np.max(bb_sed_mean.value), np.min(bb_sed_mean.value)
+    ax3.set_ylim(10 ** (np.log10(lo_lim) - 0.5), 10 ** (np.log10(up_lim) + 0.7))
+    title = r'$t={:.0f} \pm 2$ days pos max; log $T={:.2f} \pm {:.2f} \ K$'.format(int(t_near_200 - t_peak), T_near_200,
+                                                                                   T_err_near_200)
+    ax3.set_title(title, fontsize=12)
+    up_lim = np.max([ax2.get_ylim(), ax3.get_ylim()])
+    lo_lim = np.min([ax2.get_ylim(), ax3.get_ylim()])
+    ax2.set_ylim(lo_lim, up_lim)
+    ax3.set_ylim(lo_lim, up_lim)
+    if np.max(t[first_300days] - t_peak) < 300:
+        ax1.set_xlim(np.min(t - t_peak) - 10, np.max(t[first_300days] - t_peak) + 10)
+    else:
+        ax1.set_xlim(np.min(t - t_peak) - 10, 305)
+
+    plt.tight_layout()
+    if print_name:
+        ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=14,
+                 transform=ax1.transAxes)
+    plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'SED_evolution.pdf'), bbox_inches='tight')
+    if show:
+        plt.show()
+
+
+
+
+'''
     delt_t = t - t_peak
     near_peak = np.where(abs(delt_t) == np.nanmin(abs(delt_t)))
     t_near_peak = t[near_peak]
@@ -688,7 +819,7 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
     plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'SED_evolution.pdf'), bbox_inches='tight')
     if show:
         plt.show()
-
+    '''
 
 def plot_lc_corner(tde_dir, fig_name, theta_median, sample, labels, show=True):
     data = np.zeros(np.shape(sample))
