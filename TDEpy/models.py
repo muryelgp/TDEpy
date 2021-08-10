@@ -249,7 +249,7 @@ def lnprior(theta, model_name, observables):
         # setting flat priors
         log_L_W2_peak_prior = np.nanmax(sed[:, 0])/100 <= 10**log_L_W2_peak <= np.nanmax(sed[:, 0]) * 100
         t_max_L = t[np.where(sed[:, 0] == np.nanmax(sed[:, 0]))[0]][0]
-        t_peak_prior = t_max_L - 100 <= t_peak <= t_max_L + 100
+        t_peak_prior = t[0] <= t_peak <= t_max_L + 100
         sigma_prior = 1 <= sigma <= 10 ** 2
         tau_prior = 1 <= tau <= 300
         T0_grid_prior = 4 <= log_T0 <= 5
