@@ -634,6 +634,8 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
 
     # Picking good epoch of good SED near 200 days
     last_days = (t_BB - t_peak) > 50
+    if np.sum(last_days == 0):
+        last_days = (t_BB - t_peak) <= 50
     n_obs_200_max = np.max(np.sum(np.isfinite(sed_x_t[last_days, :]), axis=1))
     where_has_max = np.where(np.sum(np.isfinite(sed_x_t[last_days, :]), axis=1) == n_obs_200_max)
     distance_to_200 = abs(t_BB[last_days][where_has_max] - (t_peak + 150))
