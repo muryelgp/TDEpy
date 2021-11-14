@@ -69,8 +69,8 @@ def plot_light_curve(tde, host_sub, show, title=True):
                                 yerr=model_ab_mag_err[band_host_flag][0],
                                 marker="*", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
                                 markeredgecolor='black', markersize=15, elinewidth=0.7, capsize=0)
-            ax.set_ylabel('AB mag', fontsize=20)
-            ax.invert_yaxis()
+
+
         except:
             pass
 
@@ -120,12 +120,14 @@ def plot_light_curve(tde, host_sub, show, title=True):
         ax.set_yscale('log')
 
     ax.set_xlabel('MJD', fontsize=20)
+    ax.set_ylabel('AB mag', fontsize=20)
     if host_sub:
         fig_name = 'host_sub_light_curve.'
     else:
         fig_name = 'light_curve.'
     if title:
         ax.set_title(tde.name)
+    ax.invert_yaxis()
     plt.tight_layout()
     plt.legend(ncol=2)
 
@@ -174,18 +176,20 @@ def plot_host_sed(tde, show):
                     marker='D', fmt='o', color=color_dic[catalog],
                     markeredgecolor='black', markersize=8, elinewidth=2, capsize=6, capthick=3,
                     markeredgewidth=1, label=catalog)
-
     plt.xscale('log')
     ax.set_xlim(700, 300000)
     ax.set_xticks([1e3, 1e4, 1e5])
     ymin, ymax = np.min(ab_mag) * 0.85, np.max(ab_mag) * 1.1
-    ax.set_xticklabels(['100', '1000', '10000'])
+    ax.set_xticklabels(['0.1', '1', '10'])
     ax.tick_params(axis='both', labelsize=16)
     ax.set_ylim(ymax, ymin)
     ax.set_ylabel('AB mag', fontsize=20)
-    ax.set_xlabel(r'Wavelength $\rm{[\AA]}$', fontsize=20)
+    ax.set_xlabel(r'Wavelength $\rm{[\mu m]}$', fontsize=20)
     plt.legend(loc=4)
     plt.tight_layout()
+
+
+
     try:
         os.mkdir(os.path.join(tde.plot_dir))
     except:
@@ -201,7 +205,7 @@ def plot_host_sed(tde, show):
 
 
 def plot_host_sed_fit(tde, title=True):
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(10, 10))
 
     band, obs_wl_c, obs_ab_mag, obs_ab_mag_err, catalogs, apertures = \
         np.loadtxt(os.path.join(tde.host_dir, 'host_phot_obs.txt'),
@@ -237,38 +241,38 @@ def plot_host_sed_fit(tde, title=True):
         unpack=True, skiprows=1)
 
     ax.plot(spec_wl_0, spec_ab_mag, label='Model spectrum (MAP)',
-            lw=0.7, color='green', alpha=0.8)
-    ax.fill_between(spec_wl_0, spec_ab_mag_p16, spec_ab_mag_p84, alpha=.3, color='green', label='Posterior')
+            lw=0.7, color='dodgerblue', alpha=0.8)
+    ax.fill_between(spec_wl_0, spec_ab_mag_p16, spec_ab_mag_p84, alpha=.3, color='lightskyblue', label='Posterior')
     ax.errorbar(model_wl_c[band_flag], model_ab_mag[band_flag], yerr=model_ab_mag_err[band_flag],
                 label='Model photometry (MAP)',
-                marker='s', markersize=8, alpha=0.85, ls='', lw=3, ecolor='green', capsize=5,
-                markerfacecolor='none', markeredgecolor='green',
+                marker='s', markersize=8, alpha=0.85, ls='', lw=3, ecolor='dodgerblue', capsize=5,
+                markerfacecolor='none', markeredgecolor='dodgerblue',
                 markeredgewidth=3)
 
     is_up_lim = ~np.isfinite(obs_ab_mag_err)
     ax.errorbar(obs_wl_c[~is_up_lim], obs_ab_mag[~is_up_lim], yerr=obs_ab_mag_err[~is_up_lim],
-                label='Observed photometry', ecolor='red',
+                label='Observed photometry', ecolor='darkorange',
                 marker='o', markersize=8, ls='', lw=3, alpha=0.85, capsize=5,
-                markerfacecolor='none', markeredgecolor='red',
+                markerfacecolor='none', markeredgecolor='darkorange',
                 markeredgewidth=3)
     ax.invert_yaxis()
     ax.errorbar(obs_wl_c[is_up_lim], obs_ab_mag[is_up_lim], yerr=0.5,
                 lolims=np.ones(np.shape(obs_ab_mag_err[is_up_lim]), dtype=bool),
-                marker='o', fmt='o', ecolor='red', alpha=0.85, lw=3, markeredgecolor='red',
+                marker='o', fmt='o', ecolor='darkorange', alpha=0.85, lw=3, markeredgecolor='darkorange',
                 markerfacecolor='none', markersize=8, elinewidth=2, capsize=6, capthick=3,
                 markeredgewidth=3)
 
     temp = np.interp(np.linspace(700, 300000, 10000), spec_wl_0, spec_ab_mag)
     ymin, ymax = temp.min() * 0.85, temp.max() * 1.1
-
     plt.xscale('log')
     ax.set_xlim(700, 300000)
     ax.set_xticks([1e3, 1e4, 1e5])
-    ax.set_xticklabels(['100', '1000', '10000'])
+    ax.set_xticklabels(['0.1', '1', '10'])
     ax.tick_params(axis='both', labelsize=16)
     ax.set_ylim(ymax, ymin)
     ax.set_ylabel('AB mag', fontsize=20)
-    ax.set_xlabel(r'Wavelength $\rm{[\AA]}$', fontsize=20)
+    ax.set_xlabel(r'Wavelength $\rm{[\mu m]}$', fontsize=20)
+
     if title:
         ax.set_title('Host Galaxy SED Fit (' + tde.name + ')')
     plt.legend(loc=4)
@@ -701,127 +705,6 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
     plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'SED_evolution.pdf'), bbox_inches='tight')
     if show:
         plt.show()
-
-
-
-
-'''
-    delt_t = t - t_peak
-    near_peak = np.where(abs(delt_t) == np.nanmin(abs(delt_t)))
-    t_near_peak = t[near_peak]
-    flag_peak = abs(t - t_near_peak) <= 2
-    flag_peak_BB = abs(t_BB - t_near_peak) <= 2
-    T_near_peak = np.mean(log_T[flag_peak_BB])
-    T_err_near_peak = np.mean(log_T_err[flag_peak_BB])
-    L_BB_near_peak = 10 ** np.mean(log_BB[flag_peak_BB])
-    L_BB_err_near_peak = 10 ** np.mean(0.432 * (log_BB_err / log_BB)[flag_peak_BB])
-
-    rand = np.random.uniform(100, 250)
-    near_200 = np.where(abs(delt_t - rand) == np.nanmin(abs(delt_t - rand)))
-    t_near_200 = t[near_200]
-    flag_200 = abs(t - t_near_200) <= 2
-    flag_200_BB = abs(t_BB - t_near_200) <= 2
-    T_near_200 = np.mean(log_T[flag_200_BB])
-    L_BB_near_200 = 10 ** np.mean(log_BB[flag_200_BB])
-    T_err_near_200 = np.mean(log_T_err[flag_200_BB])
-    L_BB_err_near_200 = 10 ** np.mean(0.432 * (log_BB_err / log_BB)[flag_200_BB])
-
-    for i in range(np.shape(sed_x_t)[1]):
-        y = sed_x_t[flag_peak, i]
-
-        if np.isfinite(y).any():
-            y_err = sed_err_x_t[flag_peak, i]
-            flag = np.isfinite(y)
-            wl = band_wls[i] * u.Angstrom
-            nu = np.zeros(np.shape(y[flag]))
-            nu[:] = c.cgs / wl.cgs
-
-            ax2.errorbar(nu, y[flag], yerr=y_err[flag], marker=marker[i], ecolor='black', linestyle='', mfc='None',
-                         mec='black', linewidth=1,
-                         markeredgewidth=0.7, markersize=8, elinewidth=0.7, capsize=0, label=label[i])
-    ax2.legend(fontsize='xx-small')
-    nu_list = (c.cgs / (np.arange(1300, 10000, 10) * u.Angstrom)).cgs
-    A = L_BB_near_peak / ((sigma_sb.cgs * ((10 ** T_near_peak * u.K) ** 4)).cgs / np.pi).cgs.value
-    bb_sed_mean = (A * models.blackbody(10 ** T_near_peak, (c.cgs / nu_list).to('AA').value))
-    ax2.plot(nu_list.value, bb_sed_mean, c='blue')
-
-    for i in range(100):
-        A = np.random.normal(L_BB_near_peak, L_BB_err_near_peak) / ((sigma_sb.cgs * (
-                    (10 ** np.random.normal(T_near_peak, T_err_near_peak) * u.K) ** 4)).cgs / np.pi).cgs.value
-        bb_sed = (A * models.blackbody(10 ** T_near_peak, (c.cgs / nu_list).to('AA').value))
-        ax2.plot(nu_list.value, bb_sed, c='blue', alpha=0.05)
-
-    ax2.set_yscale('log')
-    ax2.set_xscale('log')
-    ax2.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$', fontsize=14)
-    ax2.set_xlabel('Rest-frame frequency (Hz)', fontsize=12)
-    ax2.set_xticks([4e14, 6e14, 1e15, 2e15])
-    ax2.set_xticklabels([r'$4\times10^{14}$', r'$6\times10^{14}$', r'$1\times10^{15}$', r'$2\times10^{15}$'],
-                        fontsize=11)
-    ax2.tick_params(axis='y', labelsize=12)
-    ax2.set_xlim(nu_list[-1].value, 2.1e15)
-    up_lim, lo_lim = np.max(bb_sed_mean.value), np.min(bb_sed_mean.value)
-    ax2.set_ylim(10 ** (np.log10(lo_lim) - 0.5), 10 ** (np.log10(up_lim) + 0.7))
-    title = r'$t={:.0f} \pm 2$ days pos max; log $T={:.2f} \pm {:.2f} \ K$'.format(int(t_near_peak - t_peak),
-                                                                                   T_near_peak, T_err_near_peak)
-    ax2.set_title(title, fontsize=12)
-    ax2.legend(fontsize='xx-small', loc=4)
-
-    for i in range(np.shape(sed_x_t)[1]):
-        y_200 = sed_x_t[flag_200, i]
-        if np.isfinite(y_200).any():
-            y = sed_x_t[flag_200, i]
-            y_err = sed_err_x_t[flag_200, i]
-            flag = np.isfinite(y)
-            wl = band_wls[i] * u.Angstrom
-            nu = np.zeros(np.shape(y[flag]))
-            nu[:] = c.cgs / wl.cgs
-
-            ax3.errorbar(nu, y[flag], yerr=y_err[flag], marker=marker[i], ecolor='black', linestyle='', mfc='None',
-                         mec='black', linewidth=1,
-                         markeredgewidth=0.7, markersize=8, elinewidth=0.7, capsize=0, label=label[i])
-
-    ax3.legend(fontsize='xx-small')
-    nu_list = (c.cgs / (np.arange(1300, 10000, 10) * u.Angstrom)).cgs
-    A = L_BB_near_200 / ((sigma_sb.cgs * ((10 ** T_near_200 * u.K) ** 4)).cgs / np.pi).cgs.value
-    bb_sed_mean = (A * models.blackbody(10 ** T_near_200, (c.cgs / nu_list).to('AA').value))
-    ax3.plot(nu_list.value, bb_sed_mean, c='blue')
-    for i in range(100):
-        A = np.random.normal(L_BB_near_200, L_BB_err_near_200) / ((sigma_sb.cgs * (
-                    (10 ** np.random.normal(T_near_200, T_err_near_200) * u.K) ** 4)).cgs / np.pi).cgs.value
-        bb_sed = (A * models.blackbody(10 ** T_near_200, (c.cgs / nu_list).to('AA').value))
-        ax3.plot(nu_list.value, bb_sed, c='blue', alpha=0.05)
-    ax3.set_yscale('log')
-    ax3.set_xscale('log')
-    ax3.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$', fontsize=14)
-    ax3.set_xlabel('Rest-frame frequency (Hz)', fontsize=12)
-    ax3.set_xticks([4e14, 6e14, 1e15, 2e15])
-    ax3.set_xticklabels([r'$4\times10^{14}$', r'$6\times10^{14}$', r'$1\times10^{15}$', r'$2\times10^{15}$'],
-                        fontsize=11)
-    ax3.tick_params(axis='y', labelsize=12)
-    ax3.set_xlim(nu_list[-1].value, 2.1e15)
-    up_lim, lo_lim = np.max(bb_sed_mean.value), np.min(bb_sed_mean.value)
-    ax3.set_ylim(10 ** (np.log10(lo_lim) - 0.5), 10 ** (np.log10(up_lim) + 0.7))
-    title = r'$t={:.0f} \pm 2$ days pos max; log $T={:.2f} \pm {:.2f} \ K$'.format(int(t_near_200 - t_peak), T_near_200,
-                                                                                   T_err_near_200)
-    ax3.set_title(title, fontsize=12)
-    up_lim = np.max([ax2.get_ylim(), ax3.get_ylim()])
-    lo_lim = np.min([ax2.get_ylim(), ax3.get_ylim()])
-    ax2.set_ylim(lo_lim, up_lim)
-    ax3.set_ylim(lo_lim, up_lim)
-    if np.max(t[first_300days] - t_peak) < 300:
-        ax1.set_xlim(np.min(t - t_peak) - 10, np.max(t[first_300days] - t_peak) + 10)
-    else:
-        ax1.set_xlim(np.min(t - t_peak) - 10, 305)
-
-    plt.tight_layout()
-    if print_name:
-        ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=14,
-                 transform=ax1.transAxes)
-    plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'SED_evolution.pdf'), bbox_inches='tight')
-    if show:
-        plt.show()
-    '''
 
 def plot_lc_corner(tde_dir, fig_name, theta_median, sample, labels, show=True):
     data = np.zeros(np.shape(sample))

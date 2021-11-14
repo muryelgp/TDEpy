@@ -30,7 +30,7 @@ def get_host_radius(coords_host):
             except:
                 radius = None
 
-    return radius
+    return int(radius)
 
 
 def download_mir(coords_host, host_file_path):

@@ -412,7 +412,9 @@ class TDE:
                 "You need to choose which optical (opt) magnitude to use, the options are: 'Kron/Petro', 'PSF' or 'None'")
 
         # Downloading UV (GALEX or UVOT) data
-        if np.float(uv) > 1:
+        if self.host_radius is not None:
+            download_host.download_uv(self.host_radius, coords_host, self.host_dir, self.sw_dir)
+        elif np.float(uv) > 1:
             download_host.download_uv(uv, coords_host, self.host_dir, self.sw_dir)
         elif uv is None:
             pass

@@ -311,9 +311,9 @@ def load_ztfdata(ztf_name, ebv):
 def search_tns(at_name):
     tns = "www.wis-tns.org"
     url_tns_api = "https://" + tns + "/api/get"
-    api_key = "ef41397b0519fe63719ae40b6b8c97a6e65a5e17"
-    YOUR_BOT_ID = 2409
-    YOUR_BOT_NAME = "Muryel Guolo Pereira"
+    api_key = "b9bf1f3fcb0979e6f24d02ff4ea03731a06994e2"
+    YOUR_BOT_ID = 120940
+    YOUR_BOT_NAME = "TDEpy_BOT"
 
     json_list = [("objname", str(at_name)), ("objid", ""), ("photometry", "0"), ("spectra", "0")]
     # url for get obj

@@ -298,12 +298,6 @@ def run_fit(tde, pre_peak=True, bands='All', T_interval=30, n_cores=None, n_walk
                      '{:.2f}'.format(T0[1]) + '\n')
     model_file.close()
 
-
-    plot_dir = os.path.join(modelling_dir, 'plots')
-    try:
-        os.mkdir(plot_dir)
-    except:
-        pass
     fig_name = 'corner_plot_model1.pdf'
     if pre_peak:
         labels = [r"$L_{W2\,peak}$", r'$t_{peak}$', r'$\sigma$', r'$\tau$', r'log T$_0$']
