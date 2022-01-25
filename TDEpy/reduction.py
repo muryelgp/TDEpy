@@ -143,7 +143,6 @@ def create_reg(ra, dec, radius, dir, show_regions):
     os.system('rm datadirs.txt')
     image = None
     for i in range(len(dirs)):
-
         try_file = '%s/%s/uvot/image/sw%sum2_sk.img.gz' % (str(dir), str(dirs[i]), str(dirs[i]))
         if os.path.isfile(try_file):
             image = fits.open(try_file)
@@ -412,3 +411,6 @@ def download_swift(target_id, n_obs, init, end=None):
                   'http://www.swift.ac.uk/archive/reproc/' + str(target_id) + str(int(i)).rjust(3,
                                                                                                 '0') + '/uvot'
                                                                                                        '/image/')
+        os.system('wget -q -nv -nc -w 2 -nH --cut-dirs=2 -r --no-parent --reject "index.html*" '
+                  'http://www.swift.ac.uk/archive/reproc/' + str(target_id) + str(int(i)).rjust(3,
+                                                                                                '0') + '/xrt')

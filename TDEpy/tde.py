@@ -277,7 +277,7 @@ class TDE:
         # returning to the working path
         os.chdir(self.work_dir)
 
-    def plot_light_curve(self, host_sub=False, show=True, title=True):
+    def plot_light_curve(self, host_sub=False, units='mag',show=True, title=True):
         """
         This function plots the TDEs light curves.
 
@@ -285,6 +285,9 @@ class TDE:
         ----------------
         host_sub : Boolean
             Whether the host galaxy contribution should be discounted. Default is False.
+
+        units : string
+            The units to be plotted, either magnitudes 'mag' or luminosity 'lum'
 
         show : Boolean
             Whether to show the light curve plot or not. Default is True.
@@ -298,7 +301,7 @@ class TDE:
                 raise Exception('You need to download and fit the host SED first!')
             if self.z is None:
                 raise Exception('A redshift (z) needs to be inserted for this source')
-        plots.plot_light_curve(self, host_sub, show, title)
+        plots.plot_light_curve(self, host_sub, units, show, title)
 
     def download_host_data(self, mir='Model', nir='default/Petro', opt='Kron/Petro', uv='5'):
         """
@@ -476,7 +479,7 @@ class TDE:
                 self.save_info()
                 if n_cores is None:
                     n_cores = os.cpu_count() / 2
-                fit_host.run_prospector(self, n_cores=n_cores, n_walkers=n_walkers, n_inter=n_inter, n_burn=n_burn,
+                fit_host.run_prospector(self, n_cores=n_cores, n_walkers=n_walkers, n_inter=n_inter, n_burn=[n_burn],
                                         init_theta=init_theta, show=show, read_only=read_only)
                 self.plot_host_sed_fit(corner_plot=True, color_mass=True)
             print('Creating host subtracted light curves!...')
@@ -508,16 +511,22 @@ class TDE:
             Whether to plot the color-massdiagram. Default is False.
         """
         os.chdir(self.host_dir)
-        result, obs, _ = fit_host.reader.results_from("prospector_result.h5", dangerous=False)
+        result, _, _ = fit_host.reader.results_from("prospector_result.h5", dangerous=False)
+        sps = fit_host.build_sps(zcontinuous=1)
+        init_theta = [1e10, -1.0, 6, 0.5]
+        model = fit_host.build_model(self.ebv, object_redshift=self.z, init_theta=init_theta)
+        obs = fit_host.build_obs(self.work_dir, self.name)
         fit_plot = plots.plot_host_sed_fit(self, title=title)
         fit_plot.savefig(os.path.join(self.plot_dir, 'host', 'host_sed_model.pdf'), bbox_inches='tight', dpi=300)
         if show:
             plt.show()
 
         if corner_plot:
-            c_plt = plots.host_corner_plot(result)
+            c_plt, chains, map = plots.host_corner_plot(result, obs, model, sps, self.z, self.ebv)
             c_plt.savefig(os.path.join(self.plot_dir, 'host', 'host_model_cornerplot.pdf'), bbox_inches='tight',
                           dpi=300)
+
+            fit_host.save_host_properties(self.host_dir, chains, map)
             if show:
                 plt.show()
 
@@ -528,7 +537,7 @@ class TDE:
             color_mass_plt = plots.color_mass(self.host_mass, self.host_color)
             color_mass_plt.savefig(os.path.join(self.plot_dir, 'host', 'color_mass_diagram.pdf'), bbox_inches='tight',
                                    dpi=300)
-
+            plt.show()
         os.chdir(self.work_dir)
 
     def subtract_host(self, show=True):

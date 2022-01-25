@@ -14,7 +14,7 @@ from . import fit_light_curve as fit_light_curve
 from . import models as models
 
 
-def plot_light_curve(tde, host_sub, show, title=True):
+def plot_light_curve(tde, host_sub, units, show, title=True):
     # Creating color and legend dictionaries for each band
     color_dic = dict(sw_uu='dodgerblue', sw_bb='cyan', sw_vv='gold', sw_w1='navy', sw_m2='darkviolet',
                      sw_w2='magenta', ztf_g='green', ztf_r='red', ogle_I='darkred')
@@ -35,7 +35,7 @@ def plot_light_curve(tde, host_sub, show, title=True):
         for band in bands:
             try:
                 data_path = os.path.join(tde.tde_dir, 'photometry', 'obs', str(band) + '.txt')
-                obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=2, unpack=True)
+                obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=1, unpack=True)
             except:
                 continue
 
@@ -73,6 +73,8 @@ def plot_light_curve(tde, host_sub, show, title=True):
 
         except:
             pass
+        ax.set_ylabel('AB mag', fontsize=20)
+        ax.invert_yaxis()
 
     elif host_sub:
         cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
@@ -90,21 +92,31 @@ def plot_light_curve(tde, host_sub, show, title=True):
                     continue
                 flag = (abmag > 0) & (abmage < 1)
                 if np.sum(flag) > 0:
-                    ax.errorbar(mjd[flag], 4 * np.pi * (dist.value ** 2) * flux[flag] * wl_dic[band],
-                                yerr=4 * np.pi * (dist.value ** 2) * fluxe[flag] * wl_dic[band], marker="o", linestyle='',
-                                color=color_dic[band], linewidth=1, markeredgewidth=0.5, markeredgecolor='black',
-                                markersize=8, elinewidth=0.7, capsize=0, label=legend_dic[band])
-
+                    if units == 'lum':
+                        ax.errorbar(mjd[flag], 4 * np.pi * (dist.value ** 2) * flux[flag] * wl_dic[band],
+                                    yerr=4 * np.pi * (dist.value ** 2) * fluxe[flag] * wl_dic[band], marker="o", linestyle='',
+                                    color=color_dic[band], linewidth=1, markeredgewidth=0.5, markeredgecolor='black',
+                                    markersize=8, elinewidth=0.7, capsize=0, label=legend_dic[band])
+                    if units == 'mag':
+                        ax.errorbar(mjd[flag], abmag[flag], yerr=abmage[flag], marker="o",
+                                    linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5, markeredgecolor='black',
+                                    markersize=8, elinewidth=0.7, capsize=0, label=legend_dic[band])
             elif band[0] == 'z':
                 if os.path.exists(os.path.join(tde.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')):
                     mjd, abmag, abmage, flux, fluxe = np.loadtxt(
                         os.path.join(tde.tde_dir, 'photometry', 'host_sub', str(band) + '.txt'), skiprows=2,
                         unpack=True)
-                    ax.errorbar(mjd, 4 * np.pi * (dist.value ** 2) * flux * wl_dic[band],
-                                yerr=4 * np.pi * (dist.value ** 2) * fluxe * wl_dic[band],
-                                marker="o", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
-                                markeredgecolor='black', markersize=8, elinewidth=0.7, capsize=0,
-                                label=legend_dic[band])
+                    if units == 'lum':
+                        ax.errorbar(mjd, 4 * np.pi * (dist.value ** 2) * flux * wl_dic[band],
+                                    yerr=4 * np.pi * (dist.value ** 2) * fluxe * wl_dic[band],
+                                    marker="o", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
+                                    markeredgecolor='black', markersize=8, elinewidth=0.7, capsize=0,
+                                    label=legend_dic[band])
+                    if units == 'mag':
+                        ax.errorbar(mjd, abmag, yerr=abmage, marker="o",
+                                    linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
+                                    markeredgecolor='black',
+                                    markersize=8, elinewidth=0.7, capsize=0, label=legend_dic[band])
 
             elif band[0] == 'o':
                 if os.path.exists(os.path.join(tde.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')):
@@ -116,18 +128,22 @@ def plot_light_curve(tde, host_sub, show, title=True):
                                 marker="o", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
                                 markeredgecolor='black', markersize=8, elinewidth=0.7, capsize=0,
                                 label=legend_dic[band])
-        ax.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$', fontsize=20)
-        ax.set_yscale('log')
+            if units == 'lum':
+                ax.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$', fontsize=20)
+                ax.set_yscale('log')
+            if units == 'mag':
+                ax.set_ylabel('AB mag', fontsize=20)
+                ax.invert_yaxis()
 
     ax.set_xlabel('MJD', fontsize=20)
-    ax.set_ylabel('AB mag', fontsize=20)
+
     if host_sub:
         fig_name = 'host_sub_light_curve.'
     else:
         fig_name = 'light_curve.'
     if title:
         ax.set_title(tde.name)
-    ax.invert_yaxis()
+
     plt.tight_layout()
     plt.legend(ncol=2)
 
@@ -162,10 +178,10 @@ def plot_host_sed(tde, show):
 
     finite = (np.isfinite(ab_mag)) & (np.isfinite(ab_mag_err))
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(10, 10))
     for catalog in np.unique(catalogs[finite]):
         flag = (catalogs == catalog) & (np.isfinite(ab_mag)) & (np.isfinite(ab_mag_err))
-        ax.errorbar(wl_c[flag], ab_mag[flag], yerr=ab_mag_err[flag], marker='D', fmt='o',
+        ax.errorbar(wl_c[flag], ab_mag[flag], yerr=ab_mag_err[flag], marker='D', linestyle=' ',
                     color=color_dic[catalog],
                     linewidth=3, markeredgecolor='black', markersize=8, elinewidth=3, capsize=5, capthick=3,
                     markeredgewidth=1, label=catalog)
@@ -173,11 +189,11 @@ def plot_host_sed(tde, show):
     for catalog in np.unique(catalogs[~finite]):
         flag = (catalogs == catalog) & (~np.isfinite(ab_mag_err))
         ax.errorbar(wl_c[flag], ab_mag[flag], yerr=0.5, lolims=np.ones(np.shape(ab_mag[flag]), dtype=bool),
-                    marker='D', fmt='o', color=color_dic[catalog],
+                    marker='D', linetyle=' ', color=color_dic[catalog],
                     markeredgecolor='black', markersize=8, elinewidth=2, capsize=6, capthick=3,
                     markeredgewidth=1, label=catalog)
     plt.xscale('log')
-    ax.set_xlim(700, 300000)
+    ax.set_xlim(700, 100000)
     ax.set_xticks([1e3, 1e4, 1e5])
     ymin, ymax = np.min(ab_mag) * 0.85, np.max(ab_mag) * 1.1
     ax.set_xticklabels(['0.1', '1', '10'])
@@ -241,31 +257,31 @@ def plot_host_sed_fit(tde, title=True):
         unpack=True, skiprows=1)
 
     ax.plot(spec_wl_0, spec_ab_mag, label='Model spectrum (MAP)',
-            lw=0.7, color='dodgerblue', alpha=0.8)
-    ax.fill_between(spec_wl_0, spec_ab_mag_p16, spec_ab_mag_p84, alpha=.3, color='lightskyblue', label='Posterior')
+            lw=0.7, color='grey', alpha=0.8)
+    ax.fill_between(spec_wl_0, spec_ab_mag_p16, spec_ab_mag_p84, alpha=.3, color='grey', label='Posterior')
     ax.errorbar(model_wl_c[band_flag], model_ab_mag[band_flag], yerr=model_ab_mag_err[band_flag],
                 label='Model photometry (MAP)',
-                marker='s', markersize=8, alpha=0.85, ls='', lw=3, ecolor='dodgerblue', capsize=5,
-                markerfacecolor='none', markeredgecolor='dodgerblue',
+                marker='s', markersize=8, alpha=0.85, ls='', lw=3, ecolor='black', capsize=5,
+                markerfacecolor='none', markeredgecolor='black',
                 markeredgewidth=3)
 
     is_up_lim = ~np.isfinite(obs_ab_mag_err)
     ax.errorbar(obs_wl_c[~is_up_lim], obs_ab_mag[~is_up_lim], yerr=obs_ab_mag_err[~is_up_lim],
-                label='Observed photometry', ecolor='darkorange',
+                label='Observed photometry', ecolor='red',
                 marker='o', markersize=8, ls='', lw=3, alpha=0.85, capsize=5,
-                markerfacecolor='none', markeredgecolor='darkorange',
+                markerfacecolor='none', markeredgecolor='red',
                 markeredgewidth=3)
     ax.invert_yaxis()
     ax.errorbar(obs_wl_c[is_up_lim], obs_ab_mag[is_up_lim], yerr=0.5,
                 lolims=np.ones(np.shape(obs_ab_mag_err[is_up_lim]), dtype=bool),
-                marker='o', fmt='o', ecolor='darkorange', alpha=0.85, lw=3, markeredgecolor='darkorange',
+                marker='o', fmt='o', ecolor='red', alpha=0.85, lw=3, markeredgecolor='red',
                 markerfacecolor='none', markersize=8, elinewidth=2, capsize=6, capthick=3,
                 markeredgewidth=3)
 
-    temp = np.interp(np.linspace(700, 300000, 10000), spec_wl_0, spec_ab_mag)
-    ymin, ymax = temp.min() * 0.85, temp.max() * 1.1
+    temp = np.interp(np.linspace(700, 100000, 10000), spec_wl_0, spec_ab_mag)
+    ymin, ymax = temp.min() * 0.75, temp.max() * 1.1
     plt.xscale('log')
-    ax.set_xlim(700, 300000)
+    ax.set_xlim(700, 100000)
     ax.set_xticks([1e3, 1e4, 1e5])
     ax.set_xticklabels(['0.1', '1', '10'])
     ax.tick_params(axis='both', labelsize=16)
@@ -275,13 +291,28 @@ def plot_host_sed_fit(tde, title=True):
 
     if title:
         ax.set_title('Host Galaxy SED Fit (' + tde.name + ')')
-    plt.legend(loc=4)
+    plt.legend(loc=2)
+
+    _, map, median, p16, p84 = \
+        np.loadtxt(os.path.join(tde.host_dir, 'host_properties.txt'),
+                   dtype={'names': ('Parameter', 'MAP', 'median', 'p16', 'p84'),
+                          'formats': ('U10', np.float, np.float, np.float, np.float)},
+                   unpack=True, skiprows=1)
+    labels = [r'log $M_{*}$', r'log $Z/Z_{\odot}$', r'$\rm{E(B-V)}$', r'$t_{\rm{age}}$',
+              r'$\tau_{\rm{sfh}}$']
+    units = [r'$M_{\odot}$', '', '', 'Gyr', 'Gyr']
+    flag_min = p16 == 0.00
+    p16[flag_min] = 0.01
+    flag_min = p84 == 0.00
+    p84[flag_min] = 0.01
+    for i in range(5):
+        plt.text(0.98, 0.30-0.06*i, labels[i] + ' = ' + r'$%.2f_{%.2f}^{%.2f}$' % (median[i], p16[i], p84[i]) + ' ' + units[i], verticalalignment='center', horizontalalignment='right', transform=ax.transAxes, fontsize=20)
     plt.tight_layout()
 
     return fig
 
 
-def host_corner_plot(result):
+def host_corner_plot(result, obs, model, sps, ebv, z):
     imax = np.argmax(result['lnprobability'])
 
     i, j = np.unravel_index(imax, result['lnprobability'].shape)
@@ -304,7 +335,7 @@ def host_corner_plot(result):
     if wghts is not None:
         wghts = wghts[start::thin]
     samples = trace.reshape(trace.shape[0] * trace.shape[1], trace.shape[2])
-    logify = ["mass", "tau"]
+    logify = ["mass"]
     # logify some parameters
     xx = samples.copy()
     for p in logify:
@@ -314,29 +345,47 @@ def host_corner_plot(result):
             parnames[idx] = "log({})".format(parnames[idx])
     bounds = []
     data = np.zeros(np.shape(xx))
+
+
+
     for i, x in enumerate(xx):
         a, b, c, d, e = x
-        data[i, :] = a, b, c, d, e
+        _,  _ , mfrac = model.predict(x, obs=obs, sps=sps)
+        data[i, :] = np.log10((10**a)*mfrac), b, c/3.1, d, e
+        #print(i)
 
-    theta_max = [np.log10(theta_max[0]), theta_max[1], theta_max[2], theta_max[3], np.log10(theta_max[4])]
+    from astropy.cosmology import FlatLambdaCDM
+    import astropy.units as u
+    cosmo = FlatLambdaCDM(H0=70 * u.km / u.s / u.Mpc, Tcmb0=2.725 * u.K, Om0=0.3)
+    _, _, mfrac = model.predict(theta_max, obs=obs, sps=sps)
+    theta_max = [np.log10(theta_max[0]*mfrac), theta_max[1], (theta_max[2])/3.1 , theta_max[3], theta_max[4]]
+    lim = [[6, 12],
+           [-2, 0.3],
+           [ebv, 2/3.1],
+           [0.01, cosmo.age(z).value],
+           [1e-1, 1e2]]
 
     for i in range(np.shape(xx)[1]):
         sig1 = abs(theta_max[i] - np.percentile((data[:, i]), 16))
         sig2 = abs(np.percentile((data[:, i]), 84) - theta_max[i])
-        mean_dist = np.max([sig1, sig2])
-        bounds.append((theta_max[i] - 3 * mean_dist, theta_max[i] + 3 * mean_dist))
+        if (theta_max[i] - 3 * sig1 < lim[i][0]):
+            bounds.append((lim[i][0], theta_max[i] + 3 * sig2))
+        elif ((theta_max[i] + 3 * sig2 > lim[i][1])):
+            bounds.append((theta_max[i] - 3 * sig1, lim[i][1]))
+        else:
+            big_sig = max([sig1, sig2])
+            bounds.append((theta_max[i] - 3 * big_sig, theta_max[i] + 3 * big_sig))
 
-    # cornerfig = reader.subcorner(result, thin=5,
-    #                             fig=plt.subplots(5, 5, figsize=(27, 27))[0], range=bounds)
-
-    labels = [r'log $M_{*}/M_{\odot}$', r'log $Z/Z_{\odot}$', r'$\rm{A_{V}}$', r'$t_{\rm{age}}$',
-              r'log $\tau_{\rm{sfh}}$']
+    labels = [r'log $M_{*}/M_{\odot}$', r'log $Z/Z_{\odot}$', r'$\rm{E(B-V)}$', r'$t_{\rm{age}}$',
+              r'$\tau_{\rm{sfh}}$']
     cornerfig = corner.corner(data,
                               labels=labels,
                               quantiles=[0.16, 0.5, 0.84],
                               show_titles=True, title_kwargs={"fontsize": 12}, range=bounds)
 
-    return cornerfig
+
+
+    return cornerfig, data, theta_max
 
 
 def color_mass(mass_list, color_list):

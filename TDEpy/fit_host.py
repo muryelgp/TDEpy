@@ -124,6 +124,7 @@ def build_model(gal_ebv, object_redshift=None, init_theta=None):
 
     model_params["sfh"]["init"] = 4
     Av_init = gal_ebv * 3.1
+
     # print(init_theta)
     # Changing the initial values appropriate for our objects and data
     model_params["mass"]["init"] = init_theta[0]
@@ -133,34 +134,36 @@ def build_model(gal_ebv, object_redshift=None, init_theta=None):
     model_params["tau"]["init"] = init_theta[3]
 
     # Setting the priors forms and limits
-    model_params["mass"]["prior"] = priors.LogUniform(mini=1e6, maxi=1e12)
-    model_params["logzsol"]["prior"] = priors.Uniform(mini=-1.8, maxi=0.3)
-    model_params["dust2"]["prior"] = priors.ClippedNormal(mean=Av_init, sigma=0.05, mini=Av_init,
-                                                          maxi=Av_init + 0.1)
-    # model_params["dust2"]["prior"] = priors.Uniform(mini=0.0, maxi=0.5)
-    model_params["tage"]["prior"] = priors.Uniform(mini=0.1, maxi=13.8)
-    model_params["tau"]["prior"] = priors.Uniform(mini=0.001, maxi=30)
+    model_params["mass"]["prior"] = priors.LogUniform(mini=1e8, maxi=1e12)
+    model_params["logzsol"]["prior"] = priors.Uniform(mini=-1, maxi=0.3)
+    model_params["dust2"]["prior"] = priors.Uniform(mini=Av_init, maxi=2)
+    #priors.ClippedNormal(mean=Av_init, sigma=0.05, mini=Av_init, maxi=1)
+    from astropy.cosmology import FlatLambdaCDM
+    import astropy.units as u
+
+    cosmo = FlatLambdaCDM(H0=70 * u.km / u.s / u.Mpc, Tcmb0=2.725 * u.K, Om0=0.3)
+    model_params["tage"]["prior"] = priors.Uniform(mini=0.1, maxi=cosmo.age(object_redshift).value)
+    model_params["tau"]["prior"] = priors.LogUniform(mini=1e-1, maxi=1e2)
 
     # Setting the spread of the walkers for the mcmc sampling
-    model_params["mass"]["disp_floor"] = 1e8
-    model_params["logzsol"]['disp_floor'] = 0.5
+    model_params["mass"]["disp_floor"] = 1e10
+    model_params["logzsol"]['disp_floor'] = 0.2
     model_params["dust2"]["disp_floor"] = 0.01
-    model_params["tage"]["disp_floor"] = 5.0
-    model_params["tau"]["disp_floor"] = 3.0
+    model_params["tage"]["disp_floor"] = 1.0
+    model_params["tau"]["disp_floor"] = 1.0
 
-    model_params["mass"]["init_disp"] = 1e8
-    model_params["logzsol"]['init_disp'] = 0.5
+    model_params["mass"]["init_disp"] = 1e10
+    model_params["logzsol"]['init_disp'] = 0.2
     model_params["dust2"]["init_disp"] = 0.01
-    model_params["tage"]["init_disp"] = 5.0
-    model_params["tau"]["init_disp"] = 3.0
+    model_params["tage"]["init_disp"] = 1.0
+    model_params["tau"]["init_disp"] = 1.0
 
     # Fixing and defining the object redshift
     model_params["zred"]['isfree'] = False
     model_params["zred"]['init'] = object_redshift
-
-    # ldist = cosmo.luminosity_distance(object_redshift).value
-    # model_params["lumdist"] = {"N": 1, "isfree": False, "init": ldist, "units": "Mpc"}
-
+    model_params.update(TemplateLibrary["dust_emission"])
+    model_params["mass"]['units'] = 'mstar'
+    #model_params['add_stellar_remnants'] = {"N": 1, "isfree": False, "init": False}
     # Now instantiate the model object using this dictionary of parameter specifications
     model = SedModel(model_params)
 
@@ -168,49 +171,31 @@ def build_model(gal_ebv, object_redshift=None, init_theta=None):
 
 
 def build_sps(zcontinuous=1):
-    sps = CSPSpecBasis(zcontinuous=zcontinuous)
+    sps = CSPSpecBasis(zcontinuous=zcontinuous, add_stellar_remnants=False)
     return sps
+
+def save_host_properties(host_dir, data, map):
+    write_path = os.path.join(host_dir, 'host_properties.txt')
+    g = open(write_path, 'w')
+    g.write('Parameter' + '\t' + 'MAP' + '\t' + 'median' + '\t' + 'p16' + '\t' + 'p84' + '\n')
+    par_list = ['log_M_*', 'log_Z', 'E(B-V)', 't_age', 'tau_sfh']
+    medians = np.median(data[:, :], axis=0)
+    p16 = medians - np.percentile(data[:, :], 16, axis=0)
+    p84 = np.percentile(data[:, :], 84, axis=0) - medians
+    for i in range(5):
+        g.write(par_list[i] + '\t' + '%.2f' % map[i] + '\t' + '%.2f' % medians[i] + '\t' + '%.2f' % p16[i] + '\t' '%.2f' % p84[i] + '\n')
+    g.close()
 
 
 def get_host_properties(result, host_dir, ebv):
-    try:
-        parnames = np.array(result['theta_labels'], dtype='U20')
+    _, _, median, p16, p84 = np.loadtxt(os.path.join(host_dir, 'host_properties.txt'),
+               dtype={'names': ('Parameter', 'MAP', 'median', 'p16', 'p84'),
+                   'formats': (
+                       np.float, np.float, np.float, np.float, np.float)},
+               unpack=True, skiprows=1)
 
-    except KeyError:
-        parnames = np.array(result['model'].theta_labels())
 
-    ind_show = slice(None)
-    thin = 5
-    chains = slice(None)
-    start = 0
-    # Get the arrays we need (trace, wghts)
-    trace = result['chain'][..., ind_show]
-    if trace.ndim == 2:
-        trace = trace[None, :]
-    trace = trace[chains, start::thin, :]
-    wghts = result.get('weights', None)
-    if wghts is not None:
-        wghts = wghts[start::thin]
-    samples = trace.reshape(trace.shape[0] * trace.shape[1], trace.shape[2])
-    logify = ["mass", "tau"]
-    # logify some parameters
-    xx = samples.copy()
-    for p in logify:
-        if p in parnames:
-            idx = parnames.tolist().index(p)
-            xx[:, idx] = np.log10(xx[:, idx])
-            parnames[idx] = "log({})".format(parnames[idx])
-    bounds = []
-    data = np.zeros(np.shape(xx))
-    for i, x in enumerate(xx):
-        a, b, c, d, e = x
-        data[i, :] = a, b, c, d, e
-
-    mass_dist = [data[i][0] for i in range(len(data))]
-    mass_median = np.median(mass_dist)
-    mass_p84 = np.percentile(mass_dist, 84) - mass_median
-    mass_p16 = mass_median - np.percentile(mass_dist, 16)
-
+    list_mass = [median[0], p16[0], p84[0]]
     host_bands, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
         np.loadtxt(os.path.join(host_dir, 'host_phot_model.txt'),
                    dtype={'names': (
@@ -242,7 +227,7 @@ def get_host_properties(result, host_dir, ebv):
     u_r_ext_cor = u_mag_ext_cor - r_mag_ext_cor
     u_r_err = np.sqrt(u_mag_err ** 2 + r_mag_err ** 2)
 
-    list_mass = [mass_median, mass_p16, mass_p84]
+
     list_color = [u_r_ext_cor, u_r_err]
 
     return list_mass, list_color
@@ -544,7 +529,7 @@ def run_prospector(tde, n_cores=None, n_walkers=100, n_inter=2000, n_burn=1500, 
     os.chdir(os.path.join(tde.host_dir))
 
     if init_theta is None:
-        init_theta = [1e10, -1.0, 6, 2]
+        init_theta = [1e10, 0, 6, 1]
 
     obs, sps, model, run_params = configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn, gal_ebv)
 
