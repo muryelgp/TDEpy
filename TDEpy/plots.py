@@ -189,7 +189,7 @@ def plot_host_sed(tde, show):
     for catalog in np.unique(catalogs[~finite]):
         flag = (catalogs == catalog) & (~np.isfinite(ab_mag_err))
         ax.errorbar(wl_c[flag], ab_mag[flag], yerr=0.5, lolims=np.ones(np.shape(ab_mag[flag]), dtype=bool),
-                    marker='D', linetyle=' ', color=color_dic[catalog],
+                    marker='D', color=color_dic[catalog],
                     markeredgecolor='black', markersize=8, elinewidth=2, capsize=6, capthick=3,
                     markeredgewidth=1, label=catalog)
     plt.xscale('log')
