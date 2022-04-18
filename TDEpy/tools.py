@@ -78,3 +78,10 @@ def round_small(array, limit):
     flag = abs(array) < limit
     array[flag] = limit
     return array
+
+def logfy(p50, p16, p84):
+    log = np.log10(p50)
+    lof_err1 = np.log10(p50+p84) - np.log10(p50)
+    log_err2 = np.log10(p50) - np.log10(p50-p16)
+    log_err = np.mean(log_err2, lof_err1)
+    return log, log_err

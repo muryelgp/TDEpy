@@ -1,6 +1,9 @@
 import os
 import warnings
+import matplotlib
 import matplotlib.pyplot as plt
+matplotlib.rcParams['font.family'] = 'sans-serif'
+matplotlib.rcParams['axes.linewidth'] = 1
 import numpy as np
 from astropy.utils.exceptions import AstropyWarning
 from astropy.cosmology import FlatLambdaCDM
@@ -8,34 +11,46 @@ from astropy.cosmology import FlatLambdaCDM
 warnings.simplefilter('ignore', category=AstropyWarning)
 import corner
 import pkg_resources
-from astropy.constants import h, c, k_B, sigma_sb
+from astropy.constants import c, sigma_sb
 import astropy.units as u
-from . import fit_light_curve as fit_light_curve
+from . import light_curves as light_curves
 from . import models as models
 
 
-def plot_light_curve(tde, host_sub, units, show, title=True):
+
+def plot_light_curve(tde, host_sub, host_level, units, show, title=True):
     # Creating color and legend dictionaries for each band
     color_dic = dict(sw_uu='dodgerblue', sw_bb='cyan', sw_vv='gold', sw_w1='navy', sw_m2='darkviolet',
-                     sw_w2='magenta', ztf_g='green', ztf_r='red', ogle_I='darkred')
+                     sw_w2='magenta', ztf_g='green', ztf_r='red', ogle_I='darkred', atlas_o='orange')
     legend_dic = dict(sw_uu='$U$', sw_bb='$B$', sw_vv='$V$', sw_w1=r'$UV~W1$', sw_m2=r'$UV~M2$',
-                      sw_w2=r'$UV~W2$', ztf_g='g', ztf_r='r', ogle_I='I')
+                      sw_w2=r'$UV~W2$', ztf_g='g', ztf_r='r', ogle_I='I', atlas_o='o')
 
     band_dic = dict(sw_uu='U', sw_bb='B', sw_vv='V', sw_w1='UVW1', sw_m2='UVM2',
-                    sw_w2='UVW2', ztf_g='g', ztf_r='r', ogle_I='I')
+                    sw_w2='UVW2', ztf_g='g', ztf_r='r', ogle_I='I', atlas_o='o')
 
     wl_dic = dict(sw_uu=3465, sw_bb=4392.25, sw_vv=5411, sw_w1=2684.14, sw_m2=2245.78,
-                  sw_w2=2085.73, ztf_g=4722.74, ztf_r=6339.61, ogle_I=8060)
+                  sw_w2=2085.73, ztf_g=4722.74, ztf_r=6339.61, ogle_I=8060, atlas_o=6790)
 
     fig, ax = plt.subplots(figsize=(12, 7))
     if not host_sub:
-        bands = ['sw_uu', 'sw_bb', 'sw_vv', 'sw_w1', 'sw_m2', 'sw_w2']
+        bands = ['sw_uu', 'sw_bb', 'sw_vv', 'sw_w1', 'sw_m2', 'sw_w2', 'ztf_g', 'ztf_r', 'atlas_o']
 
         mjd_max, mjd_min, bands_plotted = 0, 1e10, []
         for band in bands:
             try:
-                data_path = os.path.join(tde.tde_dir, 'photometry', 'obs', str(band) + '.txt')
-                obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=1, unpack=True)
+                if band[0] == 's':
+                    data_path = os.path.join(tde.tde_dir, 'photometry', 'obs', str(band) + '.txt')
+                    obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=2, unpack=True)
+                elif band[0] == 'z':
+                    mjd, abmag, abmage, flux, fluxe = np.loadtxt(
+                        os.path.join(tde.tde_dir, 'photometry', 'obs', str(band) + '.txt'), skiprows=2,
+                        unpack=True)
+                elif band[0] == 'a':
+                    mjd, abmag, abmage, flux, fluxe = np.loadtxt(
+                        os.path.join(tde.tde_dir, 'photometry', 'obs', str(band) + '.txt'), skiprows=2,
+                        unpack=True)
+                else:
+                    continue
             except:
                 continue
 
@@ -47,39 +62,52 @@ def plot_light_curve(tde, host_sub, units, show, title=True):
                             capsize=0,
                             label=legend_dic[band])
                 bands_plotted.append(band)
-                if np.max(mjd[flag]) > mjd_max:
-                    mjd_max = np.max(mjd[flag])
-                if np.min(mjd[flag]) < mjd_min:
-                    mjd_min = np.min(mjd[flag])
-        try:
-            host_bands, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
-                np.loadtxt(os.path.join(tde.host_dir, 'host_phot_model.txt'),
-                           dtype={'names': (
-                               'band', 'wl_0', 'ab_mag', 'ab_mag_err',
-                               'flux_dens', 'flux_dens_err', 'catalog'),
-                               'formats': (
-                                   'U5', np.float, np.float, np.float,
-                                   np.float, np.float, 'U10')},
-                           unpack=True, skiprows=1)
-            for band in bands_plotted:
-                delt_mjd = (mjd_max - mjd_min) * 0.1
-                if band[0] == 's':
-                    band_host_flag = host_bands == band_dic[band]
-                    ax.errorbar(mjd_max + delt_mjd, model_ab_mag[band_host_flag][0],
-                                yerr=model_ab_mag_err[band_host_flag][0],
-                                marker="*", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
-                                markeredgecolor='black', markersize=15, elinewidth=0.7, capsize=0)
+
+                up_lim_flag = (abmag > 0) & (np.isnan(abmage))
+                if np.sum(up_lim_flag) > 0:
+                    ax.errorbar(mjd[up_lim_flag], abmag[up_lim_flag], yerr=-0.2, uplims=np.ones(
+                        np.shape(abmag[up_lim_flag])), marker="v", linestyle='', color=color_dic[band], linewidth=1,
+                                markeredgewidth=0.5, markeredgecolor='black', markersize=8, elinewidth=0.7, capsize=0)#,
+                                #label=legend_dic[band])
+
+                new_flag = ((abmag > 0) & (abmage < 1)) | ((abmag > 0) & (np.isnan(abmage)))
+                if np.max(mjd[new_flag]) > mjd_max:
+                    mjd_max = np.max(mjd[new_flag])
+                if np.min(mjd[new_flag]) < mjd_min:
+                    mjd_min = np.min(mjd[new_flag])
 
 
-        except:
-            pass
+        if host_level:
+            try:
+                host_bands, model_wl_c, model_ab_mag, model_ab_mag_err, model_flux, model_flux_err, catalogs = \
+                    np.loadtxt(os.path.join(tde.host_dir, 'host_phot_model.txt'),
+                               dtype={'names': (
+                                   'band', 'wl_0', 'ab_mag', 'ab_mag_err',
+                                   'flux_dens', 'flux_dens_err', 'catalog'),
+                                   'formats': (
+                                       'U5', np.float, np.float, np.float,
+                                       np.float, np.float, 'U10')},
+                               unpack=True, skiprows=1)
+                for band in bands_plotted:
+                    delt_mjd = (mjd_max - mjd_min) * 0.1
+                    if band[0] == 's':
+                        band_host_flag = host_bands == band_dic[band]
+                        ax.errorbar(mjd_max + delt_mjd, model_ab_mag[band_host_flag][0],
+                                    yerr=model_ab_mag_err[band_host_flag][0],
+                                    marker="*", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
+                                    markeredgecolor='black', markersize=15, elinewidth=0.7, capsize=0)
+
+
+            except:
+                pass
         ax.set_ylabel('AB mag', fontsize=20)
         ax.invert_yaxis()
 
     elif host_sub:
-        cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
-        dist = cosmo.luminosity_distance(float(tde.z)).to('cm')
-        bands = ['sw_uu', 'sw_bb', 'sw_vv', 'sw_w1', 'sw_m2', 'sw_w2', 'ztf_r', 'ztf_g', 'ogle_I']
+        if units == 'lum':
+            cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
+            dist = cosmo.luminosity_distance(float(tde.z)).to('cm')
+        bands = ['sw_uu', 'sw_bb', 'sw_vv', 'sw_w1', 'sw_m2', 'sw_w2', 'ztf_r', 'ztf_g', 'ogle_I', 'atlas_o']
 
         for band in bands:
             # Loading and plotting Swift data
@@ -104,7 +132,7 @@ def plot_light_curve(tde, host_sub, units, show, title=True):
             elif band[0] == 'z':
                 if os.path.exists(os.path.join(tde.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')):
                     mjd, abmag, abmage, flux, fluxe = np.loadtxt(
-                        os.path.join(tde.tde_dir, 'photometry', 'host_sub', str(band) + '.txt'), skiprows=2,
+                        os.path.join(tde.tde_dir, 'photometry', 'host_sub', str(band) + '.txt'), skiprows=3,
                         unpack=True)
                     if units == 'lum':
                         ax.errorbar(mjd, 4 * np.pi * (dist.value ** 2) * flux * wl_dic[band],
@@ -118,22 +146,28 @@ def plot_light_curve(tde, host_sub, units, show, title=True):
                                     markeredgecolor='black',
                                     markersize=8, elinewidth=0.7, capsize=0, label=legend_dic[band])
 
-            elif band[0] == 'o':
+            elif band[0] == 'a':
                 if os.path.exists(os.path.join(tde.tde_dir, 'photometry', 'host_sub', str(band) + '.txt')):
                     mjd, abmag, abmage, flux, fluxe = np.loadtxt(
-                        os.path.join(tde.tde_dir, 'photometry', 'host_sub', str(band) + '.txt'), skiprows=2,
+                        os.path.join(tde.tde_dir, 'photometry', 'host_sub', str(band) + '.txt'), skiprows=3,
                         unpack=True)
-                    ax.errorbar(mjd, 4 * np.pi * (dist.value ** 2) * flux * wl_dic[band],
-                                yerr=4 * np.pi * (dist.value ** 2) * fluxe * wl_dic[band],
-                                marker="o", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
-                                markeredgecolor='black', markersize=8, elinewidth=0.7, capsize=0,
-                                label=legend_dic[band])
-            if units == 'lum':
-                ax.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$', fontsize=20)
-                ax.set_yscale('log')
-            if units == 'mag':
-                ax.set_ylabel('AB mag', fontsize=20)
-                ax.invert_yaxis()
+                    if units == 'lum':
+                        ax.errorbar(mjd, 4 * np.pi * (dist.value ** 2) * flux * wl_dic[band],
+                                    yerr=4 * np.pi * (dist.value ** 2) * fluxe * wl_dic[band],
+                                    marker="o", linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
+                                    markeredgecolor='black', markersize=8, elinewidth=0.7, capsize=0,
+                                    label=legend_dic[band])
+                    if units == 'mag':
+                        ax.errorbar(mjd, abmag, yerr=abmage, marker="o",
+                                    linestyle='', color=color_dic[band], linewidth=1, markeredgewidth=0.5,
+                                    markeredgecolor='black',
+                                    markersize=8, elinewidth=0.7, capsize=0, label=legend_dic[band])
+        if units == 'lum':
+            ax.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$', fontsize=20)
+            ax.set_yscale('log')
+        if units == 'mag':
+            ax.set_ylabel('AB mag', fontsize=20)
+            ax.invert_yaxis()
 
     ax.set_xlabel('MJD', fontsize=20)
 
@@ -160,7 +194,7 @@ def plot_light_curve(tde, host_sub, units, show, title=True):
         plt.show()
 
 
-def plot_host_sed(tde, show):
+def plot_host_sed(tde, show, title=False):
     try:
         band, wl_c, ab_mag, ab_mag_err, catalogs, apertures = np.loadtxt(
             os.path.join(tde.host_dir, 'host_phot_obs.txt'),
@@ -215,12 +249,15 @@ def plot_host_sed(tde, show):
     except:
         pass
 
+    if title:
+        plt.title(str(tde.name))
+
     plt.savefig(os.path.join(tde.plot_dir, 'host', 'host_sed_obs.pdf'), bbox_inches='tight', dpi=300)
     if show:
         plt.show()
 
 
-def plot_host_sed_fit(tde, title=True):
+def plot_host_sed_fit(tde, title=True, info=True):
     fig, ax = plt.subplots(figsize=(10, 10))
 
     band, obs_wl_c, obs_ab_mag, obs_ab_mag_err, catalogs, apertures = \
@@ -279,34 +316,42 @@ def plot_host_sed_fit(tde, title=True):
                 markeredgewidth=3)
 
     temp = np.interp(np.linspace(700, 100000, 10000), spec_wl_0, spec_ab_mag)
-    ymin, ymax = temp.min() * 0.75, temp.max() * 1.1
+    ymin, ymax = temp.min() * 0.8, temp.max() * 1.05
     plt.xscale('log')
     ax.set_xlim(700, 100000)
     ax.set_xticks([1e3, 1e4, 1e5])
     ax.set_xticklabels(['0.1', '1', '10'])
     ax.tick_params(axis='both', labelsize=16)
     ax.set_ylim(ymax, ymin)
-    ax.set_ylabel('AB mag', fontsize=20)
+    ax.set_ylabel('AB Magnitude', fontsize=20)
     ax.set_xlabel(r'Wavelength $\rm{[\mu m]}$', fontsize=20)
 
     if title:
         ax.set_title('Host Galaxy SED Fit (' + tde.name + ')')
-    plt.legend(loc=2)
+
 
     _, map, median, p16, p84 = \
         np.loadtxt(os.path.join(tde.host_dir, 'host_properties.txt'),
                    dtype={'names': ('Parameter', 'MAP', 'median', 'p16', 'p84'),
                           'formats': ('U10', np.float, np.float, np.float, np.float)},
                    unpack=True, skiprows=1)
-    labels = [r'log $M_{*}$', r'log $Z/Z_{\odot}$', r'$\rm{E(B-V)}$', r'$t_{\rm{age}}$',
-              r'$\tau_{\rm{sfh}}$']
-    units = [r'$M_{\odot}$', '', '', 'Gyr', 'Gyr']
-    flag_min = p16 == 0.00
+    labels = [r'$\rm{log \ M_{*}}$', r'$\rm{log \ Z/Z_{\odot}}$', r'${\rm{E(B-V)}}$', r'$\rm{t_{\rm{age}}}$',
+              r'$\rm{\tau_{sfh}}$', r'$\rm{f_{AGN}}$']
+    units = [r'$\rm{M_{\odot}}$', '', '', 'Gyr', 'Gyr', '']
+    flag_min = p16 <= 0.01
     p16[flag_min] = 0.01
-    flag_min = p84 == 0.00
+    flag_min = p84 <= 0.01
     p84[flag_min] = 0.01
-    for i in range(5):
-        plt.text(0.98, 0.30-0.06*i, labels[i] + ' = ' + r'$%.2f_{%.2f}^{%.2f}$' % (median[i], p16[i], p84[i]) + ' ' + units[i], verticalalignment='center', horizontalalignment='right', transform=ax.transAxes, fontsize=20)
+    if info:
+        for i in range(len(median)):
+            plt.text(0.98, 0.38-0.06*i, labels[i] + ' = ' + r'$\rm{%.2f_{%.2f}^{%.2f}}$' % (median[i], p16[i], p84[i]) + ' ' + units[i], verticalalignment='center', horizontalalignment='right', transform=ax.transAxes, fontsize=20)
+            plt.legend(loc=2)
+    else:
+        plt.legend(loc=4)
+    from matplotlib.ticker import AutoMinorLocator
+    ax.yaxis.set_minor_locator(AutoMinorLocator())
+    plt.tick_params(axis='both', which='major', direction='in', width=1.5, length=8, bottom=True, top=True, left=True, right=True)
+    plt.tick_params(axis='both', which='minor', direction='in', width=1.5, length=4, bottom=True, top=True, left=True, right=True)
     plt.tight_layout()
 
     return fig
@@ -349,25 +394,41 @@ def host_corner_plot(result, obs, model, sps, ebv, z):
 
 
     for i, x in enumerate(xx):
-        a, b, c, d, e = x
-        _,  _ , mfrac = model.predict(x, obs=obs, sps=sps)
-        data[i, :] = np.log10((10**a)*mfrac), b, c/3.1, d, e
-        #print(i)
+        if len(x) == 5:
+            a, b, c, d, e = x
+            _, _, mfrac = model.predict(x, obs=obs, sps=sps)
+            data[i, :] = np.log10((10 ** a) * mfrac), b, c / 3.1, d, e
+            labels = [r'log $M_{*}/M_{\odot}$', r'log $Z/Z_{\odot}$', r'$\rm{E(B-V)}$', r'$t_{\rm{age}}$',
+                      r'$\tau_{\rm{sfh}}$']
+        elif len(x) == 6:
+            a, b, c, d, e, f = x
+            _, _, mfrac = model.predict(x[:5], obs=obs, sps=sps)
+            data[i, :] = np.log10((10 ** a) * mfrac), b, c / 3.1, d, e, f
+            labels = [r'log $M_{*}/M_{\odot}$', r'log $Z/Z_{\odot}$', r'$\rm{E(B-V)}$', r'$t_{\rm{age}}$',
+                      r'$\tau_{\rm{sfh}}$', r'$f_{AGN}$']
+
+
 
     from astropy.cosmology import FlatLambdaCDM
     import astropy.units as u
     cosmo = FlatLambdaCDM(H0=70 * u.km / u.s / u.Mpc, Tcmb0=2.725 * u.K, Om0=0.3)
-    _, _, mfrac = model.predict(theta_max, obs=obs, sps=sps)
-    theta_max = [np.log10(theta_max[0]*mfrac), theta_max[1], (theta_max[2])/3.1 , theta_max[3], theta_max[4]]
+    _, _, mfrac = model.predict(theta_max[:5], obs=obs, sps=sps)
+    if len(theta_max) == 5:
+        theta_max = [np.log10(theta_max[0]*mfrac), theta_max[1], (theta_max[2])/3.1 , theta_max[3], theta_max[4]]
+    if len(theta_max) ==6:
+        theta_max = [np.log10(theta_max[0] * mfrac), theta_max[1], (theta_max[2]) / 3.1, theta_max[3], theta_max[4], theta_max[5]]
     lim = [[6, 12],
            [-2, 0.3],
            [ebv, 2/3.1],
            [0.01, cosmo.age(z).value],
-           [1e-1, 1e2]]
+           [1e-1, 1e2],
+           [0, 1.0]]
 
     for i in range(np.shape(xx)[1]):
+
         sig1 = abs(theta_max[i] - np.percentile((data[:, i]), 16))
         sig2 = abs(np.percentile((data[:, i]), 84) - theta_max[i])
+        print(theta_max[i], sig1, sig2)
         if (theta_max[i] - 3 * sig1 < lim[i][0]):
             bounds.append((lim[i][0], theta_max[i] + 3 * sig2))
         elif ((theta_max[i] + 3 * sig2 > lim[i][1])):
@@ -376,8 +437,7 @@ def host_corner_plot(result, obs, model, sps, ebv, z):
             big_sig = max([sig1, sig2])
             bounds.append((theta_max[i] - 3 * big_sig, theta_max[i] + 3 * big_sig))
 
-    labels = [r'log $M_{*}/M_{\odot}$', r'log $Z/Z_{\odot}$', r'$\rm{E(B-V)}$', r'$t_{\rm{age}}$',
-              r'$\tau_{\rm{sfh}}$']
+
     cornerfig = corner.corner(data,
                               labels=labels,
                               quantiles=[0.16, 0.5, 0.84],
@@ -389,7 +449,6 @@ def host_corner_plot(result, obs, model, sps, ebv, z):
 
 
 def color_mass(mass_list, color_list):
-    from scipy.ndimage import gaussian_filter
     import matplotlib
 
     _, sdss_mass, _, _, sdss_color = np.loadtxt(pkg_resources.resource_filename("TDEpy", 'data/sdss_cor_M.txt'),
@@ -428,130 +487,33 @@ def color_mass(mass_list, color_list):
     return fig
 
 
-def plot_models(tde_name, tde_dir, z, bands, print_name=True, show=True):
-    t, band_wls, sed_x_t, sed_err_x_t = fit_light_curve.gen_observables(tde_dir, z, bands, mode='fit')
-    modelling_dir = os.path.join(tde_dir, 'modelling')
-    color = ['magenta', 'darkviolet', 'navy', 'dodgerblue', 'cyan', 'green', 'red']
-    label = [r'$UV~W2$', r'$UV~M2$', r'$UV~W1$', 'U', 'B', 'g', 'r']
-
-    fig1, ax1 = plt.subplots(figsize=(12, 7))
-    theta_median, p16, p84 = fit_light_curve.read_model1(modelling_dir)
-
-    t_peak = theta_median[1]
-    first_300days = (t - t_peak) <= 300
-    if np.max(t[first_300days] - t_peak) < 300:
-        t_model = theta_median[1] + np.arange(np.min(t - t_peak) - 10, np.max(t[first_300days] - t_peak), 1)
-    else:
-        t_model = theta_median[1] + np.arange(np.min(t - t_peak) - 10, 300, 1)
-
-    model = models.const_T_gauss_rise_exp_decay(t_model, band_wls, theta_median)
-    for i in range(np.shape(model)[1]):
-        y = sed_x_t[:, i]
-        if np.isfinite(y).any():
-            y_err = sed_err_x_t[:, i]
-            flag = np.isfinite(y)
-            x = t - theta_median[1]
-
-            ax1.errorbar(x[flag], y[flag], yerr=y_err[flag], marker="o", linestyle='', color=color[i], linewidth=1,
-                         markeredgewidth=0.5, markeredgecolor='black', alpha=0.9, markersize=8, elinewidth=0.7,
-                         capsize=0,
-                         label=label[i])
-    ax1.set_yscale('log')
-    ax1.set_ylim(10**(np.log10(ax1.get_ylim()[0]) - 0.5), ax1.get_ylim()[1])
-    for i in range(np.shape(model)[1]):
-        y = sed_x_t[:, i]
-        if np.isfinite(y).any():
-            model_i = model[:, i]
-            flag_before100 = t_model - theta_median[1] <= 100
-            ax1.plot(t_model[flag_before100] - theta_median[1], model_i[flag_before100], color=color[i])
-            flag_after100 = t_model - theta_median[1] > 100
-            ax1.plot(t_model[flag_after100] - theta_median[1], model_i[flag_after100], color=color[i], ls='--')
-    ax1.tick_params(axis='both', labelsize=18)
-    ax1.set_yscale('log')
-    ax1.set_xlabel('Days since peak', fontsize=20)
-    ax1.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$', fontsize=20)
-    plt.tight_layout()
-
-    if np.max(t[first_300days] - t_peak) < 300:
-        ax1.set_xlim(np.min(t - t_peak) - 5, np.max(t[first_300days] - t_peak) + 5)
-    else:
-        ax1.set_xlim(np.min(t - t_peak) - 5, 305)
-    if print_name:
-        ax1.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=16,
-                 transform=ax1.transAxes)
-    plt.legend(ncol=2)
-    try:
-        os.mkdir(os.path.join(tde_dir, 'plots', 'modelling'))
-    except:
-        pass
-    plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'model1_light_curves.pdf'), bbox_inches='tight')
-    if show:
-        plt.show()
-
-    fig2, ax2 = plt.subplots(figsize=(12, 7))
-    theta_median, p16, p84 = fit_light_curve.read_model2(modelling_dir)
-    T_interval = int(np.diff(np.linspace(-60, 300, (len(theta_median) - 5)))[0])
-    single_color = np.zeros(np.shape(t_model), dtype=bool)
-    model = models.Blackbody_var_T_gauss_rise_powerlaw_decay(t_model, single_color, band_wls, T_interval, theta_median)
-    for i in range(np.shape(model)[1]):
-        y = sed_x_t[:, i]
-        if np.isfinite(y).any():
-            y_err = sed_err_x_t[:, i]
-            flag = np.isfinite(y)
-            x = t - t_peak
-            ax2.errorbar(x[flag], y[flag], yerr=y_err[flag], marker="o", linestyle='', color=color[i], linewidth=1,
-                         markeredgewidth=0.5, markeredgecolor='black', alpha=0.9, markersize=8, elinewidth=0.7,
-                         capsize=0,
-                         label=label[i])
-            model_i = model[:, i]
-            ax2.plot(t_model - t_peak, model_i, color=color[i])
-    ax2.tick_params(axis='both', labelsize=18)
-    ax2.set_yscale('log')
-    ax2.set_xlabel('Days since peak', fontsize=20)
-    ax2.set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$', fontsize=20)
-    plt.tight_layout()
 
 
-    if np.max(t[first_300days] - t_peak) < 300:
-        ax2.set_xlim(np.min(t - t_peak) - 5, np.max(t[first_300days] - t_peak) + 5)
-    else:
-        ax2.set_xlim(np.min(t - t_peak) - 5, 305)
-    if print_name:
-        ax2.text(0.2, 0.05, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=16,
-                 transform=ax2.transAxes)
-    plt.legend(ncol=2)
-    plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'model2_light_curves.pdf'), bbox_inches='tight')
-    if show:
-        plt.show()
-
-
-def plot_BB_evolution(tde_name, tde_dir, print_name=True, show=True):
-    modelling_dir = os.path.join(tde_dir, 'modelling')
-    t, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err, single_band = fit_light_curve.read_BB_evolution(
+def plot_BB_evolution(tde, model, from_peak=False, show=True, title=False):
+    tde_name, tde_dir = tde.name, tde.tde_dir
+    modelling_dir = os.path.join(tde_dir, 'modeling', model)
+    t, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err, single_band = light_curves.read_BB_evolution(
         modelling_dir)
-    single_band = np.array(single_band) == 1
-    theta_median, p16, p84 = fit_light_curve.read_model2(modelling_dir)
-    t_peak = theta_median[1]
+    single_band = np.array(single_band, dtype='bool')
+    if from_peak:
+        #theta_median, p16, p84 = light_curves.read_model2(modelling_dir)
+        t_peak = 0
+        x_label = 'MJD'
+    else:
+        t_peak = 0
+        x_label = 'MJD'
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(8, 12), sharex=True, gridspec_kw={'hspace': 0.0})
 
-    ax1.errorbar((t - t_peak)[~single_band], log_BB[~single_band], yerr=log_BB_err[~single_band], marker="o",
+    ax1.errorbar((t - t_peak), log_BB, yerr=log_BB_err, marker="o",
                  linestyle='-', color='b', linewidth=1,
                  markeredgewidth=1, markerfacecolor='blue', markeredgecolor='black', markersize=5, elinewidth=0.7,
                  capsize=2, fillstyle='full')
-    ax1.errorbar((t - t_peak)[single_band], log_BB[single_band], yerr=log_BB_err[single_band], marker="o",
-                 linestyle='', color='b', linewidth=1,
-                 markeredgewidth=1, markerfacecolor='blue', markeredgecolor='black', markersize=5, elinewidth=0.7,
-                 capsize=2, fillstyle='none')
     ax1.set_ylabel(r'log $\rm{L_{BB} \ [erg \ s^{-1}]}$', fontsize=18)
     ax1.tick_params(axis="x", direction="in", length=8, top=True)
-    ax2.errorbar((t - t_peak)[~single_band], log_R[~single_band], yerr=log_R_err[~single_band], marker="o",
+    ax2.errorbar((t - t_peak), log_R, yerr=log_R_err, marker="o",
                  linestyle='-', color='b', linewidth=1,
                  markeredgewidth=1, markerfacecolor='blue', markeredgecolor='black', markersize=5, elinewidth=0.7,
                  capsize=2, fillstyle='full')
-    ax2.errorbar((t - t_peak)[single_band], log_R[single_band], yerr=log_R_err[single_band], marker="o",
-                 linestyle='', color='b', linewidth=1,
-                 markeredgewidth=1, markerfacecolor='blue', markeredgecolor='black', markersize=5, elinewidth=0.7,
-                 capsize=2, fillstyle='none')
     ax2.set_ylabel('log R [cm]', fontsize=18)
     ax2.tick_params(axis="x", direction="inout", length=8, top=True)
 
@@ -560,19 +522,19 @@ def plot_BB_evolution(tde_name, tde_dir, print_name=True, show=True):
                  markeredgewidth=1, markerfacecolor='blue', markeredgecolor='black', markersize=5, elinewidth=0.7,
                  capsize=2)
     ax3.set_ylabel('log T [K]', fontsize=18)
-    ax3.set_xlabel('Days since peak', fontsize=18)
+    ax3.set_xlabel(x_label, fontsize=18)
     ax3.tick_params(axis="x", direction="inout", length=8, top=True)
 
     plt.tight_layout()
-    if print_name:
+    if title:
         ax1.text(0.1, 0.1, tde_name, horizontalalignment='left', verticalalignment='center', fontsize=14,
                  transform=ax1.transAxes)
-    plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'Blackbody_evolution.pdf'), bbox_inches='tight')
+    plt.savefig(os.path.join(modelling_dir, 'Blackbody_evolution.pdf'), bbox_inches='tight')
     if show:
         plt.show()
 
 
-def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, print_name=True, show=True):
+def plot_bolometric_evolution(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, print_name=True, show=True):
     modelling_dir = os.path.join(tde_dir, 'modelling')
     t, band_wls, sed_x_t, sed_err_x_t = fit_light_curve.gen_observables(tde_dir, z, bands, mode='plot')
     t_BB, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err, single_band = fit_light_curve.read_BB_evolution(
@@ -754,6 +716,78 @@ def plot_SED(tde_name, tde_dir, z, bands, sampler, nwalkers, nburn, ninter, prin
     plt.savefig(os.path.join(tde_dir, 'plots', 'modelling', 'SED_evolution.pdf'), bbox_inches='tight')
     if show:
         plt.show()
+
+def plot_SEDs(model, observable, sed_chain, log_T, log_T_err, good_epoch):
+    if model == 'BB_FT_FS':
+        n_good_epochs = len(observable.epochs[good_epoch])
+    if model == 'BB_VT_GPS':
+        n_good_epochs = len(observable.epochs)
+        good_epoch = np.ones(n_good_epochs, dtype='bool')
+    try:
+        os.chdir(model)
+    except:
+        os.mkdir(model)
+        os.chdir(model)
+    if n_good_epochs <= 24:
+        if n_good_epochs % 4 == 0:
+            nrows = int(n_good_epochs/4)
+        else:
+            nrows = int(n_good_epochs/4) + 1
+        fig, axes = plt.subplots(nrows=nrows, ncols=4, figsize=(8, nrows*2))
+    elif 24 < n_good_epochs <= 48:
+        print('more than 24 good epochs, IN CONSTRUCTION!')
+        axes=[]
+    else:
+        print('more than 24 good epochs, IN CONSTRUCTION!')
+        axes = []
+    axes = axes.flatten()
+    ymax, ymin = np.nanmax(observable.sed[good_epoch, :]), np.nanmin(observable.sed[good_epoch, :])
+    for i in range(24):
+        if i < n_good_epochs:
+            epoch = observable.epochs[good_epoch][i]
+            epoch_index = np.where(observable.epochs == epoch)[0][0]
+            sed = observable.sed[epoch_index, :]
+            sed_err = observable.sed_err[epoch_index, :]
+            wl = observable.band_wls
+            label = [r'$UV~W2$', r'$UV~M2$', r'$UV~W1$', 'U', 'B', 'g', 'r']
+            marker = ["o", "s", "p", "d", "*", "x", "+"]
+            if i ==0:
+                for h in range(len(label)):
+                    axes[i].errorbar(0, 0, yerr=1, marker=marker[h], ecolor='black', linestyle='', mfc='None',
+                             mec='black', linewidth=1, markeredgewidth=0.7, markersize=4, elinewidth=0.7, capsize=0, label=label[h])
+                axes[i].legend(loc=4, ncol=3, fontsize=5)
+            for j in range(len(wl)):
+                axes[i].errorbar(wl[j], sed[j], yerr=sed_err[j], marker=marker[j], ecolor='black', linestyle='', mfc='None',
+                             mec='black', linewidth=1, markeredgewidth=0.7, markersize=8, elinewidth=0.7, capsize=0)
+            wl_list = np.linspace(1e3, 1e4, 1000)
+            for j in range(len(sed_chain[i])):
+                axes[i].plot(wl_list, sed_chain[i][j], c='blue', alpha=0.03)
+
+            axes[i].set_ylim(ymin/10, 5*ymax)
+            axes[i].set_xlim(1300, 6700)
+            axes[i].set_yscale('log')
+            if i%4 != 0:
+                axes[i].set_yticklabels([])
+            else:
+                axes[i].set_ylabel(r'$\rm{\nu\,L_{\nu} \ [erg \ s^{-1}]}$', fontsize=14)
+            if i +4 < len(axes):
+                axes[i].set_xticklabels([])
+            else:
+                axes[i].set_xticks([2000, 4000, 6000])
+                axes[i].set_xticklabels([2000, 4000, 6000], fontsize=10)
+                axes[i].set_xlabel(r'$\rm{\lambda}$ [$\AA$]', fontsize=12)
+            axes[i].text(0.95, 0.92, 'log T = ' + '%.2f' % log_T[i] + r' $\pm$ ' + '%.2f' % log_T_err[i], fontsize=6, transform=axes[i].transAxes, horizontalalignment='right')
+            axes[i].text(0.95, 0.85, 'MJD = ' + str(int(observable.epochs[good_epoch][i])), fontsize=6, transform=axes[i].transAxes, horizontalalignment='right')
+            plt.subplots_adjust(wspace=0.0, hspace=0.0)
+        if i >= n_good_epochs:
+            axes[i].set_yticks([])
+            axes[i].set_yticklabels([])
+            axes[i].set_xticks([])
+            axes[i].set_xticklabels([])
+    plt.savefig('SED_fit.pdf', bbox_inches='tight', dpi=300)
+    plt.show()
+
+
 
 def plot_lc_corner(tde_dir, fig_name, theta_median, sample, labels, show=True):
     data = np.zeros(np.shape(sample))

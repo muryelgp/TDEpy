@@ -6,9 +6,9 @@ import emcee
 from multiprocessing import Pool
 
 import TDEpy
-from . import models as models
-from . import tools as tools
-from. import plots as plots
+from TDEpy import models as models
+from TDEpy import tools as tools
+from TDEpy import plots as plots
 
 
 def read_sw_light_curve(band, phot_dir):
@@ -169,6 +169,7 @@ def read_BB_evolution(model_dir):
     except:
         t, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err = np.loadtxt(path_to_model_file,
                                                                                             skiprows=2, unpack=True)
+        single_band = np.ones(len(t))
     return t, log_BB, log_BB_err, log_R, log_R_err, log_T, log_T_err, single_band
 
 

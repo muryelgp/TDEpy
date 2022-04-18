@@ -1,8 +1,13 @@
-import os
 import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.utils.exceptions import AstropyWarning
+import warnings
+
+import matplotlib.pyplot as plt
+import numpy as np
+from astropy.utils.exceptions import AstropyWarning
+#import pyvo
 
 warnings.simplefilter('ignore', category=AstropyWarning)
 from astropy.coordinates import FK5, SkyCoord
@@ -14,13 +19,23 @@ import pandas as pd
 from astroquery.simbad import Simbad
 import astropy.units as units
 import tarfile
+import os
+import requests
+import time
+import sys
+import io
+import pyvo
 
 from . import fit_host as fit_host
 from . import reduction as reduction
 from . import download_host as download_host
-from . import fit_light_curve as fit_light_curve
 from . import tools as tools
 from . import plots as plots
+from . import xrt_reduction as xtr_red
+
+from .light_curves import observables
+from .models.model_BB_FT_FS import BB_FT_FS
+from .models.model_BB_VT_GPS import BB_VT_GPS
 
 warnings.simplefilter('ignore', category=AstropyWarning)
 
@@ -59,6 +74,8 @@ class TDE:
         if self.is_tns:
             try:
                 os.chdir(self.tde_dir)
+                if os.path.exists('modelling'):
+                    os.rename('modelling', 'modeling')
             except:
                 print('Searching for ' + str(self.name) + ' information...')
                 if self.is_tns:
@@ -87,7 +104,7 @@ class TDE:
         if os.path.exists(os.path.join(self.tde_dir, self.name + '_info.fits')):
             self._load_info()
 
-    def download_data(self, target_id=None, n_obs=None):
+    def download_swift(self, target_id=None, n_obs=None):
         """
         This function download all Swift/UVOT observations on the TDE, as well as ZTF data if available:
 
@@ -102,36 +119,15 @@ class TDE:
         manually using the 'target_id' and 'n_obs' parameters.
         """
 
-        if (not self.is_tns) & (target_id is None):
+        if (not self.is_tns) & ((self.ra is None) | (self.ra is None)):
             raise Exception(
                 '\nFor now this functions only downloads data automatically for AT* named sources (e.g, AT2020zso),\n'
-                'for non IAU names you need to insert both the Swift Target ID (target_id) of the source as well as \n'
-                'the number of observations(n_obs) to be downloaded. You can search for this at: https://www.swift.ac.uk/swift_portal/')
+                'for non IAU names you need to insert both RA and DEC (self.ra and self.dec) manually before downloading swift data \n')
 
         os.chdir(self.tde_dir)
         # Looking to ZTF data
         print('Starting downloading data on ' + str(self.name))
-        print('Looking for ZTF data')
-        if (str(self.other_name)[0:3] == 'ZTF' and self.is_tns) or (str(self.name)[0:3] == 'ZTF'):
 
-            ztf_name = self.other_name
-            try:
-                os.mkdir('ztf')
-            except:
-                pass
-            try:
-                reduction.download_ztfdata_lasair(ztf_name)
-            except:
-                pass
-            try:
-                os.mkdir('photometry')
-            except:
-                pass
-            # saving ZTF data
-            reduction.load_ztfdata(ztf_name, self.ebv)
-        else:
-            print('There is not ZTF for this source')
-            pass
 
         # Getting Swift Target ID and number of observations
         print('Searching for Swift observations.....')
@@ -141,10 +137,10 @@ class TDE:
         except:
             os.chdir(self.sw_dir)
 
-        if self.is_tns & (target_id is None) & (n_obs is None):
+        if (target_id is None) & (n_obs is None):
             # Creating/entering Swift dir
 
-            name_list, target_id_list, n_obs_list = reduction.get_target_id(self.name, self.ra, self.dec)
+            name_list, target_id_list, n_obs_list = reduction.get_target_id(self.ra, self.dec)
             for i in range(len(target_id_list)):
                 try:
                     dfs = pd.read_html('https://www.swift.ac.uk/archive/selectseq.php?tid=' + target_id_list[
@@ -184,6 +180,423 @@ class TDE:
             print('All Swift data for Target ID ' + str(target_id) + ' downloaded!')
 
         os.chdir(self.work_dir)
+
+
+    def download_ztf(self, where='Lasair'):
+        """
+           This function looks for ZTF data in the source:
+
+           Parameters
+           ----------------
+
+           where : string
+               The data archive where to look for the data. Default is to look at 'Lasair',
+               the other option is on the ZTF 'forced' photometry server.
+
+        """
+        print('Looking for ZTF data at Lasair')
+        if (str(self.other_name)[0:3] == 'ZTF' and self.is_tns) or (str(self.name)[0:3] == 'ZTF'):
+
+            ztf_name = self.other_name
+            try:
+                print('a')
+                os.mkdir('ztf')
+            except:
+                pass
+            try:
+                reduction.download_ztfdata_lasair(ztf_name)
+            except:
+                pass
+            try:
+                os.mkdir('photometry')
+            except:
+                pass
+            # saving ZTF data
+            reduction.load_ztfdata(ztf_name, self.ebv)
+        else:
+            print('There is not ZTF for this source')
+            pass
+
+        if where == 'forced' or where == 'Forced':
+
+            try:
+                os.mkdir('photometry')
+            except:
+                pass
+
+            try:
+                os.mkdir(os.path.join(self.tde_dir, 'photometry', 'host_sub'))
+            except:
+                pass
+            try:
+                os.mkdir(os.path.join(self.tde_dir, 'photometry', 'obs'))
+            except:
+                pass
+
+            #data_path = os.path.join(self.tde_dir, 'photometry', 'host_sub', 'ztf_r.txt')
+            #mjd, *_ = np.loadtxt(data_path, skiprows=2, unpack=True)
+            url_to_pass = 'https://ztfweb.ipac.caltech.edu/cgi-bin/requestForcedPhotometry.cgi?ra=' + str(self.ra) + '&dec=' + str(self.dec) + '&jdstart=' + str((self.discovery_date - 60 + 2400000.5)) + '&jdend=' + str((self.discovery_date + 500 + 2400000.5)) + '&email=mguolop1@jhu.edu&userpass=gmop545'
+
+            # Making a get request
+            import requests
+            from requests.auth import HTTPBasicAuth
+            response = requests.get(url_to_pass,
+                                    auth=HTTPBasicAuth('ztffps', 'dontgocrazy!'))
+            print(response)
+
+    def download_atlas(self, days_before=60):
+
+        if not os.path.exists(os.path.join(self.tde_dir, 'atlas', 'atlas_dif_' + self.name + '.csv')):
+
+            BASEURL = "https://fallingstar-data.com/forcedphot"
+            resp = requests.post(url=f"{BASEURL}/api-token-auth/",
+                                 data={'username': "mguolop1", 'password': "Waytec97"})
+
+            if resp.status_code == 200:
+                token = resp.json()['token']
+                print(f'Your token is {token}')
+                headers = {'Authorization': f'Token {token}', 'Accept': 'application/json'}
+            else:
+                print(f'ERROR {resp.status_code}')
+                print(resp.json())
+
+            task_url = None
+            while not task_url:
+                with requests.Session() as s:
+                    resp = s.post(f"{BASEURL}/queue/", headers=headers, data={
+                        'ra': self.ra, 'dec': self.dec, 'mjd_min': float(self.discovery_date) - days_before, 'mjd_max':  float(self.discovery_date) + 360 ,'send_email': False})
+
+                    if resp.status_code == 201:  # successfully queued
+                        task_url = resp.json()['url']
+                        print(f'The task URL is {task_url}')
+                    elif resp.status_code == 429:  # throttled
+                        message = resp.json()["detail"]
+                        print(f'{resp.status_code} {message}')
+                        t_sec = resp.findall(r'available in (\d+) seconds', message)
+                        t_min = resp.findall(r'available in (\d+) minutes', message)
+                        if t_sec:
+                            waittime = int(t_sec[0])
+                        elif t_min:
+                            waittime = int(t_min[0]) * 60
+                        else:
+                            waittime = 10
+                        print(f'Waiting {waittime} seconds')
+                        time.sleep(waittime)
+                    else:
+                        print(f'ERROR {resp.status_code}')
+                        print(resp.json())
+                        sys.exit()
+
+
+
+            result_url = None
+            while not result_url:
+                with requests.Session() as s:
+                    resp = s.get(task_url, headers=headers)
+
+                    if resp.status_code == 200:  # HTTP OK
+                        if resp.json()['finishtimestamp']:
+                            result_url = resp.json()['result_url']
+                            print(f"Task is complete with results available at {result_url}")
+                            break
+                        elif resp.json()['starttimestamp']:
+                            print(f"Task is running (started at {resp.json()['starttimestamp']})")
+                        else:
+                            print("Waiting for job to start. Checking again in 10 seconds...")
+                        time.sleep(10)
+                    else:
+                        print(f'ERROR {resp.status_code}')
+                        print(resp.json())
+                        sys.exit()
+
+            try:
+                os.mkdir('atlas')
+            except:
+                pass
+            pwd = os.getcwd()
+            os.chdir('atlas')
+
+            with requests.Session() as s:
+                textdata = s.get(result_url, headers=headers).text
+
+            dfresult = pd.read_csv(io.StringIO(textdata.replace("###", "")), delim_whitespace=True)
+            dfresult.to_csv('atlas_dif_' + self.name + '.csv')
+
+
+        os.chdir(self.tde_dir)
+
+        try:
+            os.mkdir('photometry')
+        except:
+            pass
+
+        try:
+            os.mkdir(os.path.join(self.tde_dir, 'photometry', 'host_sub'))
+        except:
+            pass
+        try:
+            os.mkdir(os.path.join(self.tde_dir, 'photometry', 'obs'))
+        except:
+            pass
+
+
+        if os.path.exists(os.path.join(self.tde_dir, 'atlas', 'atlas_dif_' + self.name + '.csv')):
+            print('Doing forced photometry on ATLAS...')
+
+            id, mjd, mag, mag_err, flux, flux_err, filter, _, _, _, _, _, _, _, _, _, _, mag_5_sigma, _, _ = \
+                np.genfromtxt(os.path.join(self.tde_dir, 'atlas', 'atlas_dif_' + self.name + '.csv'), delimiter=",",
+                              comments='#', skip_header=1,
+                              dtype=str, unpack=True)
+            flux = np.array(flux, dtype=float)
+            flux_err = np.array(flux_err, dtype=float)
+            snr = flux / flux_err
+            flag = (filter == 'o') & (snr > 0)
+            flux = flux[flag]
+            flux_err = flux_err[flag]
+            mjd = np.array(mjd[flag], dtype=float)
+
+            mjd_u = np.unique(np.array([int(mjd_i) for mjd_i in mjd]))
+            mjd_u_list = np.zeros(np.shape(mjd_u))
+            flux_u = np.zeros(np.shape(mjd_u))
+            flux_err_u = np.zeros(np.shape(mjd_u))
+            mag_u = np.zeros(np.shape(mjd_u))
+            mag_err_u = np.zeros(np.shape(mjd_u))
+
+            for i in range(len(mjd_u)):
+                flag_mjd_i = np.array([int(mjd_i) for mjd_i in mjd]) == mjd_u[i]
+                flux_u[i] = np.mean(flux[flag_mjd_i])
+                mjd_u_list[i] = np.mean(mjd[flag_mjd_i])
+                flux_err_u[i] = np.sqrt(np.sum((flux_err[flag_mjd_i] / len(flux[flag_mjd_i])) ** 2))
+                #flux_err_u[i] = np.nanstd(flux[flag_mjd_i])
+                mag_u[i] = (-2.5 * np.log10(flux_u[i]) + 23.9) - (self.ebv * 2.418)
+                mag_err_u[i] = abs(2.5 * flux_err_u[i] / (flux_u[i] * np.log(10)))
+
+                if flux_u[i] < 3*flux_err_u[i]:
+                    flux_u[i] = 3*flux_err_u[i]
+                    mag_u[i] = (-2.5 * np.log10(3*flux_err_u[i]) + 23.9) - (self.ebv * 2.418)
+                    mag_err_u[i] = np.nan
+                    flux_err_u[i] = np.nan
+
+
+            atlas_o = open(os.path.join(self.tde_dir, 'photometry', 'host_sub', 'atlas_o.txt'), 'w')
+            atlas_o.write('#Values are correct for Galactic extinction\n')
+            atlas_o.write('#if ab_mag_err = nan, the measurement is an upper limit\n')
+            atlas_o.write(
+                'mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux_dens' + '\t' + 'flux_dens_err' + '\n')
+            for yy in range(len(mjd_u_list)):
+                atlas_o.write(
+                    '{:.2f}'.format(mjd_u_list[yy]) + '\t' + '{:.2f}'.format(mag_u[yy]) + '\t' + '{:.2f}'.format(
+                        mag_err_u[yy]) + '\t' + '{:.2e}'.format(
+                        tools.mag_to_flux(mag_u[yy], 6790)) + '\t' + '{:.2e}'.format(
+                        tools.dmag_to_df(mag_err_u[yy], tools.mag_to_flux(mag_u[yy], 6790))) + '\n')
+            atlas_o.close()
+
+
+        if not os.path.exists(os.path.join(self.tde_dir, 'atlas', 'atlas_obs_' + self.name + '.csv')):
+
+            BASEURL = "https://fallingstar-data.com/forcedphot"
+            resp = requests.post(url=f"{BASEURL}/api-token-auth/",
+                                 data={'username': "mguolop1", 'password': "Waytec97"})
+
+            if resp.status_code == 200:
+                token = resp.json()['token']
+                print(f'Your token is {token}')
+                headers = {'Authorization': f'Token {token}', 'Accept': 'application/json'}
+            else:
+                print(f'ERROR {resp.status_code}')
+                print(resp.json())
+
+            task_url = None
+            while not task_url:
+                with requests.Session() as s:
+                    resp = s.post(f"{BASEURL}/queue/", headers=headers, data={
+                        'ra': self.ra, 'dec': self.dec, 'mjd_min': float(self.discovery_date) - days_before, 'mjd_max':  float(self.discovery_date) + 360 ,'send_email': False, 'use_reduced': True})
+
+                    if resp.status_code == 201:  # successfully queued
+                        task_url = resp.json()['url']
+                        print(f'The task URL is {task_url}')
+                    elif resp.status_code == 429:  # throttled
+                        message = resp.json()["detail"]
+                        print(f'{resp.status_code} {message}')
+                        t_sec = resp.findall(r'available in (\d+) seconds', message)
+                        t_min = resp.findall(r'available in (\d+) minutes', message)
+                        if t_sec:
+                            waittime = int(t_sec[0])
+                        elif t_min:
+                            waittime = int(t_min[0]) * 60
+                        else:
+                            waittime = 10
+                        print(f'Waiting {waittime} seconds')
+                        time.sleep(waittime)
+                    else:
+                        print(f'ERROR {resp.status_code}')
+                        print(resp.json())
+                        sys.exit()
+
+
+
+            result_url = None
+            while not result_url:
+                with requests.Session() as s:
+                    resp = s.get(task_url, headers=headers)
+
+                    if resp.status_code == 200:  # HTTP OK
+                        if resp.json()['finishtimestamp']:
+                            result_url = resp.json()['result_url']
+                            print(f"Task is complete with results available at {result_url}")
+                            break
+                        elif resp.json()['starttimestamp']:
+                            print(f"Task is running (started at {resp.json()['starttimestamp']})")
+                        else:
+                            print("Waiting for job to start. Checking again in 10 seconds...")
+                        time.sleep(10)
+                    else:
+                        print(f'ERROR {resp.status_code}')
+                        print(resp.json())
+                        sys.exit()
+
+            try:
+                os.mkdir('atlas')
+            except:
+                pass
+            pwd = os.getcwd()
+            os.chdir('atlas')
+
+            with requests.Session() as s:
+                textdata = s.get(result_url, headers=headers).text
+
+            dfresult = pd.read_csv(io.StringIO(textdata.replace("###", "")), delim_whitespace=True)
+            dfresult.to_csv('atlas_obs_' + self.name + '.csv')
+
+
+        os.chdir(self.tde_dir)
+
+        try:
+            os.mkdir('photometry')
+        except:
+            pass
+
+        try:
+            os.mkdir(os.path.join(self.tde_dir, 'photometry', 'host_sub'))
+        except:
+            pass
+        try:
+            os.mkdir(os.path.join(self.tde_dir, 'photometry', 'obs'))
+        except:
+            pass
+
+
+        if os.path.exists(os.path.join(self.tde_dir, 'atlas', 'atlas_obs_' + self.name + '.csv')):
+            print('Doing forced photometry on ATLAS...')
+
+            id, mjd, mag, mag_err, flux, flux_err, filter, _, _, _, _, _, _, _, _, _, _, mag_5_sigma, _, _ = \
+                np.genfromtxt(os.path.join(self.tde_dir, 'atlas', 'atlas_obs_' + self.name + '.csv'), delimiter=",",
+                              comments='#', skip_header=1,
+                              dtype=str, unpack=True)
+            flux = np.array(flux, dtype=float)
+            flux_err = np.array(flux_err, dtype=float)
+            snr = flux / flux_err
+            flag = (filter == 'o') & (snr > 0)
+            flux = flux[flag]
+            flux_err = flux_err[flag]
+            mjd = np.array(mjd[flag], dtype=float)
+
+            mjd_u = np.unique(np.array([int(mjd_i) for mjd_i in mjd]))
+            mjd_u_list = np.zeros(np.shape(mjd_u))
+            flux_u = np.zeros(np.shape(mjd_u))
+            flux_err_u = np.zeros(np.shape(mjd_u))
+            mag_u = np.zeros(np.shape(mjd_u))
+            mag_err_u = np.zeros(np.shape(mjd_u))
+
+            for i in range(len(mjd_u)):
+                flag_mjd_i = np.array([int(mjd_i) for mjd_i in mjd]) == mjd_u[i]
+                flux_u[i] = np.mean(flux[flag_mjd_i])
+                mjd_u_list[i] = np.mean(mjd[flag_mjd_i])
+                flux_err_u[i] = np.sqrt(np.sum((flux_err[flag_mjd_i] / len(flux[flag_mjd_i])) ** 2))
+                # flux_err_u[i] = np.nanstd(flux[flag_mjd_i])
+                mag_u[i] = -2.5 * np.log10(flux_u[i]) + 23.9
+                mag_err_u[i] = abs(2.5 * flux_err_u[i] / (flux_u[i] * np.log(10)))
+                if flux_u[i] < 3 * flux_err_u[i]:
+                    flux_u[i] = 3 * flux_err_u[i]
+                    mag_u[i] = -2.5 * np.log10(3*flux_err_u[i]) + 23.9
+                    mag_err_u[i] = np.nan
+                    flux_err_u[i] = np.nan
+
+            atlas_o = open(os.path.join(self.tde_dir, 'photometry', 'obs', 'atlas_o.txt'), 'w')
+            atlas_o.write('#if ab_mag_err = nan, the measurement is an upper limit\n')
+            atlas_o.write(
+                'mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux_dens' + '\t' + 'flux_dens_err' + '\n')
+            for yy in range(len(mjd_u_list)):
+                atlas_o.write(
+                    '{:.2f}'.format(mjd_u_list[yy]) + '\t' + '{:.2f}'.format(mag_u[yy]) + '\t' + '{:.2f}'.format(
+                        mag_err_u[yy]) + '\t' + '{:.2e}'.format(
+                        tools.mag_to_flux(mag_u[yy], 6790)) + '\t' + '{:.2e}'.format(
+                        tools.dmag_to_df(mag_err_u[yy], tools.mag_to_flux(mag_u[yy], 6790))) + '\n')
+            atlas_o.close()
+
+    def ztt_forced_photo(self, lc_link=None):
+        reduction.ztf_forced_photo(self, lc_link)
+
+    def download_wise(self):
+        url = "https://irsa.ipac.caltech.edu/SCS?table=neowiser_p1bs_psd"
+        objects = pyvo.conesearch(url, pos=(self.ra, self.dec), radius=0.0014)
+        table = objects.to_table()
+
+        mjd = table['mjd']
+        w1 = table['w1mpro']
+        w2 = table['w2mpro']
+        w1_err = table['w1sigmpro']
+        w2_err = table['w2sigmpro']
+
+        mjd_unique = np.unique(np.array([round(mjd_i, -2) for mjd_i in mjd]))
+        w1_u = np.zeros(np.shape(mjd_unique))
+        w1_err_u = np.zeros(np.shape(mjd_unique))
+        w2_u = np.zeros(np.shape(mjd_unique))
+        w2_err_u = np.zeros(np.shape(mjd_unique))
+        mjd_u = np.zeros(np.shape(mjd_unique))
+
+        for i in range(len(mjd_unique)):
+            # flags
+            flag_mjd_u = np.array([round(mjd_i, -2) for mjd_i in mjd]) == mjd_unique[i]
+            flag_isw1finite = np.isfinite(w1[flag_mjd_u])
+            flag_isw2finite = np.isfinite(w2[flag_mjd_u])
+
+            # medians and std
+            mjd_u[i] = np.median(mjd[flag_mjd_u])
+            w1_u[i] = tools.vega_to_ab(np.nanmedian(w1[flag_mjd_u][flag_isw1finite]), 'W1')
+            w2_u[i] = tools.vega_to_ab(np.nanmedian(w2[flag_mjd_u][flag_isw2finite]), 'W2')
+            w1_err_u[i] = np.nanstd(w1[flag_mjd_u][flag_isw1finite])
+            w2_err_u[i] = np.nanstd(w2[flag_mjd_u][flag_isw2finite])
+
+            # Dealing with few points
+            if w1_err_u[i] == 0.0:
+                w1_err_u[i] = np.nanmean(w1_err[flag_mjd_u][flag_isw1finite])
+            if w2_err_u[i] == 0.0:
+                w2_err_u[i] = np.nanmean(w2_err[flag_mjd_u][flag_isw2finite])
+
+        wise_w1 = open(os.path.join(self.tde_dir, 'photometry', 'obs', 'wise_w1.txt'), 'w')
+        #wise_w1.write('#if ab_mag_err = nan, the measurement is an upper limit\n')
+        wise_w1.write(
+            'mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux_dens' + '\t' + 'flux_dens_err' + '\n')
+        for yy in range(len(mjd_u)):
+            wise_w1.write(
+                '{:.2f}'.format(mjd_u[yy]) + '\t' + '{:.2f}'.format(w1_u[yy]) + '\t' + '{:.2f}'.format(
+                    w1_err_u[yy]) + '\t' + '{:.2e}'.format(
+                    tools.mag_to_flux(w1_u[yy], 33526)) + '\t' + '{:.2e}'.format(
+                    tools.dmag_to_df(w1_err_u[yy], tools.mag_to_flux(w1_u[yy], 33526))) + '\n')
+        wise_w1.close()
+
+        wise_w2 = open(os.path.join(self.tde_dir, 'photometry', 'obs', 'wise_w2.txt'), 'w')
+        # wise_w1.write('#if ab_mag_err = nan, the measurement is an upper limit\n')
+        wise_w2.write(
+            'mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux_dens' + '\t' + 'flux_dens_err' + '\n')
+        for yy in range(len(mjd_u)):
+            wise_w2.write(
+                '{:.2f}'.format(mjd_u[yy]) + '\t' + '{:.2f}'.format(w2_u[yy]) + '\t' + '{:.2f}'.format(
+                    w2_err_u[yy]) + '\t' + '{:.2e}'.format(
+                    tools.mag_to_flux(w2_u[yy], 46028.00)) + '\t' + '{:.2e}'.format(
+                    tools.dmag_to_df(w2_err_u[yy], tools.mag_to_flux(w2_u[yy], 46028.00))) + '\n')
+        wise_w2.close()
 
     def uvot_photometry(self, radius=None, coords=None, aper_cor=False, sigma=3, show=True):
         """
@@ -277,7 +690,7 @@ class TDE:
         # returning to the working path
         os.chdir(self.work_dir)
 
-    def plot_light_curve(self, host_sub=False, units='mag',show=True, title=True):
+    def plot_light_curve(self, host_sub=False, host_level=False, units='mag', show=True, title=True):
         """
         This function plots the TDEs light curves.
 
@@ -297,13 +710,12 @@ class TDE:
         """
 
         if host_sub:
-            if not os.path.exists(os.path.join(self.host_dir, 'host_phot_model.txt')):
-                raise Exception('You need to download and fit the host SED first!')
-            if self.z is None:
-                raise Exception('A redshift (z) needs to be inserted for this source')
-        plots.plot_light_curve(self, host_sub, units, show, title)
+            if units == 'lum':
+                if self.z is None:
+                    raise Exception('A redshift (z) needs to be inserted for this source')
+        plots.plot_light_curve(self, host_sub, host_level, units, show, title)
 
-    def download_host_data(self, mir='Model', nir='default/Petro', opt='Kron/Petro', uv='5'):
+    def download_host_data(self, mir='Model', nir='default/Petro', opt='Kron/Petro', uv='5', title=False):
         """
         This function downloads and saves the host galaxy SED, from MID-IR to UV.  Results are written in 'host'
         directory inside the TDE directory. For each band distinct aperture are available:
@@ -320,7 +732,7 @@ class TDE:
             Optical data are from SDSS, PAN-STARSS, DES or SkyMapper. The options are 'Kron/Petro' or 'PSF'.
             None excludes the optical photometry.
 
-        uv: string
+        uv: string or None
             UV are taken from GALEX data, the uv variable defines the radius of the aperture in arcseconds. default is '5'.
         """
         ra_host = dec_host = None
@@ -415,20 +827,21 @@ class TDE:
                 "You need to choose which optical (opt) magnitude to use, the options are: 'Kron/Petro', 'PSF' or 'None'")
 
         # Downloading UV (GALEX or UVOT) data
-        if self.host_radius is not None:
+        if (self.host_radius is not None) and (uv is not None):
             download_host.download_uv(self.host_radius, coords_host, self.host_dir, self.sw_dir)
-        elif np.float(uv) > 1:
-            download_host.download_uv(uv, coords_host, self.host_dir, self.sw_dir)
+        elif (self.host_radius is None) and (uv is not None):
+            if (np.float(uv) > 1):
+                download_host.download_uv(uv, coords_host, self.host_dir, self.sw_dir)
+            else:
+                Exception(
+                    "You need to choose the size of the aperture (uv) for UV data in arcsecs, it should be greater than 1")
         elif uv is None:
             pass
-        else:
-            Exception(
-                "You need to choose the size of the aperture (uv) for UV data in arcsecs, it should be greater than 1")
 
-        self.plot_host_sed()
+        self.plot_host_sed(title=title)
         os.chdir(self.work_dir)
 
-    def plot_host_sed(self, show=True):
+    def plot_host_sed(self, show=True, title=False):
         """
         This function plots the host galaxy SED.
         You should run download_host_data() first.
@@ -439,11 +852,11 @@ class TDE:
         show : Boolean
             Whether to show the light curve plot or not. Default is True.
         """
-        plots.plot_host_sed(self, show)
+        plots.plot_host_sed(self, show=show, title=title)
         os.chdir(self.work_dir)
 
     def fit_host_sed(self, n_cores=None, n_walkers=100, n_inter=2000, n_burn=1500, init_theta=None, show=True,
-                     read_only=False):
+                     read_only=False, add_agn=False):
         """
         This function fit the host SED using Prospector software (https://github.com/bd-j/prospector/),
          saves modelled host data, and the host subtracted light curves:
@@ -479,8 +892,12 @@ class TDE:
                 self.save_info()
                 if n_cores is None:
                     n_cores = os.cpu_count() / 2
+
+                if n_inter < 1000:
+                    n_burn = int(n_inter / 2)
                 fit_host.run_prospector(self, n_cores=n_cores, n_walkers=n_walkers, n_inter=n_inter, n_burn=[n_burn],
-                                        init_theta=init_theta, show=show, read_only=read_only)
+                                        init_theta=init_theta, show=show, read_only=read_only, add_agn=add_agn)
+                print('Creating posterior corner plot!...')
                 self.plot_host_sed_fit(corner_plot=True, color_mass=True)
             print('Creating host subtracted light curves!...')
             self.subtract_host(show=show)
@@ -493,7 +910,7 @@ class TDE:
         else:
             raise Exception('You need to define a redshift (z) for the source before fitting the host SED')
 
-    def plot_host_sed_fit(self, corner_plot=False, color_mass=False, show=True, title=True):
+    def plot_host_sed_fit(self, corner_plot=False, color_mass=False, show=True, title=True, info=True):
         """
         This function plots the host galaxy SED model.
         You should run fit_host_sed() before calling it.
@@ -511,15 +928,14 @@ class TDE:
             Whether to plot the color-massdiagram. Default is False.
         """
         os.chdir(self.host_dir)
+
+
+
         result, _, _ = fit_host.reader.results_from("prospector_result.h5", dangerous=False)
         sps = fit_host.build_sps(zcontinuous=1)
         init_theta = [1e10, -1.0, 6, 0.5]
         model = fit_host.build_model(self.ebv, object_redshift=self.z, init_theta=init_theta)
         obs = fit_host.build_obs(self.work_dir, self.name)
-        fit_plot = plots.plot_host_sed_fit(self, title=title)
-        fit_plot.savefig(os.path.join(self.plot_dir, 'host', 'host_sed_model.pdf'), bbox_inches='tight', dpi=300)
-        if show:
-            plt.show()
 
         if corner_plot:
             c_plt, chains, map = plots.host_corner_plot(result, obs, model, sps, self.z, self.ebv)
@@ -529,6 +945,12 @@ class TDE:
             fit_host.save_host_properties(self.host_dir, chains, map)
             if show:
                 plt.show()
+
+
+        fit_plot = plots.plot_host_sed_fit(self, title=title, info=info)
+        fit_plot.savefig(os.path.join(self.plot_dir, 'host', 'host_sed_model.pdf'), bbox_inches='tight', dpi=300)
+        if show:
+            plt.show()
 
         if color_mass:
             if (self.host_mass is None) or (self.host_color is None):
@@ -706,8 +1128,8 @@ class TDE:
             if os.path.exists(self.name + '/host'):
                 tar_handle.add(self.name + '/host')
 
-            if os.path.exists(self.name + '/modelling'):
-                tar_handle.add(self.name + '/modelling')
+            if os.path.exists(self.name + '/modeling'):
+                tar_handle.add(self.name + '/modeling')
 
             if os.path.exists(self.name + '/' + self.name + '_info.fits'):
                 tar_handle.add(self.name + '/' + self.name + '_info.fits')
@@ -715,23 +1137,65 @@ class TDE:
         tar_handle.close()
         os.chdir(pwd)
 
-    def fit_light_curve(self, pre_peak=True, bands='All', T_interval=30, n_cores=None, n_walkers=100, n_inter=2000,
-                        n_burn=1500, show=True):
+    def fit_light_curve(self, model='BB_FT_FS', pre_peak=True, T_step=30, n_cores=None, n_walkers=100, n_inter=2000,
+                        n_burn=1500, verbose=True, title=False):
         if n_cores is None:
-            n_cores = os.cpu_count() / 2
-        fit_light_curve.run_fit(self, pre_peak=pre_peak, bands=bands, T_interval=T_interval, n_cores=n_cores, n_walkers=n_walkers, n_inter=n_inter, n_burn=n_burn, show=show)
+            n_cores = 1
+        mcmc_args = {'n_walkers': n_walkers,
+                     'n_inter': n_inter,
+                    'n_burn': n_burn,
+                     'n_cores': n_cores}
+        modeling_dir = os.path.join(self.tde_dir, 'modeling')
+        try:
+            os.chdir(modeling_dir)
+        except:
+            os.mkdir(modeling_dir)
+            os.chdir(modeling_dir)
 
-    def plot_light_curve_models(self, bands='All'):
+        obs = observables(self)
+        if model == 'BB_FT_FS':
+            Model = BB_FT_FS()
+            from_peak = False
+        if model == 'BB_VT_GPS':
+            from_peak = pre_peak
+            Model = BB_VT_GPS(T_step=T_step)
+
+
+        good_epochs = Model.gen_good_epoch(obs)
+        theta_init = Model.gen_theta_init(obs, good_epochs)
+        theta = Model.minimize(obs, good_epochs, theta_init)
+        Model.run_mcmc(obs, good_epochs, theta, mcmc_args)
+        plots.plot_BB_evolution(self, Model.model_name, from_peak=from_peak, show=verbose, title=title)
+
+
+    def plot_light_curve_models(self, model, bands='All', show=True, title=False):
+        if model == 'BB_FT_FS':
+            from_peak = False
         all_bands = ['sw_w2', 'sw_m2', 'sw_w1', 'sw_uu', 'sw_bb', 'ztf_g', 'ztf_r']
         # loading observables
         if bands == 'All':
             bands = all_bands
         else:
             for band in bands:
+
                 if band in all_bands:
                     pass
                 else:
                     raise Exception(
                         "your 'bands' list should contain bands among these ones: 'sw_w2', 'sw_m2', 'sw_w1', 'sw_uu', 'sw_bb', 'ztf_g', 'ztf_r'")
-        plots.plot_models(self.name, self.tde_dir, float(self.z), bands)
-        plots.plot_BB_evolution(self.name, self.tde_dir)
+        #plots.plot_models(self.name, self.tde_dir, float(self.z), bands)
+        plots.plot_BB_evolution(self, model, from_peak=from_peak, title=title, show=show)
+
+    def xrt_reduction(self, sci_radius=None, bkg_radius=None):
+        if sci_radius is None:
+            sci_radius = 30
+        if bkg_radius is None:
+            bkg_radius = 100
+
+        os.chdir(self.sw_dir)
+        os.system('ls -d 0* >> datadirs.txt')
+        dirs = [line.rstrip('\n').rstrip('/') for line in open('datadirs.txt')]
+        os.system('rm datadirs.txt')
+        xtr_red.xrt_descompression(self, dirs)
+        xtr_red.gen_xrt_spec(self, sci_radius, bkg_radius, dirs)
+

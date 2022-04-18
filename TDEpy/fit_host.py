@@ -59,6 +59,12 @@ def build_obs(path, tde):
 
     catalog_bands = [catalogs[i] + '_' + band[i] for i in range(len(catalogs))]
     filternames = [filter_dic[i] for i in catalog_bands]
+
+    #while catalogs[-1] == 'WISE':
+    #    catalogs = catalogs[:-1]
+    #    filternames = filternames[:-1]
+
+
     # And here we instantiate the `Filter()` objects using methods in `sedpy`,
     # and put the resultinf list of Filter objects in the "filters" key of the `obs` dictionary
     obs["filters"] = np.ndarray((0))
@@ -102,7 +108,7 @@ def build_obs(path, tde):
     return obs
 
 
-def build_model(gal_ebv, object_redshift=None, init_theta=None):
+def build_model(gal_ebv, add_agn=False, object_redshift=None, init_theta=None):
     """Build a prospect.models.SedModel object
 
     :param object_redshift: (optional, default: None)
@@ -124,7 +130,7 @@ def build_model(gal_ebv, object_redshift=None, init_theta=None):
 
     model_params["sfh"]["init"] = 4
     Av_init = gal_ebv * 3.1
-
+    print(add_agn)
     # print(init_theta)
     # Changing the initial values appropriate for our objects and data
     model_params["mass"]["init"] = init_theta[0]
@@ -141,7 +147,7 @@ def build_model(gal_ebv, object_redshift=None, init_theta=None):
     from astropy.cosmology import FlatLambdaCDM
     import astropy.units as u
 
-    cosmo = FlatLambdaCDM(H0=70 * u.km / u.s / u.Mpc, Tcmb0=2.725 * u.K, Om0=0.3)
+    cosmo = FlatLambdaCDM(H0=67 * u.km / u.s / u.Mpc, Tcmb0=2.725 * u.K, Om0=0.3)
     model_params["tage"]["prior"] = priors.Uniform(mini=0.1, maxi=cosmo.age(object_redshift).value)
     model_params["tau"]["prior"] = priors.LogUniform(mini=1e-1, maxi=1e2)
 
@@ -165,8 +171,13 @@ def build_model(gal_ebv, object_redshift=None, init_theta=None):
     model_params["mass"]['units'] = 'mstar'
     #model_params['add_stellar_remnants'] = {"N": 1, "isfree": False, "init": False}
     # Now instantiate the model object using this dictionary of parameter specifications
-    model = SedModel(model_params)
 
+    if add_agn:
+        model_params.update(TemplateLibrary["agn"])
+        model_params["fagn"]['isfree'] = True
+        model_params["fagn"]["init"] = 0.0001
+        model_params["fagn"]["prior"] = priors.Uniform(mini=0.0, maxi=0.5)
+    model = SedModel(model_params)
     return model
 
 
@@ -178,12 +189,12 @@ def save_host_properties(host_dir, data, map):
     write_path = os.path.join(host_dir, 'host_properties.txt')
     g = open(write_path, 'w')
     g.write('Parameter' + '\t' + 'MAP' + '\t' + 'median' + '\t' + 'p16' + '\t' + 'p84' + '\n')
-    par_list = ['log_M_*', 'log_Z', 'E(B-V)', 't_age', 'tau_sfh']
+    par_list = ['log_M_*', 'log_Z', 'E(B-V)', 't_age', 'tau_sfh', 'f_AGN']
     medians = np.median(data[:, :], axis=0)
     p16 = medians - np.percentile(data[:, :], 16, axis=0)
     p84 = np.percentile(data[:, :], 84, axis=0) - medians
-    for i in range(5):
-        g.write(par_list[i] + '\t' + '%.2f' % map[i] + '\t' + '%.2f' % medians[i] + '\t' + '%.2f' % p16[i] + '\t' '%.2f' % p84[i] + '\n')
+    for i in range(len(medians)):
+        g.write(par_list[i] + '\t' + '%.3f' % map[i] + '\t' + '%.3f' % medians[i] + '\t' + '%.3f' % p16[i] + '\t' '%.3f' % p84[i] + '\n')
     g.close()
 
 
@@ -191,7 +202,7 @@ def get_host_properties(result, host_dir, ebv):
     _, _, median, p16, p84 = np.loadtxt(os.path.join(host_dir, 'host_properties.txt'),
                dtype={'names': ('Parameter', 'MAP', 'median', 'p16', 'p84'),
                    'formats': (
-                       np.float, np.float, np.float, np.float, np.float)},
+                      'U10', np.float, np.float, np.float, np.float)},
                unpack=True, skiprows=1)
 
 
@@ -443,15 +454,15 @@ def host_sub_lc(tde_name, path, ebv):
         # Loading and plotting Swift data
         data_path = os.path.join(tde_dir, 'photometry', 'obs', str(band) + '.txt')
         if os.path.exists(data_path):
-            obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=1, unpack=True)
+            obsid, mjd, abmag, abmage, flu, flue = np.loadtxt(data_path, skiprows=2, unpack=True)
 
             # selecting model fluxes at the respective band
             host_band = host_bands == band_dic[band]
             band_wl = model_wl_c[host_band][0]
             host_flux = model_flux[host_band][0]
             host_flux_err = model_flux_err[host_band][0]
-            host_abmag = model_ab_mag[host_band][0]
-            host_abmage = model_ab_mag_err[host_band][0]
+            #host_abmag = model_ab_mag[host_band][0]
+            #host_abmage = model_ab_mag_err[host_band][0]
             # Subtracting host contribution from the light curve
             host_sub_flu = (flu - host_flux) / (10. ** (-0.4 * extcorr[band] * ebv))
 
@@ -465,7 +476,7 @@ def host_sub_lc(tde_name, path, ebv):
 
             is_pos_flux = host_sub_flu > 0
             host_sub_abmag[is_pos_flux] = tools.flux_to_mag(host_sub_flu[is_pos_flux], band_wl)
-            host_sub_abmag[~is_pos_flux] = -99
+            host_sub_abmag[~is_pos_flux] = -99.0
 
             #if (band == 'sw_w1') or (band == 'sw_m2') or (band == 'sw_w2'):
             host_sub_flue = np.sqrt(flue ** 2 + host_flux_err ** 2)
@@ -495,7 +506,7 @@ def host_sub_lc(tde_name, path, ebv):
                 pass
 
             g = open(write_path, 'w')
-            g.write('#Values corrected for Galactic extinction and free from host contribution\n')
+            g.write('#Values corrected for Galactic extinction\n')
             g.write(
                 'obsid' + '\t' + 'mjd' + '\t' + 'ab_mag' + '\t' + 'ab_mag_err' + '\t' + 'flux_dens' + '\t' + 'flux_dens_err' + '\t' + 'TDE/host' + '\n')
             for yy in range(len(mjd)):
@@ -507,7 +518,7 @@ def host_sub_lc(tde_name, path, ebv):
             g.close()
 
 
-def configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn, gal_ebv):
+def configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn, gal_ebv, add_agn):
     # Setting same paraters for the mcmc sampling
     run_params = {"object_redshift": z, "fixed_metallicity": False, "add_duste": True, "verbose": True,
                   "optimize": True, "emcee": True, "dynesty": False, "nwalkers": n_walkers, "niter": n_inter,
@@ -519,25 +530,29 @@ def configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn, gal_ebv
     sps = build_sps()
 
     # Instantiating model object
-    model = build_model(gal_ebv, object_redshift=z, init_theta=init_theta)
-
+    model = build_model(gal_ebv, add_agn=add_agn, object_redshift=z, init_theta=init_theta)
+    print(model)
+    print("\nInitial free parameter vector theta:\n  {}\n".format(model.theta))
+    print("Initial parameter dictionary:\n{}".format(model.params))
     return obs, sps, model, run_params
 
 
-def run_prospector(tde, n_cores=None, n_walkers=100, n_inter=2000, n_burn=1500, init_theta=None, show=True, read_only=False):
+def run_prospector(tde, n_cores=None, n_walkers=100, n_inter=2000, n_burn=1500, init_theta=None, add_agn=False, show=True, read_only=False):
     tde_name, path, z, gal_ebv = tde.name, tde.work_dir, float(tde.z), tde.ebv
     os.chdir(os.path.join(tde.host_dir))
 
     if init_theta is None:
         init_theta = [1e10, 0, 6, 1]
 
-    obs, sps, model, run_params = configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn, gal_ebv)
+
+
+    obs, sps, model, run_params = configure(tde_name, path, z, init_theta, n_walkers, n_inter, n_burn, gal_ebv, add_agn)
 
 
     if not read_only:
         print("Initial guess: {}".format(model.initial_theta))
         print('Sampling the the SPS grid..')
-        if  ('logzsol' in model.free_params):
+        if ('logzsol' in model.free_params):
             dummy_obs = dict(filters=None, wavelength=None)
 
             logzsol_prior = model.config_dict["logzsol"]['prior']
@@ -553,8 +568,7 @@ def run_prospector(tde, n_cores=None, n_walkers=100, n_inter=2000, n_burn=1500, 
         print('Starting posterior emcee sampling..')
 
         with Pool(int(n_cores)) as pool:
-            nprocs = n_cores
-            output = fit_model(obs, model, sps, pool=pool, queue_size=nprocs, lnprobfn=lnprobfn_fixed,
+            output = fit_model(obs, model, sps, pool=pool, queue_size=n_cores, lnprobfn=lnprobfn_fixed,
                                **run_params)
 
         # output = fit_model(obs, model, sps, lnprobfn=lnprobfn, **run_params)

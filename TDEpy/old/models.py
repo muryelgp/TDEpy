@@ -113,7 +113,7 @@ def Blackbody_var_T_gauss_rise_powerlaw_decay(t, single_color, wl, T_interval, t
     wl_array = np.tile(wl, (len(t), 1))
     T_t_array = np.tile(T_t, (len(wl), 1)).transpose()
 
-    blackbody_t_wl = ((np.pi * blackbody(10**T_t_array, wl_array)) / (sigma_sb.cgs * ((10**T_t_array * u.K) ** 4)).cgs).cgs.value
+    blackbody_t_wl = ((np.pi * blackbody(10**T_t_array, wl_array)) / (sigma.cgs * ((10**T_t_array * u.K) ** 4)).cgs).cgs.value
 
     model = 10**log_L_BB_peak * blackbody_t_wl * light_curve_shape
 
